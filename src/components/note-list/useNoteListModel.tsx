@@ -8,7 +8,7 @@ import type {
   ViewDefinition,
   ViewFile,
 } from '../../types'
-import type { AppLocale } from '../../lib/i18n'
+import { translate, type AppLocale } from '../../lib/i18n'
 import type { NoteListFilter, RelationshipGroup } from '../../utils/noteListHelpers'
 import { countByFilter, countAllByFilter, countAllNotesByFilter } from '../../utils/noteListHelpers'
 import type { AllNotesFileVisibility } from '../../utils/allNotesFileVisibility'
@@ -35,6 +35,7 @@ import { useChangesContextMenu } from './NoteListChangesMenu'
 import { useNoteListContextMenu } from './NoteListContextMenu'
 import { addNoteListSearchToggleListener, dispatchNoteListSearchAvailability } from '../../utils/noteListSearchEvents'
 import { useDateDisplayFormat } from '../../hooks/useAppPreferences'
+import { isPaperTypeName } from '../../paper/constants'
 
 type EntitySelection = Extract<SidebarSelection, { kind: 'entity' }>
 const LIKELY_NEXT_PRELOAD_LIMIT = 6
@@ -351,6 +352,7 @@ interface UseNoteListInteractionStateParams {
   onAutoTriggerDiff?: () => void
   onDiscardFile?: (relativePath: string) => Promise<void>
   onCreateNote: (type?: string, options?: ImmediateCreateOptions) => void
+  onImportPaperPdf?: () => void
   onBulkArchive?: (paths: string[]) => void
   onBulkDeletePermanently?: (paths: string[]) => void
   locale: AppLocale
@@ -383,6 +385,7 @@ function useNoteListInteractionState({
   onAutoTriggerDiff,
   onDiscardFile,
   onCreateNote,
+  onImportPaperPdf,
   onBulkArchive,
   onBulkDeletePermanently,
   locale,
@@ -429,6 +432,7 @@ function useNoteListInteractionState({
     onDiscardFile,
     openContextMenuForEntry: changesContextMenu.openContextMenuForEntry,
     onCreateNote,
+    onImportPaperPdf,
   })
   const getChangeStatus = useChangeStatusResolver(isChangesView, modifiedFiles)
   const {
@@ -603,6 +607,10 @@ function buildNoteListLayoutModel(params: {
     entitySelection: EntitySelection | null
   }
 }) {
+  const createActionLabel = params.selection.kind === 'sectionGroup' && isPaperTypeName(params.selection.type)
+    ? translate(params.locale, 'command.note.importPaperPdf')
+    : translate(params.locale, 'noteList.createNote')
+
   return {
     title: resolveHeaderTitle(params.selection, params.content.typeDocument, params.views, params.locale),
     loading: params.loading,
@@ -618,6 +626,7 @@ function buildNoteListLayoutModel(params: {
     isSearching: params.content.isSearching,
     searchInputRef: params.content.searchInputRef,
     propertyPicker: params.content.propertyPicker,
+    createActionLabel,
     handleSortChange: params.content.handleSortChange,
     handleCreateNote: params.interaction.handleCreateNote,
     onOpenType: params.onOpenType,
@@ -702,6 +711,7 @@ export function useNoteListModel({
   onDiscardFile,
   onAutoTriggerDiff,
   onOpenDeletedNote,
+  onImportPaperPdf,
   allNotesNoteListProperties,
   onUpdateAllNotesNoteListProperties,
   inboxNoteListProperties,
@@ -764,6 +774,7 @@ export function useNoteListModel({
     onAutoTriggerDiff,
     onDiscardFile,
     onCreateNote,
+    onImportPaperPdf,
     onBulkArchive,
     onBulkDeletePermanently,
     locale,

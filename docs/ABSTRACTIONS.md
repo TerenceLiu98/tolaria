@@ -306,6 +306,8 @@ papers/<paper-slug>/
 
 The root `paper.md` Type document defines the Papers sidebar section. Paper identity is stored in `paper_id`, not inferred from title text, and the current source PDF pointer is the `source_pdf` frontmatter field.
 
+`blocks.jsonl` is a line-oriented SourceBlock sidecar. Each line must include `id`, `paper_id`, `kind`, `page`, and `hash`; optional fields include `text`, `caption`, `bbox`, `section`, `order`, `source_asset`, `confidence`, and `parser`. Tolaria reads the file through active-vault-bound Tauri commands and reports missing, empty, and malformed sidecars as recoverable states instead of treating parser output as app database state.
+
 **UI behavior**:
 - Clicking a section group header pins the type document at the top of the NoteList if it exists
 - Viewing a type document in entity view shows an "Instances" group listing all entries of that type

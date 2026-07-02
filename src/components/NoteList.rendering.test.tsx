@@ -222,9 +222,27 @@ describe('NoteList rendering', () => {
   })
 
   it('passes the selected type when creating a note from a type section', () => {
-    const { onCreateNote } = renderNoteList({ selection: { kind: 'sectionGroup', type: 'Project' } })
+    const onImportPaperPdf = vi.fn()
+    const { onCreateNote } = renderNoteList({
+      selection: { kind: 'sectionGroup', type: 'Project' },
+      onImportPaperPdf,
+    })
     fireEvent.click(screen.getByTitle('Create new note'))
     expect(onCreateNote).toHaveBeenCalledWith('Project')
+    expect(onImportPaperPdf).not.toHaveBeenCalled()
+  })
+
+  it('routes the Paper section create action to Paper import', () => {
+    const onImportPaperPdf = vi.fn()
+    const { onCreateNote } = renderNoteList({
+      selection: { kind: 'sectionGroup', type: 'Paper' },
+      onImportPaperPdf,
+    })
+
+    fireEvent.click(screen.getByTitle('Import Paper PDF'))
+
+    expect(onImportPaperPdf).toHaveBeenCalledOnce()
+    expect(onCreateNote).not.toHaveBeenCalled()
   })
 
   it('creates an untyped note from all notes', () => {

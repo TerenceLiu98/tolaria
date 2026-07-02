@@ -49,6 +49,7 @@ interface NoteListHeaderProps {
   propertyPicker?: ListPropertiesPopoverProps | null
   gitRepositories?: GitRepositoryOption[]
   selectedGitRepositoryPath?: string
+  createActionLabel: string
   locale?: AppLocale
   onSortChange: (groupLabel: string, option: SortOption, direction: SortDirection) => void
   onCreateNote: () => void
@@ -166,6 +167,7 @@ function HeaderActions({
   listDirection,
   customProperties,
   propertyPicker,
+  createActionLabel,
   locale,
   onSortChange,
   onCreateNote,
@@ -177,6 +179,7 @@ function HeaderActions({
   | 'listDirection'
   | 'customProperties'
   | 'propertyPicker'
+  | 'createActionLabel'
   | 'locale'
   | 'onSortChange'
   | 'onCreateNote'
@@ -198,7 +201,7 @@ function HeaderActions({
           locale={locale}
         />
       )}
-      <Button type="button" variant="ghost" size="icon-xs" className={NOTE_LIST_ACTION_BUTTON_CLASSNAME} onClick={onCreateNote} title={translate(locale, 'noteList.createNote')} aria-label={translate(locale, 'noteList.createNote')}>
+      <Button type="button" variant="ghost" size="icon-xs" className={NOTE_LIST_ACTION_BUTTON_CLASSNAME} onClick={onCreateNote} title={createActionLabel} aria-label={createActionLabel}>
         <Plus size={16} />
       </Button>
     </div>
@@ -289,6 +292,7 @@ export function NoteListHeader({
   isSearching,
   searchInputRef,
   propertyPicker,
+  createActionLabel,
   gitRepositories = [],
   selectedGitRepositoryPath = '',
   locale = 'en',
@@ -321,6 +325,7 @@ export function NoteListHeader({
           listDirection={listDirection}
           customProperties={customProperties}
           propertyPicker={propertyPicker}
+          createActionLabel={createActionLabel}
           locale={locale}
           onSortChange={onSortChange}
           onCreateNote={onCreateNote}

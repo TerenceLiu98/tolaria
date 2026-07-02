@@ -23,6 +23,7 @@ import type { AllNotesFileVisibility } from '../../utils/allNotesFileVisibility'
 import { viewMatchesSelection } from '../../utils/viewIdentity'
 import { collectionFromSelection } from '../../collections/collectionFromSelection'
 import { resolveCollectionEntries } from '../../collections/resolveCollectionEntries'
+import { isPaperTypeName } from '../../paper/constants'
 
 // --- useTypeEntryMap ---
 
@@ -999,6 +1000,7 @@ interface UseNoteListInteractionsParams {
   onDiscardFile?: (relativePath: string) => Promise<void>
   openContextMenuForEntry: (entry: VaultEntry, point: { x: number; y: number }) => void
   onCreateNote: (type?: string, options?: ImmediateCreateOptions) => void
+  onImportPaperPdf?: () => void
 }
 
 function createNoteRequestForSelection(selection: SidebarSelection): {
@@ -1021,8 +1023,13 @@ function createNoteRequestForSelection(selection: SidebarSelection): {
 function createNoteForSelection(
   onCreateNote: (type?: string, options?: ImmediateCreateOptions) => void,
   selection: SidebarSelection,
+  onImportPaperPdf?: () => void,
 ): void {
   const request = createNoteRequestForSelection(selection)
+  if (isPaperTypeName(request.type)) {
+    onImportPaperPdf?.()
+    return
+  }
   if (request.options) {
     onCreateNote(request.type, request.options)
     return
@@ -1223,6 +1230,7 @@ export function useNoteListInteractions({
   onDiscardFile,
   openContextMenuForEntry,
   onCreateNote,
+  onImportPaperPdf,
 }: UseNoteListInteractionsParams) {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const { handleNeighborhoodOpen, multiSelect, noteListKeyboard } = useKeyboardInteractionState({
@@ -1263,8 +1271,8 @@ export function useNoteListInteractions({
   })
 
   const handleCreateNote = useCallback(() => {
-    createNoteForSelection(onCreateNote, selection)
-  }, [onCreateNote, selection])
+    createNoteForSelection(onCreateNote, selection, onImportPaperPdf)
+  }, [onCreateNote, onImportPaperPdf, selection])
 
   const toggleGroup = useCallback((label: string) => {
     setCollapsedGroups((prev) => toggleSetMember(prev, label))

@@ -268,6 +268,7 @@ function NoteListLayoutHeader({
   isSearching,
   searchInputRef,
   propertyPicker,
+  createActionLabel,
   handleSortChange,
   handleCreateNote,
   onOpenType,
@@ -293,6 +294,7 @@ function NoteListLayoutHeader({
   | 'isSearching'
   | 'searchInputRef'
   | 'propertyPicker'
+  | 'createActionLabel'
   | 'handleSortChange'
   | 'handleCreateNote'
   | 'onOpenType'
@@ -319,6 +321,7 @@ function NoteListLayoutHeader({
       isSearching={isSearching}
       searchInputRef={searchInputRef}
       propertyPicker={propertyPicker}
+      createActionLabel={createActionLabel}
       onSortChange={handleSortChange}
       onCreateNote={handleCreateNote}
       onOpenType={onOpenType}

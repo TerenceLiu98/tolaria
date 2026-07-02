@@ -116,6 +116,19 @@ describe('useCommandRegistry', () => {
     expect(onImportPaperPdf).toHaveBeenCalledOnce()
   })
 
+  it('does not generate a generic New Paper command from the Paper type', () => {
+    const onImportPaperPdf = vi.fn()
+    const config = makeConfig({
+      entries: [{ title: 'Paper', isA: 'Type', path: '/vault/paper.md' }],
+      onImportPaperPdf,
+    })
+    const { result } = renderHook(() => useCommandRegistry(config))
+
+    expect(findCommand(result.current, 'import-paper-pdf')).toBeDefined()
+    expect(findCommand(result.current, 'new-paper')).toBeUndefined()
+    expect(findCommand(result.current, 'list-paper')).toBeDefined()
+  })
+
   it('commit-push is enabled when modifiedCount > 0', () => {
     const config = makeConfig({ modifiedCount: 5 })
     const { result } = renderHook(() => useCommandRegistry(config))
@@ -1105,6 +1118,18 @@ describe('buildTypeCommands', () => {
 
     expect(commands.map(command => command.id)).toEqual([
       'list-note',
+      'new-project',
+      'list-project',
+    ])
+  })
+
+  it('omits generic Paper creation while keeping Paper navigation', () => {
+    const onCreateNoteOfType = vi.fn()
+    const onSelect = vi.fn()
+    const commands = buildTypeCommands(['Paper', 'Project'], onCreateNoteOfType, onSelect)
+
+    expect(commands.map(command => command.id)).toEqual([
+      'list-paper',
       'new-project',
       'list-project',
     ])

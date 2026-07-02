@@ -1,6 +1,7 @@
 import type { CommandAction } from './types'
 import type { SidebarSelection } from '../../types'
 import { canonicalizeTypeName } from '../../utils/vaultTypes'
+import { isPaperTypeName } from '../../paper/constants'
 
 const PLURAL_OVERRIDES: Record<string, string> = {
   Person: 'People',
@@ -28,7 +29,7 @@ export function buildTypeCommands(
     const plural = pluralizeType(canonicalType)
     const commands: CommandAction[] = []
 
-    if (!['note', 'type'].includes(canonicalType.toLowerCase())) {
+    if (!['note', 'type'].includes(canonicalType.toLowerCase()) && !isPaperTypeName(canonicalType)) {
       commands.push({
         id: `new-${slug}`, label: `New ${canonicalType}`, group: 'Note' as const,
         keywords: ['new', 'create', canonicalType.toLowerCase()],

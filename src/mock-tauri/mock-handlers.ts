@@ -16,6 +16,11 @@ import type {
 } from '../types'
 import { MOCK_CONTENT } from './mock-content'
 import { MOCK_ENTRIES } from './mock-entries'
+import {
+  findSourceBlockById,
+  parseSourceBlocksJsonl,
+  searchSourceBlocks,
+} from '../paper/sourceBlocks'
 
 function syncWindowContent(): void {
   if (typeof window !== 'undefined') {
@@ -330,6 +335,82 @@ annotations: annotations.jsonl
   }
 }
 
+function mockPaperBlocksPath(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const vaultPath = args.vaultPath ?? args.vault_path ?? mockLastVaultPath ?? DEFAULT_MOCK_VAULT_PATH
+  const paperId = args.paperId ?? args.paper_id ?? ''
+  return {
+    paperId,
+    path: `${vaultPath}/papers/${paperId}/blocks.jsonl`,
+  }
+}
+
+function structuredMockBlocksError({
+  lineErrors,
+  paperId,
+  path,
+}: {
+  lineErrors: ReturnType<typeof parseSourceBlocksJsonl>['errors']
+  paperId: string
+  path: string
+}) {
+  return {
+    kind: 'invalid_jsonl',
+    message: 'blocks.jsonl contains malformed SourceBlock lines',
+    paperId,
+    path,
+    lineErrors,
+  }
+}
+
+function handleReadPaperBlocks(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const { paperId, path } = mockPaperBlocksPath(args)
+  const content = Reflect.get(MOCK_CONTENT, path)
+  if (typeof content !== 'string') {
+    return { paperId, path, state: 'missing', blocks: [] }
+  }
+
+  const parsed = parseSourceBlocksJsonl(content)
+  if (parsed.errors.length > 0) throw structuredMockBlocksError({ lineErrors: parsed.errors, paperId, path })
+  return { paperId, path, state: parsed.state, blocks: parsed.blocks }
+}
+
+function handleReadPaperBlock(args: {
+  vaultPath?: string
+  vault_path?: string
+  paperId?: string
+  paper_id?: string
+  blockId?: string
+  block_id?: string
+}) {
+  const blockId = args.blockId ?? args.block_id ?? ''
+  const result = handleReadPaperBlocks(args)
+  return {
+    paperId: result.paperId,
+    blockId,
+    path: result.path,
+    state: result.state,
+    block: findSourceBlockById(result.blocks, blockId),
+  }
+}
+
+function handleSearchPaperBlocks(args: {
+  vaultPath?: string
+  vault_path?: string
+  paperId?: string
+  paper_id?: string
+  query?: string
+}) {
+  const query = args.query ?? ''
+  const result = handleReadPaperBlocks(args)
+  return {
+    paperId: result.paperId,
+    query,
+    path: result.path,
+    state: result.state,
+    blocks: searchSourceBlocks(result.blocks, query),
+  }
+}
+
 function replaceMockTitleFrontmatter({ content, newTitle }: { content: string; newTitle: string }) {
   return /^title:\s*/m.test(content)
     ? content.replace(/^title:\s*.*$/m, `title: ${newTitle}`)
@@ -538,6 +619,9 @@ export const mockHandlers: Record<string, (args: any) => any> = {
   reload_vault_entry: (args: { path: string }) => MOCK_ENTRIES.find(e => e.path === args.path) ?? { path: args.path, title: 'Unknown', filename: 'unknown.md', aliases: [], belongsTo: [], relatedTo: [], archived: false, snippet: '', wordCount: 0, fileSize: 0, relationships: {}, outgoingLinks: [], properties: {} },
   sync_note_title: () => false,
   import_paper_pdf: handleImportPaperPdf,
+  read_paper_blocks: handleReadPaperBlocks,
+  read_paper_block: handleReadPaperBlock,
+  search_paper_blocks: handleSearchPaperBlocks,
   get_note_content: (args: { path: string }) => MOCK_CONTENT[args.path] ?? '',
   validate_note_content: (args: { path: string; content: string }) => (MOCK_CONTENT[args.path] ?? '') === args.content,
   get_all_content: () => MOCK_CONTENT,
