@@ -14,6 +14,7 @@ type AiWorkspaceMode = 'docked' | 'side' | 'window'
 type AiWorkspaceTitleSource = 'generated' | 'manual'
 type NotePdfExportFailureReason = 'export_unavailable' | 'export_error'
 type NotePdfExportSource = 'breadcrumb' | 'app_command' | 'note_list_context_menu'
+type PaperImportSource = 'command_palette'
 type AnalyticsBoolean = boolean
 type AiAgentResponseText = string
 type AiAgentToolCount = number
@@ -73,6 +74,16 @@ export function trackNotePdfExportFailed(
   reason: NotePdfExportFailureReason,
 ): void {
   trackEvent('note_pdf_export_failed', { reason, source })
+}
+
+export function trackPaperImported(params: {
+  deduplicated: AnalyticsBoolean
+  source: PaperImportSource
+}): void {
+  trackEvent('paper_imported', {
+    deduplicated: numericFlag(params.deduplicated),
+    source: params.source,
+  })
 }
 
 export function trackAllNotesVisibilityChanged(

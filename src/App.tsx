@@ -63,6 +63,8 @@ import { useSavedViewOrdering } from './hooks/useSavedViewOrdering'
 import { useAppViewActions } from './hooks/useAppViewActions'
 import { useAppWindowControls } from './hooks/useAppWindowControls'
 import { useAiWorkspacePublishedContext } from './hooks/useAiWorkspacePublishedContext'
+import { usePaperImport } from './paper/usePaperImport'
+import type { ImportPaperPdfResult } from './paper/types'
 import {
   useNeighborhoodEntry,
   useNeighborhoodEscape,
@@ -535,6 +537,32 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     closeAllTabs,
     openTabWithContent,
   } = notes
+  const reloadVaultEntries = vault.reloadVault
+  const reloadVaultFolders = vault.reloadFolders
+  const handlePaperImported = useCallback(async (result: ImportPaperPdfResult) => {
+    markRecentVaultWrite(result.paperPath)
+    markRecentVaultWrite(result.sourcePdfPath)
+    const entries = await reloadVaultEntries()
+    await reloadVaultFolders()
+    await refreshGitModifiedFiles()
+    const importedPaper = entries.find((entry) => entry.path === result.paperPath)
+    if (!importedPaper) return
+    handleSetSelection({ kind: 'sectionGroup', type: 'Paper' })
+    await handleSelectNote(importedPaper)
+  }, [
+    handleSelectNote,
+    handleSetSelection,
+    markRecentVaultWrite,
+    refreshGitModifiedFiles,
+    reloadVaultEntries,
+    reloadVaultFolders,
+  ])
+  const importPaperPdf = usePaperImport({
+    locale: appLocale,
+    onImported: handlePaperImported,
+    onToast: setToastMessage,
+    vaultPath: resolvedPath,
+  })
   const noteActiveTabPath = notes.activeTabPath
   const noteActiveTabPathRef = notes.activeTabPathRef
   const refocusActiveEditor = useCallback((path: string) => {
@@ -1518,6 +1546,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     noteListColumnsLabel,
     onRestoreDeletedNote: restoreDeletedNoteCommand,
     canRestoreDeletedNote: !!activeDeletedFile,
+    onImportPaperPdf: resolvedPath ? importPaperPdf : undefined,
   })
 
   const {

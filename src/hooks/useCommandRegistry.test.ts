@@ -101,6 +101,21 @@ describe('useCommandRegistry', () => {
     expect(cmd!.keywords).toContain('merge')
   })
 
+  it('includes Paper PDF import command when an importer is provided', () => {
+    const onImportPaperPdf = vi.fn()
+    const config = makeConfig({ onImportPaperPdf })
+    const { result } = renderHook(() => useCommandRegistry(config))
+    const cmd = findCommand(result.current, 'import-paper-pdf')
+
+    expect(cmd).toBeDefined()
+    expect(cmd!.group).toBe('Note')
+    expect(cmd!.label).toBe('Import Paper PDF')
+    expect(cmd!.enabled).toBe(true)
+
+    cmd!.execute()
+    expect(onImportPaperPdf).toHaveBeenCalledOnce()
+  })
+
   it('commit-push is enabled when modifiedCount > 0', () => {
     const config = makeConfig({ modifiedCount: 5 })
     const { result } = renderHook(() => useCommandRegistry(config))

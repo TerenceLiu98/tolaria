@@ -12,6 +12,7 @@ import { buildGitCommands } from './commands/gitCommands'
 import { buildViewCommands } from './commands/viewCommands'
 import { buildSettingsCommands } from './commands/settingsCommands'
 import { buildAiAgentCommands } from './commands/aiAgentCommands'
+import { buildPaperCommands } from './commands/paperCommands'
 import { buildTypeCommands } from './commands/typeCommands'
 import { buildFilterCommands } from './commands/filterCommands'
 import { localizeCommandActions } from './commands/localizeCommands'
@@ -67,6 +68,7 @@ interface CommandRegistryConfig {
   noteListColumnsLabel?: string
   onRestoreDeletedNote?: () => void
   canRestoreDeletedNote?: boolean
+  onImportPaperPdf?: () => void
   onQuickOpen: () => void
   onCreateNote: (type?: string, options?: ImmediateCreateOptions) => void
   onCreateNoteOfType: (type: string) => void
@@ -172,6 +174,7 @@ export function useCommandRegistry(config: CommandRegistryConfig): import('./com
     onOpenInNewWindow, onRevealActiveFile, onCopyActiveFilePath, onCopyActiveDeepLink, onOpenActiveFileExternal, onExportNoteAsPdf, onToggleFavorite, onToggleOrganized,
     onCustomizeNoteListColumns, canCustomizeNoteListColumns,
     onRestoreDeletedNote, canRestoreDeletedNote,
+    onImportPaperPdf,
     selection, noteListFilter, onSetNoteListFilter,
     gitFeaturesEnabled, isGitVault, gitRepositories, onInitializeGit, onPullRepository,
   } = config
@@ -307,9 +310,14 @@ export function useCommandRegistry(config: CommandRegistryConfig): import('./com
     () => buildFilterCommands({ isSectionGroup, noteListFilter, onSetNoteListFilter }),
     [isSectionGroup, noteListFilter, onSetNoteListFilter],
   )
+  const paperCommands = useMemo(
+    () => buildPaperCommands({ onImportPaperPdf }),
+    [onImportPaperPdf],
+  )
   const commands = useMemo(() => [
     ...navigationCommands,
     ...noteCommands,
+    ...paperCommands,
     ...gitCommands,
     ...viewCommands,
     ...settingsCommands,
@@ -317,7 +325,7 @@ export function useCommandRegistry(config: CommandRegistryConfig): import('./com
     ...typeCommands,
     ...filterCommands,
   ], [
-    navigationCommands, noteCommands, gitCommands, viewCommands,
+    navigationCommands, noteCommands, paperCommands, gitCommands, viewCommands,
     settingsCommands, aiCommands, typeCommands, filterCommands,
   ])
 

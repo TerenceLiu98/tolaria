@@ -28,6 +28,7 @@ const STATIC_LABEL_KEYS: Partial<Record<string, TranslationKey>> = {
   'create-sheet': 'command.note.newSheet',
   'create-note-current-folder': 'command.note.newNoteInCurrentFolder',
   'create-type': 'command.note.newType',
+  'import-paper-pdf': 'command.note.importPaperPdf',
   'save-note': 'command.note.saveNote',
   'paste-plain-text': 'command.note.pastePlainText',
   'find-in-note': 'command.note.findInNote',

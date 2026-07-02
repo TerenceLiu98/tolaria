@@ -222,6 +222,114 @@ function buildRenamedMockPath({ oldPath, newTitle }: { oldPath: string; newTitle
   return `${parentDir}/${slugifyMockTitle({ title: newTitle })}.md`
 }
 
+function mockPaperTitleFromSource(sourcePath: string): string {
+  const filename = sourcePath.split(/[\\/]/u).pop() ?? 'Paper'
+  const stem = filename.replace(/\.[^.]+$/u, '')
+  const title = stem.split(/[^A-Za-z0-9]+/u).filter(Boolean).join(' ')
+  return title || 'Paper'
+}
+
+function mockPaperSlug(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'paper'
+}
+
+function nextMockPaperSlug(vaultPath: string, baseSlug: string): string {
+  let candidate = baseSlug
+  let suffix = 2
+  while (Object.hasOwn(MOCK_CONTENT, `${vaultPath}/papers/${candidate}/paper.md`)) {
+    candidate = `${baseSlug}-${suffix}`
+    suffix += 1
+  }
+  return candidate
+}
+
+function handleImportPaperPdf(args: { vaultPath?: string; vault_path?: string; sourcePath?: string; source_path?: string }) {
+  const vaultPath = args.vaultPath ?? args.vault_path ?? mockLastVaultPath ?? DEFAULT_MOCK_VAULT_PATH
+  const sourcePath = args.sourcePath ?? args.source_path ?? ''
+  if (!sourcePath.toLowerCase().endsWith('.pdf')) throw new Error('Only PDF files can be imported as Papers')
+
+  const title = mockPaperTitleFromSource(sourcePath)
+  const baseSlug = mockPaperSlug(title)
+  const paperId = nextMockPaperSlug(vaultPath, baseSlug)
+  const paperPath = `${vaultPath}/papers/${paperId}/paper.md`
+  const sourcePdfPath = `${vaultPath}/papers/${paperId}/source.pdf`
+  const blocksPath = `${vaultPath}/papers/${paperId}/blocks.jsonl`
+  const annotationsPath = `${vaultPath}/papers/${paperId}/annotations.jsonl`
+  const content = `---
+type: Paper
+paper_id: ${paperId}
+title: ${JSON.stringify(title)}
+status: imported
+parse_status: unparsed
+source_pdf: source.pdf
+blocks: blocks.jsonl
+annotations: annotations.jsonl
+---
+# ${title}
+
+## Summary
+
+## Key Claims
+
+## Questions
+`
+
+  writeMockContent({ path: paperPath, content })
+  if (!MOCK_ENTRIES.some((entry) => entry.path === paperPath)) {
+    const now = Math.floor(Date.now() / 1000)
+    MOCK_ENTRIES.push({
+      path: paperPath,
+      filename: 'paper.md',
+      title,
+      isA: 'Paper',
+      aliases: [],
+      belongsTo: [],
+      relatedTo: [],
+      status: 'imported',
+      archived: false,
+      modifiedAt: now,
+      createdAt: now,
+      fileSize: content.length,
+      snippet: '',
+      wordCount: 0,
+      relationships: {},
+      icon: null,
+      color: null,
+      order: null,
+      sidebarLabel: null,
+      template: null,
+      sort: null,
+      view: null,
+      visible: null,
+      properties: {
+        paper_id: paperId,
+        parse_status: 'unparsed',
+        source_pdf: 'source.pdf',
+        blocks: 'blocks.jsonl',
+        annotations: 'annotations.jsonl',
+      },
+      organized: false,
+      favorite: false,
+      favoriteIndex: null,
+      listPropertiesDisplay: [],
+      outgoingLinks: [],
+      hasH1: true,
+      fileKind: 'markdown',
+    })
+  }
+  syncWindowContent()
+  return {
+    paperId,
+    title,
+    paperPath,
+    sourcePdfPath,
+    blocksPath,
+    annotationsPath,
+    createdFiles: [`papers/${paperId}/source.pdf`, `papers/${paperId}/paper.md`],
+    deduplicated: paperId !== baseSlug,
+  }
+}
+
 function replaceMockTitleFrontmatter({ content, newTitle }: { content: string; newTitle: string }) {
   return /^title:\s*/m.test(content)
     ? content.replace(/^title:\s*.*$/m, `title: ${newTitle}`)
@@ -429,6 +537,7 @@ export const mockHandlers: Record<string, (args: any) => any> = {
   reload_vault: () => MOCK_ENTRIES,
   reload_vault_entry: (args: { path: string }) => MOCK_ENTRIES.find(e => e.path === args.path) ?? { path: args.path, title: 'Unknown', filename: 'unknown.md', aliases: [], belongsTo: [], relatedTo: [], archived: false, snippet: '', wordCount: 0, fileSize: 0, relationships: {}, outgoingLinks: [], properties: {} },
   sync_note_title: () => false,
+  import_paper_pdf: handleImportPaperPdf,
   get_note_content: (args: { path: string }) => MOCK_CONTENT[args.path] ?? '',
   validate_note_content: (args: { path: string; content: string }) => (MOCK_CONTENT[args.path] ?? '') === args.content,
   get_all_content: () => MOCK_CONTENT,
