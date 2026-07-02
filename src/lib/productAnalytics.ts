@@ -15,6 +15,7 @@ type AiWorkspaceTitleSource = 'generated' | 'manual'
 type NotePdfExportFailureReason = 'export_unavailable' | 'export_error'
 type NotePdfExportSource = 'breadcrumb' | 'app_command' | 'note_list_context_menu'
 type PaperImportSource = 'command_palette'
+type PaperReaderBlocksState = 'missing' | 'empty' | 'ready' | 'loading' | 'error' | 'unavailable'
 type AnalyticsBoolean = boolean
 type AiAgentResponseText = string
 type AiAgentToolCount = number
@@ -84,6 +85,14 @@ export function trackPaperImported(params: {
     deduplicated: numericFlag(params.deduplicated),
     source: params.source,
   })
+}
+
+export function trackPaperReaderOpened(blocksState: PaperReaderBlocksState): void {
+  trackEvent('paper_reader_opened', { blocks_state: blocksState })
+}
+
+export function trackPaperBlockCitationCopied(): void {
+  trackEvent('paper_block_citation_copied')
 }
 
 export function trackAllNotesVisibilityChanged(

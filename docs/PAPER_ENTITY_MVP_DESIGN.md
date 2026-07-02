@@ -67,4 +67,20 @@ The canonical parser lives in `src/paper/blockCitations.ts`. It preserves the ra
 
 Validation is resolver-based so the app can check citations against `blocks.jsonl` without introducing a Paper database. The current frontend validator reports malformed syntax, missing Paper ids, and missing block ids. Rendering starts with a lightweight Markdown token path: valid citations become clickable block-citation links, malformed closed citations render with a warning state, and raw Markdown mode still shows the original `@block[...]` syntax unchanged.
 
-Clicking a valid rendered citation records pending `{ paperId, blockId }` focus intent and opens the matching Paper entity when it is present in the vault index. Future Paper Reader work can consume the pending block focus to scroll or highlight the exact PDF/source block.
+Clicking a valid rendered citation records pending `{ paperId, blockId }` focus intent and opens the matching Paper entity when it is present in the vault index. The Phase 2C reader shell consumes that pending block focus to scroll/focus the matching SourceBlock row when the sidecar contains it.
+
+## Paper Reader Shell
+
+Phase 2C adds the first Paper Reader surface without changing the underlying files-first model. Opening a `type: Paper` entity renders `src/paper/PaperReaderShell.tsx` inside the existing editor content area instead of mounting the generic rich-note editor. Raw mode still shows the original `paper.md` Markdown unchanged.
+
+The reader shell displays:
+
+- Paper metadata parsed from `paper.md`.
+- `source_pdf` status and the existing `FilePreview` view for the resolved source PDF path.
+- `blocks.jsonl` load state: loading, missing, empty, ready, or error.
+- Block count and current selected block id.
+- A simple SourceBlock outline loaded through the Phase 2A `read_paper_blocks` command.
+
+Block interaction remains intentionally minimal. Selecting a block only focuses the outline row, and the copy action uses the canonical Phase 2B formatter to write `@block[paper_id#block_id]` to the clipboard. Citation navigation consumes the pending `{ paperId, blockId }` request from `src/paper/blockCitationNavigation.ts`, opens the Paper entity, and scrolls/focuses the requested SourceBlock row when the sidecar has that id.
+
+The reader does not write `source.pdf`, `paper.md`, or sidecars. Missing and empty sidecars render recoverable states; malformed sidecars render structured line errors from the existing sidecar reader. PDF page-coordinate overlays, annotations, parser integration, AI Ask, memory compilation, and graph UI remain out of scope for this phase.

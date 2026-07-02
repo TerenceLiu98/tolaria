@@ -958,5 +958,22 @@
   "locale.beLatn": "Tiếng Belarus (Latinh)",
   "locale.idID": "Tiếng Indonesia",
   "locale.ukUA": "Tiếng Ukraina",
-  "locale.svSE": "Tiếng Thụy Điển"
+  "locale.svSE": "Tiếng Thụy Điển",
+  "paper.reader.paper": "Paper",
+  "paper.reader.sourcePdfStatus": "source_pdf: {status}",
+  "paper.reader.statusConfigured": "configured",
+  "paper.reader.statusMissing": "missing",
+  "paper.reader.blocksStatus": "blocks.jsonl: {status}",
+  "paper.reader.blocksCount": "{count} blocks",
+  "paper.reader.paperId": "paper_id",
+  "paper.reader.parseStatus": "parse_status",
+  "paper.reader.blocksField": "blocks",
+  "paper.reader.selectedBlock": "selected_block",
+  "paper.reader.none": "none",
+  "paper.reader.blocksLoading": "blocks.jsonl loading",
+  "paper.reader.blocksError": "blocks.jsonl error",
+  "paper.reader.blocksMissing": "blocks.jsonl missing",
+  "paper.reader.blocksEmpty": "blocks.jsonl empty",
+  "paper.reader.blocksJsonl": "blocks.jsonl",
+  "paper.reader.metadataUnavailable": "Paper metadata unavailable"
 }

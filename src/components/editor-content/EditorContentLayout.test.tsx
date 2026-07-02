@@ -44,6 +44,12 @@ vi.mock('../SingleEditorView', () => ({
   SingleEditorView: () => <div data-testid="single-editor-view" />,
 }))
 
+vi.mock('../../paper/PaperReaderShell', () => ({
+  PaperReaderShell: ({ content, entry }: { content: string; entry: { path: string } }) => (
+    <div data-testid="paper-reader-shell" data-content={content} data-path={entry.path} />
+  ),
+}))
+
 vi.mock('../DiffView', () => ({
   DiffView: () => <div data-testid="diff-view" />,
 }))
@@ -215,5 +221,32 @@ describe('EditorContentLayout', () => {
       'editor-scroll-area--sheet',
     )
     expect(findScope).toHaveStyle({ '--editor-accent': '#155dff' })
+  })
+
+  it('routes Paper entries to the Paper Reader shell instead of the rich editor', () => {
+    render(<EditorContentLayout {...createModel({
+      activeTab: {
+        entry: {
+          path: '/vault/papers/attention/paper.md',
+          filename: 'paper.md',
+          title: 'Attention Is All You Need',
+          isA: 'Paper',
+          fileKind: 'markdown',
+        },
+        content: [
+          '---',
+          'type: Paper',
+          'paper_id: attention',
+          'title: Attention Is All You Need',
+          'source_pdf: source.pdf',
+          '---',
+          '',
+        ].join('\n'),
+      },
+    })} />)
+
+    expect(screen.getByTestId('paper-reader-shell')).toHaveAttribute('data-path', '/vault/papers/attention/paper.md')
+    expect(screen.queryByTestId('single-editor-view')).not.toBeInTheDocument()
+    expect(screen.getByTestId('paper-reader-shell').closest('.editor-content-wrapper')).toBeNull()
   })
 })

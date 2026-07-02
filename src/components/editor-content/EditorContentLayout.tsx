@@ -11,6 +11,8 @@ import { ArchivedNoteBanner } from '../ArchivedNoteBanner'
 import { ConflictNoteBanner } from '../ConflictNoteBanner'
 import { RawEditorView } from '../RawEditorView'
 import { SingleEditorView } from '../SingleEditorView'
+import { PaperReaderShell } from '../../paper/PaperReaderShell'
+import { shouldOpenPaperReader } from '../../paper/paperReaderModel'
 import type { useEditorContentModel } from './useEditorContentModel'
 
 type EditorContentModel = ReturnType<typeof useEditorContentModel>
@@ -357,6 +359,9 @@ function EditorCanvas({
   entries,
   onNavigateWikilink,
   onEditorChange,
+  onCopyFilePath,
+  onOpenExternalFile,
+  onRevealFile,
   onRawContentChange,
   sheetFlushRef,
   isDeletedPreview,
@@ -378,9 +383,32 @@ function EditorCanvas({
   | 'isDeletedPreview'
   | 'vaultPath'
   | 'locale'
+  | 'onCopyFilePath'
+  | 'onOpenExternalFile'
+  | 'onRevealFile'
 >) {
   if (!showEditor) return null
   if (!isSheet && !richEditorContentReady) return null
+
+  if (activeTab && shouldOpenPaperReader(activeTab.entry)) {
+    return (
+      <EditorFindScope
+        className="editor-scroll-area"
+        style={cssVars as React.CSSProperties}
+      >
+        <PaperReaderShell
+          key={activeTab.entry.path}
+          entry={activeTab.entry}
+          content={activeTab.content}
+          vaultPath={vaultPath}
+          locale={locale}
+          onCopyFilePath={onCopyFilePath}
+          onOpenExternalFile={onOpenExternalFile}
+          onRevealFile={onRevealFile}
+        />
+      </EditorFindScope>
+    )
+  }
 
   if (isSheet && activeTab) {
     return (
@@ -486,6 +514,9 @@ export function EditorContentLayout(model: EditorContentModel) {
     cssVars,
     onNavigateWikilink,
     onEditorChange,
+    onCopyFilePath,
+    onOpenExternalFile,
+    onRevealFile,
     isDeletedPreview,
     rawLatestContentRef,
     rawModeContent,
@@ -554,6 +585,9 @@ export function EditorContentLayout(model: EditorContentModel) {
             entries={entries}
             onNavigateWikilink={onNavigateWikilink}
             onEditorChange={onEditorChange}
+            onCopyFilePath={onCopyFilePath}
+            onOpenExternalFile={onOpenExternalFile}
+            onRevealFile={onRevealFile}
             onRawContentChange={onRawContentChange}
             sheetFlushRef={sheetFlushRef}
             isDeletedPreview={isDeletedPreview}

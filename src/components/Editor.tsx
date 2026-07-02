@@ -592,6 +592,7 @@ function EditorLayout({
               onEnterNeighborhood={onEnterNeighborhood}
               onRevealFile={onRevealFile}
               onCopyFilePath={onCopyFilePath}
+              onOpenExternalFile={onOpenExternalFile}
               onCopyDeepLink={onCopyDeepLink}
               onCopyGitUrl={onCopyGitUrl}
               onExportPdf={() => onExportPdf?.('breadcrumb')}

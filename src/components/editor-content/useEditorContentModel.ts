@@ -43,6 +43,7 @@ export interface EditorContentProps {
   onEnterNeighborhood?: (entry: VaultEntry) => void
   onRevealFile?: (path: string) => void
   onCopyFilePath?: (path: string) => void
+  onOpenExternalFile?: (path: string) => void
   onCopyDeepLink?: (entry: VaultEntry) => void
   onCopyGitUrl?: (entry: VaultEntry) => void
   onExportPdf?: () => void

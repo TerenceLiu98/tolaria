@@ -315,7 +315,9 @@ Block citations are durable Markdown tokens, not editor-only objects:
 @block[paper_id#block_id "Display label"]
 ```
 
-`src/paper/blockCitations.ts` owns parsing, formatting, and resolver-based validation. It preserves raw ranges for round-trip safety, skips inline/fenced code, and reports malformed tokens as validation issues. `MarkdownContent` can render valid tokens as clickable citation links and malformed closed tokens as warning chips. Clicking records pending block focus through `src/paper/blockCitationNavigation.ts` and opens the matching Paper entity when the vault index contains one; block-level scroll/highlight remains a future Paper Reader responsibility.
+`src/paper/blockCitations.ts` owns parsing, formatting, and resolver-based validation. It preserves raw ranges for round-trip safety, skips inline/fenced code, and reports malformed tokens as validation issues. `MarkdownContent` can render valid tokens as clickable citation links and malformed closed tokens as warning chips. Clicking records pending block focus through `src/paper/blockCitationNavigation.ts` and opens the matching Paper entity when the vault index contains one.
+
+`src/paper/PaperReaderShell.tsx` is the minimal reader projection for Paper entries. It parses `paper.md` metadata, reads SourceBlocks through the `blocks.jsonl` command boundary, embeds the resolved `source.pdf` through the existing file preview path, and renders missing/empty/malformed sidecars as recoverable states. Block selection is local UI state; copying citations uses the canonical formatter, and pending citation navigation focuses the matching outline row when available. PDF block overlays and annotations are separate future surfaces, not part of the Paper entity model.
 
 **UI behavior**:
 - Clicking a section group header pins the type document at the top of the NoteList if it exists
