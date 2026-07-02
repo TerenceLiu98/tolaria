@@ -67,6 +67,8 @@ import { usePaperImport } from './paper/usePaperImport'
 import { useBlockCitationNavigation } from './paper/useBlockCitationNavigation'
 import { createOrOpenPaperMarginalia } from './paper/marginalia'
 import { paperMetadataForReader } from './paper/paperReaderModel'
+import { parsePaper } from './paper/parser'
+import { normalizePaperParserSettings } from './paper/parserSettings'
 import type { ImportPaperPdfResult } from './paper/types'
 import {
   useNeighborhoodEntry,
@@ -93,7 +95,12 @@ import { openNoteListPropertiesPicker } from './components/note-list/noteListPro
 import type { NoteListMultiSelectionCommands } from './components/note-list/multiSelectionCommands'
 import { focusNoteIconPropertyEditor } from './components/noteIconPropertyEvents'
 import { trackEvent } from './lib/telemetry'
-import { trackPaperMarginaliaOpened } from './lib/productAnalytics'
+import {
+  trackPaperMarginaliaOpened,
+  trackPaperParseCompleted,
+  trackPaperParseFailed,
+  trackPaperParseRequested,
+} from './lib/productAnalytics'
 import { areAutomaticUpdateChecksEnabled } from './lib/automaticUpdateChecks'
 import { areAiFeaturesEnabled } from './lib/aiFeatures'
 import { aiTargetReady, type AiTarget } from './lib/aiTargets'
@@ -121,6 +128,7 @@ import {
 } from './utils/workspaces'
 import { activeGitRepositories } from './utils/gitRepositories'
 import { isMarkdownEntry } from './utils/typeDefinitions'
+import { findByNotePath, notePathsMatch } from './utils/notePathIdentity'
 import { resolveTypeDeleteRequest, typeDeleteBlockedMessageKey } from './utils/typeDeletion'
 import { useVisibleWorkspaceEntries, useWorkspaceGraphState } from './hooks/useWorkspaceGraphState'
 import { useGitSetupState } from './hooks/useGitSetupState'
@@ -157,6 +165,20 @@ declare global {
 }
 
 const DEFAULT_SELECTION: SidebarSelection = INBOX_SELECTION
+
+function appErrorMessage(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+    return error.message
+  }
+  return error instanceof Error ? error.message : String(error)
+}
+
+function appErrorReason(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'kind' in error && typeof error.kind === 'string') {
+    return error.kind
+  }
+  return error instanceof Error ? error.name : 'error'
+}
 
 /** Wraps useEditorSave to also keep outgoingLinks in sync on save and on content change. */
 function App() {
@@ -1485,10 +1507,55 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     vaults: vaultSwitcher.allVaults,
   })
   const activeEditorVaultPath = activeTab ? vaultPathForEntry(activeTab.entry, resolvedPath) : resolvedPath
+  const paperParserSettings = useMemo(() => normalizePaperParserSettings(settings), [settings])
+  const parsePaperActiveTabPathRef = notes.activeTabPathRef
+  const replaceActiveTabAfterParse = notes.handleReplaceActiveTab
+  const handleParsePaperFromReader = useCallback(async (paperId: string) => {
+    trackPaperParseRequested(paperParserSettings.provider)
+
+    try {
+      if (!activeEditorVaultPath) {
+        throw new Error(translate(appLocale, 'save.toast.missingActiveVault'))
+      }
+
+      const result = await parsePaper(activeEditorVaultPath, paperId, settings)
+      markRecentVaultWrite(result.blocksPath)
+      markRecentVaultWrite(result.paperPath)
+      const entries = await reloadVaultEntries()
+      const updatedPaperEntry = findByNotePath(entries, result.paperPath)
+      if (updatedPaperEntry && notePathsMatch(parsePaperActiveTabPathRef.current, result.paperPath)) {
+        await replaceActiveTabAfterParse(updatedPaperEntry)
+      }
+      await refreshGitModifiedFiles()
+      trackPaperParseCompleted(result.provider, result.blocks.length)
+      setToastMessage(translate(appLocale, 'paper.parse.success', { count: result.blocks.length }))
+    } catch (error: unknown) {
+      const message = appErrorMessage(error)
+      trackPaperParseFailed(paperParserSettings.provider, appErrorReason(error))
+      setToastMessage(translate(appLocale, 'paper.parse.failure', { error: message }))
+      throw error
+    }
+  }, [
+    activeEditorVaultPath,
+    appLocale,
+    markRecentVaultWrite,
+    paperParserSettings.provider,
+    parsePaperActiveTabPathRef,
+    refreshGitModifiedFiles,
+    replaceActiveTabAfterParse,
+    reloadVaultEntries,
+    settings,
+  ])
   const openPaperNotePathFromEditor = useCallback(
     (path: string) => openPaperNotePath(path, activeEditorVaultPath),
     [activeEditorVaultPath, openPaperNotePath],
   )
+  const handleParseActivePaperCommand = useCallback(() => {
+    if (!activeTab || activeTab.entry.isA !== 'Paper') return
+    const metadata = paperMetadataForReader(activeTab.content)
+    if (!metadata) return
+    void handleParsePaperFromReader(metadata.paperId)
+  }, [activeTab, handleParsePaperFromReader])
   const noteGitUrls = useNoteGitUrls({
     currentVaultPath: resolvedPath,
     locale: appLocale,
@@ -1606,6 +1673,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     onRestoreDeletedNote: restoreDeletedNoteCommand,
     canRestoreDeletedNote: !!activeDeletedFile,
     onImportPaperPdf: resolvedPath ? importPaperPdf : undefined,
+    onParsePaper: activeTab?.entry.isA === 'Paper' ? handleParseActivePaperCommand : undefined,
   })
 
   const {
@@ -1768,6 +1836,8 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
               onCopyGitUrl={activeDeletedFile || !activeTabEntry || !noteGitUrls.canCopyEntryGitUrl(activeTabEntry) ? undefined : noteGitUrls.copyEntryGitUrl}
               onOpenExternalFile={fileActions.openExternalFile}
               onOpenPaperNote={activeDeletedFile ? undefined : openPaperNotePathFromEditor}
+              onParsePaper={activeDeletedFile ? undefined : handleParsePaperFromReader}
+              paperParserProvider={paperParserSettings.provider}
               onDeleteNote={activeDeletedFile ? undefined : deleteActions.handleDeleteNote}
               onArchiveNote={activeDeletedFile ? undefined : entryActions.handleArchiveNote}
               onUnarchiveNote={activeDeletedFile ? undefined : entryActions.handleUnarchiveNote}

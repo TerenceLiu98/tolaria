@@ -4,6 +4,7 @@ import type { AiModelProvider } from './lib/aiTargets'
 import type { ThemeMode } from './lib/themeMode'
 import type { AppLocale } from './lib/i18n'
 import type { DateDisplayFormat } from './utils/dateDisplay'
+import type { PaperParserProvider } from './paper/parserSettings'
 
 export type VaultPropertyScalar = string | number | boolean | null
 export type VaultPropertyArray = Array<string | number | boolean>
@@ -140,6 +141,8 @@ export interface Settings {
   default_ai_target?: string | null
   ai_model_providers?: AiModelProvider[] | null
   ai_workspace_conversations?: AiWorkspaceConversationSetting[] | null
+  paper_parser_provider?: PaperParserProvider | null
+  paper_parser_mineru_token_ref?: string | null
   hide_gitignored_files?: boolean | null
   all_notes_show_pdfs?: boolean | null
   all_notes_show_images?: boolean | null

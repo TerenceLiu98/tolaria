@@ -11,10 +11,23 @@ export interface MarginaliaActionResult {
   path: string
 }
 
+export type MarginaliaReadState = 'missing' | 'ready'
+
+export interface MarginaliaReadResult {
+  content: string
+  path: string
+  state: MarginaliaReadState
+}
+
 interface MarginaliaTemplateInput {
   initialCitation?: string
   paperPath: string
   paperTitle: string
+}
+
+interface MarginaliaReadInput {
+  paperPath: string
+  vaultPath?: string
 }
 
 interface MarginaliaCommandInput extends MarginaliaTemplateInput {
@@ -59,6 +72,16 @@ function invokeNoteCommand<T>(command: string, request: NoteContentRequest): Pro
 function isAlreadyExistsError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
   return /already exists|file exists|eexist/i.test(message)
+}
+
+function isMissingNoteError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /does not exist|not found|enoent|no such file/i.test(message)
+}
+
+function mockContentHasPath(path: string): boolean {
+  if (isTauri() || typeof window === 'undefined') return true
+  return Boolean(window.__mockContent && Object.hasOwn(window.__mockContent, path))
 }
 
 export function defaultMarginaliaPathForPaper(paperPath: string): string {
@@ -118,6 +141,18 @@ export function buildMarginaliaTemplate({
 export function appendBlockCitationToMarginalia(content: string, citation: string): string {
   const separator = content.endsWith('\n') ? '\n' : '\n\n'
   return `${content}${separator}- ${citation}\n`
+}
+
+export async function readPaperMarginalia(input: MarginaliaReadInput): Promise<MarginaliaReadResult> {
+  const path = defaultMarginaliaPathForPaper(input.paperPath)
+  try {
+    const content = await invokeNoteCommand<string>('get_note_content', { path, vaultPath: input.vaultPath })
+    if (content === '' && !mockContentHasPath(path)) return { content: '', path, state: 'missing' }
+    return { content, path, state: 'ready' }
+  } catch (error) {
+    if (isMissingNoteError(error)) return { content: '', path, state: 'missing' }
+    throw error
+  }
 }
 
 export async function createOrOpenPaperMarginalia(input: MarginaliaCommandInput): Promise<MarginaliaActionResult> {

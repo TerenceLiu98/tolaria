@@ -7,6 +7,7 @@ import {
   createOrOpenPaperMarginalia,
   defaultMarginaliaPathForPaper,
   paperWikilinkForPaperPath,
+  readPaperMarginalia,
   uniqueMarginaliaPathForPaper,
 } from './marginalia'
 
@@ -89,6 +90,25 @@ describe('paper marginalia conventions', () => {
 
     expect(result).toEqual({ created: false, path: marginaliaPath })
     expect(MOCK_CONTENT[marginaliaPath]).toBe('# Existing marginalia\n')
+  })
+
+  it('reads existing marginalia content for preview panes', async () => {
+    MOCK_CONTENT[marginaliaPath] = '# Existing marginalia\n\nA note.'
+
+    await expect(readPaperMarginalia({ paperPath, vaultPath: '/vault' })).resolves.toEqual({
+      content: '# Existing marginalia\n\nA note.',
+      path: marginaliaPath,
+      state: 'ready',
+    })
+  })
+
+  it('reports missing marginalia without creating it', async () => {
+    await expect(readPaperMarginalia({ paperPath, vaultPath: '/vault' })).resolves.toEqual({
+      content: '',
+      path: marginaliaPath,
+      state: 'missing',
+    })
+    expect(Object.hasOwn(MOCK_CONTENT, marginaliaPath)).toBe(false)
   })
 
   it('creates a marginalia note with the selected block citation when none exists', async () => {

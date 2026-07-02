@@ -1,6 +1,7 @@
 mod annotations;
 mod blocks;
 mod import;
+mod parse;
 pub mod paths;
 
 pub use annotations::{
@@ -15,3 +16,7 @@ pub use blocks::{
     PaperBlocksReadResult, PaperBlocksState, SourceBlock,
 };
 pub use import::{import_paper_pdf, ImportPaperPdfResult};
+pub use parse::{
+    parse_paper_bundle, PaperAsset, PaperParseError, PaperParseResult, PaperParseWarning,
+    PaperParserProvider, PaperParserSettings,
+};

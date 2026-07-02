@@ -212,3 +212,5 @@ proposed → active → superseded
 | [0151](0151-paper-sidecar-files.md) | Paper sidecar files | active |
 | [0152](0152-block-citation-markdown-syntax.md) | Block citation Markdown syntax | active |
 | [0153](0153-paper-local-marginalia-research-notes.md) | Paper-local marginalia ResearchNotes | active |
+| [0154](0154-paper-parser-provider-boundary.md) | Paper parser provider boundary | active |
+| [0155](0155-mineru-parser-provider-integration.md) | MinerU parser provider integration | active |

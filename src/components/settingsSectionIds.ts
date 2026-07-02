@@ -4,6 +4,7 @@ export const SETTINGS_SECTION_IDS = {
   autogit: 'settings-section-autogit',
   appearance: 'settings-section-appearance',
   content: 'settings-section-content',
+  parser: 'settings-section-parser',
   ai: 'settings-section-ai',
   workflow: 'settings-section-workflow',
   privacy: 'settings-section-privacy',

@@ -16,6 +16,8 @@ type NotePdfExportFailureReason = 'export_unavailable' | 'export_error'
 type NotePdfExportSource = 'breadcrumb' | 'app_command' | 'note_list_context_menu'
 type PaperImportSource = 'command_palette'
 type PaperReaderBlocksState = 'missing' | 'empty' | 'ready' | 'loading' | 'error' | 'unavailable'
+type PaperReaderMode = 'read' | 'marginalia'
+type PaperParserProvider = 'none' | 'dev-fixture' | 'mineru'
 type PaperAnnotationActionKind = 'highlight' | 'underline' | 'question' | 'comment' | 'bookmark'
 type PaperAnnotationActionColor = 'questioning' | 'important' | 'original' | 'pending' | 'conclusion'
 type AnalyticsBoolean = boolean
@@ -91,6 +93,28 @@ export function trackPaperImported(params: {
 
 export function trackPaperReaderOpened(blocksState: PaperReaderBlocksState): void {
   trackEvent('paper_reader_opened', { blocks_state: blocksState })
+}
+
+export function trackPaperReaderModeChanged(mode: PaperReaderMode): void {
+  trackEvent('paper_reader_mode_changed', { mode })
+}
+
+export function trackPaperParseRequested(provider: PaperParserProvider): void {
+  trackEvent('paper_parse_requested', { provider })
+}
+
+export function trackPaperParseCompleted(provider: PaperParserProvider, blockCount: number): void {
+  trackEvent('paper_parse_completed', {
+    block_count: blockCount,
+    provider,
+  })
+}
+
+export function trackPaperParseFailed(provider: PaperParserProvider, reason: string): void {
+  trackEvent('paper_parse_failed', {
+    provider,
+    reason,
+  })
 }
 
 export function trackPaperBlockCitationCopied(): void {

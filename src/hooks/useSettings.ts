@@ -15,6 +15,7 @@ import { normalizeDateDisplayFormat } from '../utils/dateDisplay'
 import { DEFAULT_THEME_MODE, normalizeThemeMode, type ThemeMode } from '../lib/themeMode'
 import type { Settings } from '../types'
 import { normalizeNoteWidthMode } from '../utils/noteWidth'
+import { normalizePaperParserSettings } from '../paper/parserSettings'
 
 type UnknownRecord = Record<string, unknown>
 type AiWorkspaceConversationSetting = NonNullable<Settings['ai_workspace_conversations']>[number]
@@ -60,6 +61,8 @@ const EMPTY_SETTINGS: Settings = {
   default_ai_target: null,
   ai_model_providers: null,
   ai_workspace_conversations: null,
+  paper_parser_provider: null,
+  paper_parser_mineru_token_ref: null,
   hide_gitignored_files: null,
   all_notes_show_pdfs: null,
   all_notes_show_images: null,
@@ -69,6 +72,7 @@ const EMPTY_SETTINGS: Settings = {
 
 function normalizeSettings(settings: Settings): Settings {
   const aiModelProviders = normalizeAiModelProviders(settings.ai_model_providers)
+  const paperParserSettings = normalizePaperParserSettings(settings)
 
   return {
     ...settings,
@@ -87,6 +91,8 @@ function normalizeSettings(settings: Settings): Settings {
     default_ai_target: settings.default_ai_target?.trim() || null,
     ai_model_providers: aiModelProviders.length > 0 ? aiModelProviders : null,
     ai_workspace_conversations: normalizeAiWorkspaceConversations(settings.ai_workspace_conversations),
+    paper_parser_provider: paperParserSettings.provider === 'none' ? null : paperParserSettings.provider,
+    paper_parser_mineru_token_ref: paperParserSettings.mineruTokenRef,
     hide_gitignored_files: settings.hide_gitignored_files ?? null,
     all_notes_show_pdfs: settings.all_notes_show_pdfs ?? null,
     all_notes_show_images: settings.all_notes_show_images ?? null,

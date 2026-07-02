@@ -12,6 +12,7 @@ export interface PaperMetadata {
   annotations: string
   status: string | null
   parseStatus: PaperParseStatus | string | null
+  parseError: string | null
   year: number | null
 }
 
@@ -56,6 +57,7 @@ export function parsePaperMetadata(content: string | null): PaperMetadata | null
     annotations: stringValue(frontmatter.annotations) ?? 'annotations.jsonl',
     status: stringValue(frontmatter.status),
     parseStatus: stringValue(frontmatter.parse_status),
+    parseError: stringValue(frontmatter.parse_error),
     year: numberValue(frontmatter.year),
   }
 }

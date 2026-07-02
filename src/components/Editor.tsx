@@ -9,6 +9,7 @@ import type { AiTarget } from '../lib/aiTargets'
 import { translate, type AppLocale } from '../lib/i18n'
 import { RUNTIME_STYLE_NONCE } from '../lib/runtimeStyleNonce'
 import type { VaultEntry, GitCommit, NoteWidthMode, NoteStatus, WorkspaceIdentity } from '../types'
+import type { PaperParserProvider } from '../paper/parserSettings'
 import type { NoteListItem } from '../utils/ai-context'
 import type { FrontmatterValue } from './Inspector'
 import type { FrontmatterOpOptions } from '../hooks/frontmatterOps'
@@ -110,6 +111,8 @@ interface EditorProps {
   onCopyGitUrl?: (entry: VaultEntry) => void
   onOpenExternalFile?: (path: string) => void
   onOpenPaperNote?: (path: string) => void | Promise<void>
+  onParsePaper?: (paperId: string) => void | Promise<void>
+  paperParserProvider?: PaperParserProvider
   onDeleteNote?: (path: string) => void
   onArchiveNote?: (path: string) => void
   onUnarchiveNote?: (path: string) => void
@@ -425,6 +428,8 @@ function EditorLayout({
   onExportPdf,
   onOpenExternalFile,
   onOpenPaperNote,
+  onParsePaper,
+  paperParserProvider,
   onDeleteNote,
   onArchiveNote,
   onUnarchiveNote,
@@ -597,6 +602,8 @@ function EditorLayout({
               onCopyFilePath={onCopyFilePath}
               onOpenExternalFile={onOpenExternalFile}
               onOpenPaperNote={onOpenPaperNote}
+              onParsePaper={onParsePaper}
+              paperParserProvider={paperParserProvider}
               onCopyDeepLink={onCopyDeepLink}
               onCopyGitUrl={onCopyGitUrl}
               onExportPdf={() => onExportPdf?.('breadcrumb')}

@@ -184,6 +184,25 @@ describe('useCommandRegistry', () => {
     expect(onOpenPaperMarginalia).toHaveBeenCalledOnce()
   })
 
+  it('includes a Parse Current Paper command for the active Paper entry', () => {
+    const onParsePaper = vi.fn()
+    const config = makeConfig({
+      activeTabPath: '/vault/papers/attention/paper.md',
+      entries: [paperEntry()],
+      onParsePaper,
+    })
+    const { result } = renderHook(() => useCommandRegistry(config))
+    const cmd = findCommand(result.current, 'parse-current-paper')
+
+    expect(cmd).toBeDefined()
+    expect(cmd!.group).toBe('Note')
+    expect(cmd!.label).toBe('Parse Current Paper')
+    expect(cmd!.enabled).toBe(true)
+
+    cmd!.execute()
+    expect(onParsePaper).toHaveBeenCalledOnce()
+  })
+
   it('disables the Paper marginalia command for non-Paper entries', () => {
     const onOpenPaperMarginalia = vi.fn()
     const config = makeConfig({

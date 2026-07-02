@@ -1,4 +1,4 @@
-import { Article, ArrowsClockwise as RefreshCw, Cube, GitBranch, ListChecks, Palette, Robot as Bot, ShieldCheck, type IconProps } from '@phosphor-icons/react'
+import { Article, ArrowsClockwise as RefreshCw, Cube, GitBranch, ListChecks, MagnifyingGlass, Palette, Robot as Bot, ShieldCheck, type IconProps } from '@phosphor-icons/react'
 import type { ComponentType } from 'react'
 import type { TranslationKey } from '../lib/i18n'
 import { Button } from './ui/button'
@@ -21,6 +21,7 @@ export function SettingsBodyNav({ t }: SettingsBodyNavProps) {
     { id: SETTINGS_SECTION_IDS.autogit, label: t('settings.autogit.title'), Icon: GitBranch },
     { id: SETTINGS_SECTION_IDS.appearance, label: t('settings.appearance.title'), Icon: Palette },
     { id: SETTINGS_SECTION_IDS.content, label: t('settings.vaultContent.title'), Icon: Article },
+    { id: SETTINGS_SECTION_IDS.parser, label: t('settings.paperParser.title'), Icon: MagnifyingGlass },
     { id: SETTINGS_SECTION_IDS.ai, label: t('settings.aiAgents.title'), Icon: Bot },
     { id: SETTINGS_SECTION_IDS.workflow, label: t('settings.workflow.title'), Icon: ListChecks },
     { id: SETTINGS_SECTION_IDS.privacy, label: t('settings.privacy.title'), Icon: ShieldCheck },

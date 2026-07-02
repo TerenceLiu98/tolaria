@@ -19,6 +19,7 @@ import { MOCK_ENTRIES } from './mock-entries'
 import {
   findSourceBlockById,
   parseSourceBlocksJsonl,
+  sampleSourceBlocksJsonl,
   searchSourceBlocks,
 } from '../paper/sourceBlocks'
 import {
@@ -151,6 +152,8 @@ let mockSettings: Settings = {
   default_ai_target: null,
   ai_model_providers: null,
   ai_workspace_conversations: null,
+  paper_parser_provider: null,
+  paper_parser_mineru_token_ref: null,
   hide_gitignored_files: null,
   all_notes_show_pdfs: null,
   all_notes_show_images: null,
@@ -440,6 +443,122 @@ function handleSearchPaperBlocks(args: {
     path: result.path,
     state: result.state,
     blocks: searchSourceBlocks(result.blocks, query),
+  }
+}
+
+function mockPaperNotePath(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const vaultPath = args.vaultPath ?? args.vault_path ?? '/Users/mock/demo-vault-v2'
+  const paperId = args.paperId ?? args.paper_id ?? 'paper'
+  return { paperId, path: `${vaultPath}/papers/${paperId}/paper.md` }
+}
+
+function blocksJsonlWithParser(paperId: string, parser: string): string {
+  const parsed = parseSourceBlocksJsonl(sampleSourceBlocksJsonl(paperId))
+  return parsed.blocks
+    .map((block) => JSON.stringify({
+      ...block,
+      hash: parser === 'mineru' ? block.hash.replace('fixture', 'mineru') : block.hash,
+      parser,
+      ...(parser === 'mineru' ? { confidence: 0.99, source_asset: 'source.pdf' } : {}),
+    }))
+    .join('\n') + '\n'
+}
+
+function updateMockPaperParseMetadata(path: string, provider: string, parsedAt: string, parserVersion: string): void {
+  const content = Reflect.get(MOCK_CONTENT, path)
+  if (typeof content !== 'string') return
+  let nextContent = content.includes('parse_status:')
+    ? content.replace(/^parse_status:.*$/mu, 'parse_status: parsed')
+    : content.replace(/^---$/mu, `---\nparse_status: parsed`)
+  nextContent = nextContent.includes('parser_provider:')
+    ? nextContent.replace(/^parser_provider:.*$/mu, `parser_provider: ${provider}`)
+    : nextContent.replace(/^---$/mu, `---\nparser_provider: ${provider}`)
+  nextContent = nextContent.includes('parser_version:')
+    ? nextContent.replace(/^parser_version:.*$/mu, `parser_version: ${parserVersion}`)
+    : nextContent.replace(/^---$/mu, `---\nparser_version: ${parserVersion}`)
+  nextContent = nextContent.includes('parsed_at:')
+    ? nextContent.replace(/^parsed_at:.*$/mu, `parsed_at: ${parsedAt}`)
+    : nextContent.replace(/^---$/mu, `---\nparsed_at: ${parsedAt}`)
+  writeMockContent({ path, content: nextContent })
+}
+
+function mockParseError({
+  kind,
+  message,
+  paperId,
+  provider,
+}: {
+  kind: string
+  message: string
+  paperId: string
+  provider: string
+}) {
+  return {
+    kind,
+    message,
+    paperId,
+    path: '',
+    provider,
+  }
+}
+
+function handleParsePaper(args: {
+  paperId?: string
+  paper_id?: string
+  settings?: { mineruTokenRef?: string | null; provider?: string | null }
+  vaultPath?: string
+  vault_path?: string
+}) {
+  const provider = args.settings?.provider ?? 'none'
+  const { paperId, path: paperPath } = mockPaperNotePath(args)
+  if (provider === 'none') {
+    throw mockParseError({
+      kind: 'missing_provider',
+      message: 'Choose a paper parser provider before parsing.',
+      paperId,
+      provider,
+    })
+  }
+  if (provider === 'mineru') {
+    if (!args.settings?.mineruTokenRef) {
+      throw mockParseError({
+        kind: 'missing_config',
+        message: 'MinerU parsing requires an API token or token environment variable.',
+        paperId,
+        provider,
+      })
+    }
+  }
+  if (provider !== 'dev-fixture' && provider !== 'mineru') {
+    throw mockParseError({
+      kind: 'unsupported_provider',
+      message: `Unsupported paper parser provider: ${provider}`,
+      paperId,
+      provider,
+    })
+  }
+
+  const { path: blocksPath } = mockPaperBlocksPath(args)
+  const parsedAt = new Date().toISOString()
+  const content = blocksJsonlWithParser(paperId, provider)
+  writeMockContent({ path: blocksPath, content })
+  mockSavedSinceCommit.add(blocksPath)
+  const parserVersion = provider === 'mineru' ? 'mineru-api-v4' : 'fixture-v1'
+  updateMockPaperParseMetadata(paperPath, provider, parsedAt, parserVersion)
+  mockSavedSinceCommit.add(paperPath)
+  syncWindowContent()
+  const parsed = parseSourceBlocksJsonl(content)
+  return {
+    assets: [],
+    blocks: parsed.blocks,
+    blocksPath,
+    paperId,
+    paperPath,
+    parsedAt,
+    parser: provider,
+    parserVersion,
+    provider,
+    warnings: [],
   }
 }
 
@@ -779,6 +898,7 @@ export const mockHandlers: Record<string, (args: any) => any> = {
   reload_vault_entry: (args: { path: string }) => MOCK_ENTRIES.find(e => e.path === args.path) ?? { path: args.path, title: 'Unknown', filename: 'unknown.md', aliases: [], belongsTo: [], relatedTo: [], archived: false, snippet: '', wordCount: 0, fileSize: 0, relationships: {}, outgoingLinks: [], properties: {} },
   sync_note_title: () => false,
   import_paper_pdf: handleImportPaperPdf,
+  parse_paper: handleParsePaper,
   read_paper_blocks: handleReadPaperBlocks,
   read_paper_block: handleReadPaperBlock,
   search_paper_blocks: handleSearchPaperBlocks,
@@ -929,6 +1049,8 @@ export const mockHandlers: Record<string, (args: any) => any> = {
       default_ai_target: s.default_ai_target ?? null,
       ai_model_providers: s.ai_model_providers ?? null,
       ai_workspace_conversations: s.ai_workspace_conversations ?? null,
+      paper_parser_provider: s.paper_parser_provider ?? null,
+      paper_parser_mineru_token_ref: s.paper_parser_mineru_token_ref ?? null,
       hide_gitignored_files: s.hide_gitignored_files ?? null,
       all_notes_show_pdfs: s.all_notes_show_pdfs ?? null,
       all_notes_show_images: s.all_notes_show_images ?? null,

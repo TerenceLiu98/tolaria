@@ -1,4 +1,4 @@
-import { Copy, Cube, Monitor, Moon, Sun, X } from '@phosphor-icons/react'
+import { Copy, Cube, MagnifyingGlass, Monitor, Moon, Sun, X } from '@phosphor-icons/react'
 import {
   AI_AGENT_DEFINITIONS,
   createMissingAiAgentsStatus,
@@ -46,6 +46,11 @@ import { areGitFeaturesEnabled } from '../lib/gitSettings'
 import { areAiFeaturesEnabled } from '../lib/aiFeatures'
 import { areAutomaticUpdateChecksEnabled } from '../lib/automaticUpdateChecks'
 import { trackAllNotesVisibilityChanged } from '../lib/productAnalytics'
+import {
+  normalizePaperParserSettings,
+  validatePaperParserSettings,
+  type PaperParserProvider,
+} from '../paper/parserSettings'
 import { AiProviderSettings } from './AiProviderSettings'
 import { AiAgentIcon } from './AiAgentIcon'
 import { GitSettingsSection } from './GitSettingsSection'
@@ -55,6 +60,7 @@ import {
   SectionHeading,
   SelectControl,
   SettingsGroup,
+  SettingsGroupItem,
   SettingsRow,
   SettingsSection,
   SettingsSwitchRow,
@@ -74,6 +80,7 @@ import {
   type DateDisplayFormat,
 } from '../utils/dateDisplay'
 import { Button } from './ui/button'
+import { Input } from './ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import type { NoteWidthMode } from '../types'
 import type { VaultOption } from './status-bar/types'
@@ -121,6 +128,8 @@ interface SettingsDraft {
   defaultNoteWidth: NoteWidthMode
   sidebarTypePluralizationEnabled: boolean
   initialH1AutoRename: boolean
+  paperParserProvider: PaperParserProvider
+  paperParserMineruTokenRef: string
   hideGitignoredFiles: boolean
   allNotesFileVisibility: AllNotesFileVisibility
   multiWorkspaceEnabled: boolean
@@ -172,6 +181,10 @@ interface SettingsBodyProps {
   systemLocale: AppLocale
   initialH1AutoRename: boolean
   setInitialH1AutoRename: (value: boolean) => void
+  paperParserProvider: PaperParserProvider
+  setPaperParserProvider: (value: PaperParserProvider) => void
+  paperParserMineruTokenRef: string
+  setPaperParserMineruTokenRef: (value: string) => void
   hideGitignoredFiles: boolean
   setHideGitignoredFiles: (value: boolean) => void
   allNotesFileVisibility: AllNotesFileVisibility
@@ -202,6 +215,8 @@ function createSettingsDraft(
   settings: Settings,
   explicitOrganizationEnabled: boolean,
 ): SettingsDraft {
+  const paperParserSettings = normalizePaperParserSettings(settings)
+
   return {
     pullInterval: settings.auto_pull_interval_minutes ?? 5,
     gitFeaturesEnabled: areGitFeaturesEnabled(settings),
@@ -227,6 +242,8 @@ function createSettingsDraft(
     defaultNoteWidth: normalizeNoteWidthMode(settings.note_width_mode) ?? DEFAULT_NOTE_WIDTH_MODE,
     sidebarTypePluralizationEnabled: settings.sidebar_type_pluralization_enabled ?? true,
     initialH1AutoRename: settings.initial_h1_auto_rename_enabled ?? true,
+    paperParserProvider: paperParserSettings.provider,
+    paperParserMineruTokenRef: paperParserSettings.mineruTokenRef ?? '',
     hideGitignoredFiles: shouldHideGitignoredFiles(settings),
     allNotesFileVisibility: resolveAllNotesFileVisibility(settings),
     multiWorkspaceEnabled: settings.multi_workspace_enabled === true,
@@ -279,6 +296,8 @@ function buildSettingsFromDraft(settings: Settings, draft: SettingsDraft): Setti
     default_ai_agent: draft.defaultAiAgent,
     default_ai_target: draft.defaultAiTarget,
     ai_model_providers: draft.aiModelProviders.length > 0 ? draft.aiModelProviders : null,
+    paper_parser_provider: draft.paperParserProvider === 'none' ? null : draft.paperParserProvider,
+    paper_parser_mineru_token_ref: draft.paperParserMineruTokenRef.trim() || null,
     hide_gitignored_files: draft.hideGitignoredFiles,
     multi_workspace_enabled: draft.multiWorkspaceEnabled,
   }
@@ -586,6 +605,10 @@ function SettingsBodyFromDraft({
       setSidebarTypePluralizationEnabled={(value) => updateDraft('sidebarTypePluralizationEnabled', value)}
       initialH1AutoRename={draft.initialH1AutoRename}
       setInitialH1AutoRename={(value) => updateDraft('initialH1AutoRename', value)}
+      paperParserProvider={draft.paperParserProvider}
+      setPaperParserProvider={(value) => updateDraft('paperParserProvider', value)}
+      paperParserMineruTokenRef={draft.paperParserMineruTokenRef}
+      setPaperParserMineruTokenRef={(value) => updateDraft('paperParserMineruTokenRef', value)}
       hideGitignoredFiles={draft.hideGitignoredFiles}
       setHideGitignoredFiles={setHideGitignoredFiles}
       allNotesFileVisibility={draft.allNotesFileVisibility}
@@ -720,29 +743,120 @@ function SettingsContentSections({
   setSidebarTypePluralizationEnabled,
   initialH1AutoRename,
   setInitialH1AutoRename,
+  paperParserProvider,
+  setPaperParserProvider,
+  paperParserMineruTokenRef,
+  setPaperParserMineruTokenRef,
   hideGitignoredFiles,
   setHideGitignoredFiles,
   allNotesFileVisibility,
   setAllNotesFileVisibility,
 }: SettingsBodyProps) {
   return (
-    <SettingsSection id={SETTINGS_SECTION_IDS.content}>
-      <VaultContentSettingsSection
-        t={t}
-        dateDisplayFormat={dateDisplayFormat}
-        setDateDisplayFormat={setDateDisplayFormat}
-        defaultNoteWidth={defaultNoteWidth}
-        setDefaultNoteWidth={setDefaultNoteWidth}
-        sidebarTypePluralizationEnabled={sidebarTypePluralizationEnabled}
-        setSidebarTypePluralizationEnabled={setSidebarTypePluralizationEnabled}
-        initialH1AutoRename={initialH1AutoRename}
-        setInitialH1AutoRename={setInitialH1AutoRename}
-        hideGitignoredFiles={hideGitignoredFiles}
-        setHideGitignoredFiles={setHideGitignoredFiles}
-        allNotesFileVisibility={allNotesFileVisibility}
-        setAllNotesFileVisibility={setAllNotesFileVisibility}
+    <>
+      <SettingsSection id={SETTINGS_SECTION_IDS.content}>
+        <VaultContentSettingsSection
+          t={t}
+          dateDisplayFormat={dateDisplayFormat}
+          setDateDisplayFormat={setDateDisplayFormat}
+          defaultNoteWidth={defaultNoteWidth}
+          setDefaultNoteWidth={setDefaultNoteWidth}
+          sidebarTypePluralizationEnabled={sidebarTypePluralizationEnabled}
+          setSidebarTypePluralizationEnabled={setSidebarTypePluralizationEnabled}
+          initialH1AutoRename={initialH1AutoRename}
+          setInitialH1AutoRename={setInitialH1AutoRename}
+          hideGitignoredFiles={hideGitignoredFiles}
+          setHideGitignoredFiles={setHideGitignoredFiles}
+          allNotesFileVisibility={allNotesFileVisibility}
+          setAllNotesFileVisibility={setAllNotesFileVisibility}
+        />
+      </SettingsSection>
+      <SettingsSection id={SETTINGS_SECTION_IDS.parser}>
+        <PaperParserSettingsSection
+          t={t}
+          provider={paperParserProvider}
+          setProvider={setPaperParserProvider}
+          mineruTokenRef={paperParserMineruTokenRef}
+          setMineruTokenRef={setPaperParserMineruTokenRef}
+        />
+      </SettingsSection>
+    </>
+  )
+}
+
+function PaperParserSettingsSection({
+  t,
+  provider,
+  setProvider,
+  mineruTokenRef,
+  setMineruTokenRef,
+}: {
+  t: Translate
+  provider: PaperParserProvider
+  setProvider: (value: PaperParserProvider) => void
+  mineruTokenRef: string
+  setMineruTokenRef: (value: string) => void
+}) {
+  const validation = validatePaperParserSettings({
+    mineruTokenRef: mineruTokenRef.trim() || null,
+    provider,
+  })
+
+  return (
+    <>
+      <SectionHeading
+        icon={<MagnifyingGlass size={16} aria-hidden="true" />}
+        title={t('settings.paperParser.title')}
       />
-    </SettingsSection>
+      <SettingsGroup>
+        <SettingsRow
+          label={t('settings.paperParser.provider')}
+          description={t('settings.paperParser.providerDescription')}
+        >
+          <SelectControl
+            ariaLabel={t('settings.paperParser.provider')}
+            value={provider}
+            onValueChange={(value) => setProvider(value as PaperParserProvider)}
+            options={[
+              { value: 'none', label: t('settings.paperParser.providerNone') },
+              { value: 'dev-fixture', label: t('settings.paperParser.providerDevFixture') },
+              { value: 'mineru', label: t('settings.paperParser.providerMineru') },
+            ]}
+            testId="settings-paper-parser-provider"
+          />
+        </SettingsRow>
+
+        {provider === 'mineru' ? (
+          <>
+            <SettingsRow
+              label={t('settings.paperParser.mineruTokenRef')}
+              description={t('settings.paperParser.mineruTokenRefDescription')}
+            >
+              <Input
+                value={mineruTokenRef}
+                onChange={(event) => setMineruTokenRef(event.target.value)}
+                aria-label={t('settings.paperParser.mineruTokenRef')}
+                data-testid="settings-paper-parser-mineru-token-ref"
+                className="w-full bg-transparent"
+                placeholder="MinerU API token or MINERU_API_TOKEN"
+              />
+            </SettingsRow>
+            {validation.ok ? null : (
+              <SettingsGroupItem testId="settings-paper-parser-missing-config">
+                <p className="text-xs leading-5 text-destructive">
+                  {t('settings.paperParser.missingConfig')}
+                </p>
+              </SettingsGroupItem>
+            )}
+            <SettingsGroupItem testId="settings-paper-parser-remote-warning">
+              <p className="text-xs leading-5 text-muted-foreground">
+                {t('settings.paperParser.remoteWarning')}
+              </p>
+            </SettingsGroupItem>
+          </>
+        ) : null}
+      </SettingsGroup>
+    </>
   )
 }
 

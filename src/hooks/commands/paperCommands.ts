@@ -5,6 +5,7 @@ interface PaperCommandsConfig {
   activeEntry?: VaultEntry
   onImportPaperPdf?: () => void
   onOpenPaperMarginalia?: () => void
+  onParsePaper?: () => void
 }
 
 function isPaperEntry(entry: VaultEntry | undefined): boolean {
@@ -13,6 +14,7 @@ function isPaperEntry(entry: VaultEntry | undefined): boolean {
 
 export function buildPaperCommands(config: PaperCommandsConfig): CommandAction[] {
   const canOpenMarginalia = isPaperEntry(config.activeEntry) && !!config.onOpenPaperMarginalia
+  const canParsePaper = isPaperEntry(config.activeEntry) && !!config.onParsePaper
   return [
     {
       id: 'import-paper-pdf',
@@ -21,6 +23,16 @@ export function buildPaperCommands(config: PaperCommandsConfig): CommandAction[]
       keywords: ['paper', 'pdf', 'research', 'import'],
       enabled: !!config.onImportPaperPdf,
       execute: () => config.onImportPaperPdf?.(),
+    },
+    {
+      id: 'parse-current-paper',
+      label: 'Parse Current Paper',
+      group: 'Note',
+      keywords: ['paper', 'pdf', 'parse', 'blocks', 'mineru'],
+      enabled: canParsePaper,
+      execute: () => {
+        if (canParsePaper) config.onParsePaper?.()
+      },
     },
     {
       id: 'open-paper-marginalia',

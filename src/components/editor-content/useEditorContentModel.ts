@@ -3,6 +3,7 @@ import { useMemo, useRef } from 'react'
 import type { useCreateBlockNote } from '@blocknote/react'
 import type { AppLocale } from '../../lib/i18n'
 import type { NoteWidthMode, NoteStatus, VaultEntry } from '../../types'
+import type { PaperParserProvider } from '../../paper/parserSettings'
 import { useEditorTheme } from '../../hooks/useTheme'
 import { deriveEditorContentState } from './editorContentState'
 import type { RawEditorFindRequest } from '../RawEditorFindBar'
@@ -45,6 +46,8 @@ export interface EditorContentProps {
   onCopyFilePath?: (path: string) => void
   onOpenExternalFile?: (path: string) => void
   onOpenPaperNote?: (path: string) => void | Promise<void>
+  onParsePaper?: (paperId: string) => void | Promise<void>
+  paperParserProvider?: PaperParserProvider
   onCopyDeepLink?: (entry: VaultEntry) => void
   onCopyGitUrl?: (entry: VaultEntry) => void
   onExportPdf?: () => void

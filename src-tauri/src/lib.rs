@@ -533,6 +533,7 @@ macro_rules! app_invoke_handler {
             commands::sync_vault_asset_scope_for_window,
             commands::open_vault_file_external,
             commands::import_paper_pdf,
+            commands::parse_paper,
             commands::read_paper_blocks,
             commands::read_paper_block,
             commands::search_paper_blocks,

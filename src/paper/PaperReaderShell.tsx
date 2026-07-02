@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowCounterClockwise,
+  CaretLeft,
+  CaretRight,
   Check,
   ClipboardText,
-  FilePdf,
   ListBullets,
+  MagnifyingGlass,
   NotePencil,
   Plus,
   Trash,
@@ -18,6 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { translate, type AppLocale, type TranslationKey } from '../lib/i18n'
@@ -25,10 +33,13 @@ import {
   trackPaperBlockCitationCopied,
   trackPaperMarginaliaCitationAdded,
   trackPaperMarginaliaOpened,
+  trackPaperReaderModeChanged,
   trackPaperReaderOpened,
 } from '../lib/productAnalytics'
 import type { VaultEntry } from '../types'
 import { FilePreview } from '../components/FilePreview'
+import { parsePaper } from './parser'
+import type { PaperParserProvider } from './parserSettings'
 import { formatBlockCitation } from './blockCitations'
 import {
   BLOCK_CITATION_NAVIGATE_EVENT,
@@ -57,6 +68,9 @@ import {
 import {
   addBlockCitationToMarginalia,
   createOrOpenPaperMarginalia,
+  defaultMarginaliaPathForPaper,
+  readPaperMarginalia,
+  type MarginaliaReadResult,
 } from './marginalia'
 import type { SourceBlock, SourceBlockLineError } from './sourceBlocks'
 import {
@@ -74,10 +88,13 @@ interface PaperReaderShellProps {
   onCopyFilePath?: (path: string) => void
   onOpenExternalFile?: (path: string) => void
   onOpenPaperNote?: (path: string) => void | Promise<void>
+  onParsePaper?: (paperId: string) => void | Promise<void>
+  paperParserProvider?: PaperParserProvider
   onRevealFile?: (path: string) => void
 }
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error'
+type ReaderMode = 'read' | 'marginalia'
 
 interface BlocksLoadState {
   result: PaperBlocksReadResult | null
@@ -85,7 +102,19 @@ interface BlocksLoadState {
   state: LoadState
 }
 
+interface MarginaliaContentLoadState {
+  error: unknown
+  path: string
+  result: MarginaliaReadResult | null
+  state: LoadState
+}
+
 interface SettledBlocksLoadState extends BlocksLoadState {
+  key: string
+  state: 'loaded' | 'error'
+}
+
+interface SettledMarginaliaContentLoadState extends Omit<MarginaliaContentLoadState, 'path'> {
   key: string
   state: 'loaded' | 'error'
 }
@@ -109,8 +138,30 @@ function paperBlocksLineErrors(error: unknown): SourceBlockLineError[] {
   return isPaperBlocksError(error) ? error.lineErrors : []
 }
 
-function usePaperBlocks(vaultPath: string | undefined, paperId: string | null): BlocksLoadState {
-  const requestKey = vaultPath && paperId ? `${vaultPath}\u0000${paperId}` : null
+function paperParseErrorMessage(error: unknown): string {
+  if (isRecord(error) && typeof error.message === 'string') return error.message
+  return error instanceof Error ? error.message : String(error)
+}
+
+function isMineruAuthenticationFailure(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return normalized.includes('authenticate')
+    || normalized.includes('unauthorized')
+    || normalized.includes('token is invalid')
+    || normalized.includes('token expired')
+    || normalized.includes('401')
+    || normalized.includes('a0202')
+}
+
+function paperParseFailureDetail(locale: AppLocale, parseProvider: PaperParserProvider, message: string): string {
+  if (parseProvider === 'mineru' && isMineruAuthenticationFailure(message)) {
+    return translate(locale, 'paper.reader.parseAuthFailed', { message })
+  }
+  return message
+}
+
+function usePaperBlocks(vaultPath: string | undefined, paperId: string | null, refreshKey: number): BlocksLoadState {
+  const requestKey = vaultPath && paperId ? `${vaultPath}\u0000${paperId}\u0000${refreshKey}` : null
   const [settledLoadState, setSettledLoadState] = useState<SettledBlocksLoadState | null>(null)
 
   useEffect(() => {
@@ -136,6 +187,46 @@ function usePaperBlocks(vaultPath: string | undefined, paperId: string | null): 
   }
 
   return settledLoadState
+}
+
+function usePaperMarginaliaContent({
+  enabled,
+  paperPath,
+  refreshKey,
+  vaultPath,
+}: {
+  enabled: boolean
+  paperPath: string
+  refreshKey: number
+  vaultPath?: string
+}): MarginaliaContentLoadState {
+  const path = defaultMarginaliaPathForPaper(paperPath)
+  const requestKey = enabled ? `${paperPath}\u0000${vaultPath ?? ''}\u0000${refreshKey}` : null
+  const [settledLoadState, setSettledLoadState] = useState<SettledMarginaliaContentLoadState | null>(null)
+
+  useEffect(() => {
+    if (!enabled || !requestKey) return
+
+    let cancelled = false
+    void readPaperMarginalia({ paperPath, vaultPath })
+      .then((result) => {
+        if (!cancelled) setSettledLoadState({ key: requestKey, result, error: null, state: 'loaded' })
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setSettledLoadState({ key: requestKey, result: null, error, state: 'error' })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [enabled, paperPath, requestKey, vaultPath])
+
+  if (!requestKey) return { error: null, path, result: null, state: 'idle' }
+  if (settledLoadState?.key !== requestKey) {
+    return { error: null, path, result: null, state: 'loading' }
+  }
+
+  return { ...settledLoadState, path }
 }
 
 function useBlockCitationFocus(paperId: string | null, onFocusBlock: (blockId: string) => void): void {
@@ -167,6 +258,15 @@ function useReaderOpenedAnalytics(paperId: string | null, blocksState: PaperRead
   }, [blocksState, paperId])
 }
 
+function useReaderModeAnalytics(readerMode: ReaderMode): void {
+  const previousModeRef = useRef(readerMode)
+  useEffect(() => {
+    if (previousModeRef.current === readerMode) return
+    previousModeRef.current = readerMode
+    trackPaperReaderModeChanged(readerMode)
+  }, [readerMode])
+}
+
 function StatusPill({ value }: { value: string }) {
   return (
     <span className="inline-flex h-6 items-center rounded-md border border-border bg-muted px-2 text-xs font-medium text-muted-foreground">
@@ -175,8 +275,30 @@ function StatusPill({ value }: { value: string }) {
   )
 }
 
+function paperParseButtonLabel(
+  locale: AppLocale,
+  provider: PaperParserProvider | undefined,
+  pending: boolean,
+): string {
+  if (pending) return translate(locale, 'paper.reader.parsing')
+  return translate(locale, provider === 'mineru' ? 'paper.reader.parseWithMineru' : 'paper.reader.parsePaper')
+}
+
+function paperStructureStatusLabel(locale: AppLocale, blocksState: PaperReaderBlocksState): string {
+  const labelKeys: Record<PaperReaderBlocksState, TranslationKey> = {
+    empty: 'paper.reader.structureEmpty',
+    error: 'paper.reader.structureError',
+    loading: 'paper.reader.structureLoading',
+    missing: 'paper.reader.structureMissing',
+    ready: 'paper.reader.structureReady',
+    unavailable: 'paper.reader.structureUnavailable',
+  }
+  return translate(locale, labelKeys[blocksState])
+}
+
 const DEFAULT_ANNOTATION_KIND: PaperAnnotationKind = 'highlight'
 const DEFAULT_ANNOTATION_COLOR: PaperAnnotationColor = 'important'
+const EMPTY_SOURCE_BLOCKS: SourceBlock[] = []
 
 const ANNOTATION_KIND_LABEL_KEYS: Record<PaperAnnotationKind, TranslationKey> = {
   bookmark: 'paper.reader.addBookmark',
@@ -220,6 +342,11 @@ function PaperMetadataPanel({
   marginaliaError,
   onAddSelectedBlockToMarginalia,
   onOpenMarginalia,
+  onParsePaper,
+  onSelectMarginaliaMode,
+  onSelectReadMode,
+  parsePaperPending,
+  parseProvider,
   summary,
 }: {
   canAddSelectedBlock: boolean
@@ -228,11 +355,17 @@ function PaperMetadataPanel({
   marginaliaError: string | null
   onAddSelectedBlockToMarginalia: () => void
   onOpenMarginalia: () => void
+  onParsePaper?: () => void
+  onSelectMarginaliaMode: () => void
+  onSelectReadMode: () => void
+  parsePaperPending: boolean
+  parseProvider?: PaperParserProvider
   summary: ReturnType<typeof paperReaderSummary>
 }) {
   const sourcePdfStatus = metadata.sourcePdf
     ? translate(locale, 'paper.reader.statusConfigured')
     : translate(locale, 'paper.reader.statusMissing')
+  const structureStatus = paperStructureStatusLabel(locale, summary.blocksState)
 
   return (
     <section className="border-b border-border px-5 py-4" data-testid="paper-reader-metadata">
@@ -242,9 +375,23 @@ function PaperMetadataPanel({
           <h1 className="truncate text-xl font-semibold text-foreground">{metadata.title}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <TabsList aria-label={translate(locale, 'paper.reader.modeTabs')} className="h-8">
+            <TabsTrigger value="read" className="h-7 px-3 text-xs" onClick={onSelectReadMode}>
+              {translate(locale, 'paper.reader.modeRead')}
+            </TabsTrigger>
+            <TabsTrigger value="marginalia" className="h-7 px-3 text-xs" onClick={onSelectMarginaliaMode}>
+              {translate(locale, 'paper.reader.modeMarginalia')}
+            </TabsTrigger>
+          </TabsList>
           <StatusPill value={translate(locale, 'paper.reader.sourcePdfStatus', { status: sourcePdfStatus })} />
-          <StatusPill value={translate(locale, 'paper.reader.blocksStatus', { status: summary.blocksState })} />
+          <StatusPill value={translate(locale, 'paper.reader.blocksStatus', { status: structureStatus })} />
           <StatusPill value={translate(locale, 'paper.reader.blocksCount', { count: summary.blockCount })} />
+          {onParsePaper ? (
+            <Button type="button" variant="secondary" size="sm" disabled={parsePaperPending} onClick={onParsePaper}>
+              <MagnifyingGlass className="size-4" />
+              {paperParseButtonLabel(locale, parseProvider, parsePaperPending)}
+            </Button>
+          ) : null}
           <Button type="button" variant="outline" size="sm" onClick={onOpenMarginalia}>
             <NotePencil className="size-4" />
             {translate(locale, 'paper.reader.openMarginalia')}
@@ -277,7 +424,7 @@ function PaperMetadataPanel({
         </div>
         <div>
           <dt className="font-medium text-foreground">{translate(locale, 'paper.reader.blocksField')}</dt>
-          <dd>{metadata.blocks}</dd>
+          <dd>{translate(locale, 'paper.reader.blocksCount', { count: summary.blockCount })}</dd>
         </div>
         <div>
           <dt className="font-medium text-foreground">{translate(locale, 'paper.reader.selectedBlock')}</dt>
@@ -289,16 +436,28 @@ function PaperMetadataPanel({
 }
 
 function BlocksStateNotice({
+  onParsePaper,
   locale,
   loadState,
+  parseProvider = 'none',
+  parseStatus,
+  parseError,
+  parsePending,
   result,
   error,
 }: {
   locale: AppLocale
   loadState: LoadState
+  onParsePaper?: () => void
+  parseProvider?: PaperParserProvider
+  parseStatus: string | null
+  parseError: string | null
+  parsePending: boolean
   result: PaperBlocksReadResult | null
   error: unknown
 }) {
+  const parseButtonLabel = paperParseButtonLabel(locale, parseProvider, parsePending)
+
   if (loadState === 'loading') {
     return <p className="px-4 py-3 text-sm text-muted-foreground">{translate(locale, 'paper.reader.blocksLoading')}</p>
   }
@@ -320,8 +479,40 @@ function BlocksStateNotice({
     )
   }
 
+  if (parseStatus === 'failed') {
+    const failureDetail = parseError?.trim()
+    return (
+      <div className="space-y-2 px-4 py-3 text-sm text-muted-foreground" data-testid="paper-reader-parse-failed">
+        <p className="text-destructive">{translate(locale, 'paper.reader.parseFailedRetry')}</p>
+        {failureDetail ? (
+          <p className="text-xs text-destructive">
+            {paperParseFailureDetail(locale, parseProvider, failureDetail)}
+          </p>
+        ) : null}
+        {onParsePaper ? (
+          <Button type="button" variant="secondary" size="sm" disabled={parsePending} onClick={onParsePaper}>
+            <MagnifyingGlass className="size-4" />
+            {parseButtonLabel}
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
+
   if (result?.state === 'missing') {
-    return <p className="px-4 py-3 text-sm text-muted-foreground">{translate(locale, 'paper.reader.blocksMissing')}</p>
+    return (
+      <div className="space-y-2 px-4 py-3 text-sm text-muted-foreground" data-testid="paper-reader-blocks-missing">
+        <p>{translate(locale, 'paper.reader.blocksMissing')}</p>
+        <p>{translate(locale, 'paper.reader.blocksMissingParseHelp')}</p>
+        {onParsePaper ? (
+          <Button type="button" variant="secondary" size="sm" disabled={parsePending} onClick={onParsePaper}>
+            <MagnifyingGlass className="size-4" />
+            {parseButtonLabel}
+          </Button>
+        ) : null}
+        {parseError ? <p className="text-xs text-destructive">{parseError}</p> : null}
+      </div>
+    )
   }
 
   if (result?.state === 'empty') {
@@ -585,6 +776,7 @@ function BlockOutline({
   annotationLoadState,
   annotationsByBlockId,
   annotationResult,
+  collapsed,
   locale,
   blocks,
   loadState,
@@ -593,6 +785,12 @@ function BlockOutline({
   selectedBlockId,
   onCreateAnnotation,
   onDeleteAnnotation,
+  onParsePaper,
+  onToggleCollapsed,
+  parseProvider,
+  parsePaperError,
+  parsePaperPending,
+  parseStatus,
   onResetAnnotations,
   onSaveAnnotation,
   onSelectBlock,
@@ -606,6 +804,7 @@ function BlockOutline({
   annotationLoadState: AnnotationLoadState
   annotationsByBlockId: AnnotationsByBlockId
   annotationResult: ReturnType<typeof usePaperAnnotations>['result']
+  collapsed: boolean
   selectedBlockId: string | null
   onCreateAnnotation: (block: SourceBlock, input: {
     color: PaperAnnotationColor
@@ -614,6 +813,12 @@ function BlockOutline({
     text?: string
   }) => void
   onDeleteAnnotation: (annotationId: string) => void
+  onParsePaper?: () => void
+  onToggleCollapsed: () => void
+  parseProvider?: PaperParserProvider
+  parsePaperError: string | null
+  parsePaperPending: boolean
+  parseStatus: string | null
   onResetAnnotations: () => void
   onSaveAnnotation: (annotation: PaperAnnotation) => void
   onSelectBlock: (blockId: string) => void
@@ -644,13 +849,65 @@ function BlockOutline({
       })
   }, [])
 
+  if (collapsed) {
+    return (
+      <aside
+        className="flex min-h-0 w-12 shrink-0 flex-col items-center border-r border-border bg-muted/20 py-3"
+        data-testid="paper-reader-blocks"
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          title={translate(locale, 'paper.reader.expandOutline')}
+          aria-label={translate(locale, 'paper.reader.expandOutline')}
+          onClick={onToggleCollapsed}
+        >
+          <CaretRight className="size-4" />
+        </Button>
+        <ListBullets className="mt-4 size-4 text-muted-foreground" />
+        <span
+          className="mt-3 [writing-mode:vertical-rl] text-xs font-medium text-muted-foreground"
+          aria-hidden="true"
+        >
+          {translate(locale, 'paper.reader.outlineCollapsed')}
+        </span>
+        <span className="mt-auto rounded-md bg-muted px-1.5 py-1 text-[11px] font-medium text-muted-foreground">
+          {blocks.length}
+        </span>
+      </aside>
+    )
+  }
+
   return (
     <section className="flex min-h-0 flex-1 flex-col border-r border-border" data-testid="paper-reader-blocks">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <ListBullets className="size-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold text-foreground">{translate(locale, 'paper.reader.blocksJsonl')}</h2>
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <ListBullets className="size-4 shrink-0 text-muted-foreground" />
+          <h2 className="truncate text-sm font-semibold text-foreground">{translate(locale, 'paper.reader.blocksJsonl')}</h2>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          title={translate(locale, 'paper.reader.collapseOutline')}
+          aria-label={translate(locale, 'paper.reader.collapseOutline')}
+          onClick={onToggleCollapsed}
+        >
+          <CaretLeft className="size-4" />
+        </Button>
       </div>
-      <BlocksStateNotice locale={locale} loadState={loadState} result={result} error={error} />
+      <BlocksStateNotice
+        locale={locale}
+        loadState={loadState}
+        result={result}
+        error={error}
+        onParsePaper={onParsePaper}
+        parseProvider={parseProvider}
+        parseStatus={parseStatus}
+        parseError={parsePaperError}
+        parsePending={parsePaperPending}
+      />
       <AnnotationStateNotice
         locale={locale}
         loadState={annotationLoadState}
@@ -751,11 +1008,7 @@ function PaperPdfPanel({
 }) {
   const pdfEntry = useMemo(() => sourcePdfEntryForPaper(entry, metadata), [entry, metadata])
   return (
-    <section className="flex min-h-0 flex-1 flex-col" data-testid="paper-reader-pdf">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <FilePdf className="size-4 text-muted-foreground" />
-        <h2 className="truncate text-sm font-semibold text-foreground">{metadata.sourcePdf}</h2>
-      </div>
+    <section className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-testid="paper-reader-pdf">
       <FilePreview
         entry={pdfEntry}
         locale={locale}
@@ -763,6 +1016,135 @@ function PaperPdfPanel({
         onOpenExternalFile={onOpenExternalFile}
         onRevealFile={onRevealFile}
       />
+    </section>
+  )
+}
+
+function marginaliaErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function marginaliaStatusText(locale: AppLocale, result: MarginaliaReadResult): string {
+  const statusKey: TranslationKey = result.state === 'ready'
+    ? 'paper.reader.marginaliaReady'
+    : 'paper.reader.marginaliaMissing'
+  return translate(locale, 'paper.reader.marginaliaStatus', {
+    status: translate(locale, statusKey),
+  })
+}
+
+function CurrentBlockPanel({
+  block,
+  locale,
+}: {
+  block: SourceBlock | null
+  locale: AppLocale
+}) {
+  return (
+    <section
+      className="grid gap-2 border-b border-border bg-muted/25 px-4 py-3"
+      data-testid="paper-reader-current-block"
+    >
+      <div className="flex items-center gap-2">
+        <ListBullets className="size-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold text-foreground">{translate(locale, 'paper.reader.currentBlock')}</h2>
+      </div>
+      {block ? (
+        <div className="grid gap-1 text-sm">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-mono text-[11px] text-foreground">{block.id}</span>
+            <span>{block.kind}</span>
+            <span>p.{block.page}</span>
+          </div>
+          <p className="line-clamp-3 text-foreground">{blockDisplayText(block)}</p>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">{translate(locale, 'paper.reader.noSelectedBlock')}</p>
+      )}
+    </section>
+  )
+}
+
+function MarginaliaPane({
+  canAddSelectedBlock,
+  contentState,
+  locale,
+  onAddSelectedBlockToMarginalia,
+  onCreateMarginalia,
+  onOpenMarginaliaInEditor,
+}: {
+  canAddSelectedBlock: boolean
+  contentState: MarginaliaContentLoadState
+  locale: AppLocale
+  onAddSelectedBlockToMarginalia: () => void
+  onCreateMarginalia: () => void
+  onOpenMarginaliaInEditor: () => void
+}) {
+  const result = contentState.result
+  const statusText = result
+    ? marginaliaStatusText(locale, result)
+    : translate(locale, contentState.state === 'error'
+      ? 'paper.reader.marginaliaLoadError'
+      : 'paper.reader.marginaliaLoading')
+
+  return (
+    <section
+      className="flex min-h-0 flex-1 flex-col"
+      data-testid={contentState.state === 'loading' ? undefined : 'paper-reader-marginalia-pane'}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-foreground">{translate(locale, 'paper.reader.marginaliaPane')}</h2>
+          <p className="truncate text-xs text-muted-foreground">{contentState.path}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {result?.state === 'missing' && (
+            <Button type="button" variant="outline" size="sm" onClick={onCreateMarginalia}>
+              <NotePencil className="size-4" />
+              {translate(locale, 'paper.reader.createMarginalia')}
+            </Button>
+          )}
+          {result?.state === 'ready' && (
+            <Button type="button" variant="outline" size="sm" onClick={onOpenMarginaliaInEditor}>
+              <NotePencil className="size-4" />
+              {translate(locale, 'paper.reader.openMarginaliaInEditor')}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={!canAddSelectedBlock || contentState.state === 'loading'}
+            onClick={onAddSelectedBlockToMarginalia}
+          >
+            <Plus className="size-4" />
+            {translate(locale, 'paper.reader.addSelectedBlockToMarginalia')}
+          </Button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+        <p className="mb-3 text-xs font-medium text-muted-foreground">{statusText}</p>
+        {contentState.state === 'error' && (
+          <p className="text-sm text-destructive" data-testid="paper-reader-marginalia-load-error">
+            {marginaliaErrorMessage(contentState.error)}
+          </p>
+        )}
+        {result?.state === 'missing' && (
+          <p className="text-sm text-muted-foreground">{translate(locale, 'paper.reader.marginaliaMissingHelp')}</p>
+        )}
+        {result?.state === 'ready' && result.content.length === 0 && (
+          <p className="text-sm text-muted-foreground">{translate(locale, 'paper.reader.marginaliaEmpty')}</p>
+        )}
+        {result?.state === 'ready' && result.content.length > 0 && (
+          <pre
+            aria-label={translate(locale, 'paper.reader.marginaliaPreview')}
+            className="min-h-0 whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-3 text-sm leading-6 text-foreground"
+            data-testid="paper-reader-marginalia-preview"
+          >
+            {result.content}
+          </pre>
+        )}
+      </div>
     </section>
   )
 }
@@ -787,14 +1169,53 @@ export function PaperReaderShell({
   onCopyFilePath,
   onOpenExternalFile,
   onOpenPaperNote,
+  onParsePaper,
+  paperParserProvider = 'none',
   onRevealFile,
 }: PaperReaderShellProps) {
   const metadata = useMemo(() => paperMetadataForReader(content), [content])
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
+  const [readerMode, setReaderMode] = useState<ReaderMode>('read')
+  const [outlineCollapsed, setOutlineCollapsed] = useState(false)
+  const [blocksRefreshKey, setBlocksRefreshKey] = useState(0)
+  const [parsePaperError, setParsePaperError] = useState<string | null>(null)
+  const [parsePaperPending, setParsePaperPending] = useState(false)
+  const [marginaliaRefreshKey, setMarginaliaRefreshKey] = useState(0)
   const [marginaliaError, setMarginaliaError] = useState<string | null>(null)
   const focusBlock = useCallback((blockId: string) => setSelectedBlockId(blockId), [])
+  const handleReaderModeChange = useCallback((nextValue: string) => {
+    if (nextValue === 'read' || nextValue === 'marginalia') setReaderMode(nextValue)
+  }, [])
+  const selectReadMode = useCallback(() => setReaderMode('read'), [])
+  const selectMarginaliaMode = useCallback(() => setReaderMode('marginalia'), [])
+  const toggleOutlineCollapsed = useCallback(() => {
+    setOutlineCollapsed((collapsed) => !collapsed)
+  }, [])
+  const refreshMarginaliaContent = useCallback(() => {
+    setMarginaliaRefreshKey((currentKey) => currentKey + 1)
+  }, [])
   const paperId = metadata?.paperId ?? null
-  const blocksState = usePaperBlocks(vaultPath, paperId)
+  const blocksState = usePaperBlocks(vaultPath, paperId, blocksRefreshKey)
+  const canParsePaper = Boolean(onParsePaper || vaultPath)
+  const handleParsePaper = useCallback(() => {
+    if (!paperId || (!onParsePaper && !vaultPath)) return
+
+    setParsePaperPending(true)
+    setParsePaperError(null)
+    const parseRequest = onParsePaper
+      ? onParsePaper(paperId)
+      : parsePaper(vaultPath!, paperId)
+    void Promise.resolve(parseRequest)
+      .then(() => setBlocksRefreshKey((currentKey) => currentKey + 1))
+      .catch((error: unknown) => setParsePaperError(paperParseErrorMessage(error)))
+      .finally(() => setParsePaperPending(false))
+  }, [onParsePaper, paperId, vaultPath])
+  const marginaliaContent = usePaperMarginaliaContent({
+    enabled: readerMode === 'marginalia' && Boolean(metadata),
+    paperPath: entry.path,
+    refreshKey: marginaliaRefreshKey,
+    vaultPath,
+  })
   const loadingBlocks = blocksState.state === 'loading' || (Boolean(vaultPath && paperId) && blocksState.state === 'idle')
   const summary = paperReaderSummary(
     blocksState.result,
@@ -803,7 +1224,12 @@ export function PaperReaderShell({
     blocksState.state === 'error',
     selectedBlockId,
   )
-  const blocks = blocksState.result?.blocks ?? []
+  const blocks = blocksState.result?.blocks ?? EMPTY_SOURCE_BLOCKS
+  const effectiveParseError = parsePaperError ?? metadata?.parseError ?? null
+  const selectedBlock = useMemo(
+    () => blocks.find((block) => block.id === selectedBlockId) ?? null,
+    [blocks, selectedBlockId],
+  )
   const annotations = usePaperAnnotations(vaultPath, paperId)
   const createAnnotation = useCallback((block: SourceBlock, input: {
     color: PaperAnnotationColor
@@ -849,6 +1275,7 @@ export function PaperReaderShell({
     })
       .then(async (result) => {
         trackPaperMarginaliaOpened({ created: result.created })
+        refreshMarginaliaContent()
         await openMarginaliaPath(result.path)
       })
       .catch((error: unknown) => {
@@ -856,7 +1283,25 @@ export function PaperReaderShell({
         console.warn('[paper-reader] Failed to create/open marginalia:', error)
         setMarginaliaError(message)
       })
-  }, [entry.path, metadata, openMarginaliaPath, vaultPath])
+  }, [entry.path, metadata, openMarginaliaPath, refreshMarginaliaContent, vaultPath])
+  const handleCreateMarginaliaInPane = useCallback(() => {
+    if (!metadata) return
+    setMarginaliaError(null)
+    void createOrOpenPaperMarginalia({
+      paperPath: entry.path,
+      paperTitle: metadata.title,
+      vaultPath,
+    })
+      .then((result) => {
+        trackPaperMarginaliaOpened({ created: result.created })
+        refreshMarginaliaContent()
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn('[paper-reader] Failed to create marginalia:', error)
+        setMarginaliaError(message)
+      })
+  }, [entry.path, metadata, refreshMarginaliaContent, vaultPath])
   const handleAddSelectedBlockToMarginalia = useCallback(() => {
     if (!metadata || !selectedBlockId) return
     setMarginaliaError(null)
@@ -869,6 +1314,7 @@ export function PaperReaderShell({
     })
       .then(async (result) => {
         trackPaperMarginaliaCitationAdded({ created: result.created })
+        refreshMarginaliaContent()
         await openMarginaliaPath(result.path)
       })
       .catch((error: unknown) => {
@@ -876,15 +1322,41 @@ export function PaperReaderShell({
         console.warn('[paper-reader] Failed to add selected block to marginalia:', error)
         setMarginaliaError(message)
       })
-  }, [entry.path, metadata, openMarginaliaPath, selectedBlockId, vaultPath])
+  }, [entry.path, metadata, openMarginaliaPath, refreshMarginaliaContent, selectedBlockId, vaultPath])
+  const handleAddSelectedBlockToMarginaliaInPane = useCallback(() => {
+    if (!metadata || !selectedBlockId) return
+    setMarginaliaError(null)
+    void addBlockCitationToMarginalia({
+      blockId: selectedBlockId,
+      paperId: metadata.paperId,
+      paperPath: entry.path,
+      paperTitle: metadata.title,
+      vaultPath,
+    })
+      .then((result) => {
+        trackPaperMarginaliaCitationAdded({ created: result.created })
+        refreshMarginaliaContent()
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn('[paper-reader] Failed to add selected block to marginalia:', error)
+        setMarginaliaError(message)
+      })
+  }, [entry.path, metadata, refreshMarginaliaContent, selectedBlockId, vaultPath])
 
   useBlockCitationFocus(paperId, focusBlock)
   useReaderOpenedAnalytics(paperId, summary.blocksState)
+  useReaderModeAnalytics(readerMode)
 
   if (!metadata) return <InvalidPaperMetadata entry={entry} locale={locale} />
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col bg-background text-foreground" data-testid="paper-reader-shell">
+    <Tabs
+      value={readerMode}
+      onValueChange={handleReaderModeChange}
+      className="min-h-0 flex-1 gap-0 bg-background text-foreground"
+      data-testid="paper-reader-shell"
+    >
       <PaperMetadataPanel
         canAddSelectedBlock={selectedBlockId !== null}
         locale={locale}
@@ -892,35 +1364,104 @@ export function PaperReaderShell({
         metadata={metadata}
         onAddSelectedBlockToMarginalia={handleAddSelectedBlockToMarginalia}
         onOpenMarginalia={handleOpenMarginalia}
+        onParsePaper={canParsePaper ? handleParsePaper : undefined}
+        onSelectMarginaliaMode={selectMarginaliaMode}
+        onSelectReadMode={selectReadMode}
+        parsePaperPending={parsePaperPending}
+        parseProvider={paperParserProvider}
         summary={summary}
       />
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(320px,0.85fr)_minmax(360px,1.15fr)]">
-        <BlockOutline
-          annotationError={annotations.error}
-          annotationLoadState={annotations.loadState}
-          annotationsByBlockId={annotations.annotationsByBlockId}
-          annotationResult={annotations.result}
-          locale={locale}
-          blocks={blocks}
-          loadState={loadingBlocks ? 'loading' : blocksState.state}
-          result={blocksState.result}
-          error={blocksState.error}
-          selectedBlockId={selectedBlockId}
-          onCreateAnnotation={createAnnotation}
-          onDeleteAnnotation={deleteAnnotation}
-          onResetAnnotations={resetAnnotations}
-          onSaveAnnotation={saveAnnotation}
-          onSelectBlock={focusBlock}
-        />
-        <PaperPdfPanel
-          entry={entry}
-          metadata={metadata}
-          locale={locale}
-          onCopyFilePath={onCopyFilePath}
-          onOpenExternalFile={onOpenExternalFile}
-          onRevealFile={onRevealFile}
-        />
-      </div>
-    </section>
+      <TabsContent value="read" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div
+          className={cn(
+            'grid h-full min-h-0 flex-1 grid-cols-1',
+            outlineCollapsed
+              ? 'lg:grid-cols-[3rem_minmax(360px,1fr)]'
+              : 'lg:grid-cols-[18rem_minmax(0,1fr)]',
+          )}
+          data-testid="paper-reader-read-layout"
+        >
+          <BlockOutline
+            annotationError={annotations.error}
+            annotationLoadState={annotations.loadState}
+            annotationsByBlockId={annotations.annotationsByBlockId}
+            annotationResult={annotations.result}
+            collapsed={outlineCollapsed}
+            locale={locale}
+            blocks={blocks}
+            loadState={loadingBlocks ? 'loading' : blocksState.state}
+            result={blocksState.result}
+            error={blocksState.error}
+            selectedBlockId={selectedBlockId}
+            onCreateAnnotation={createAnnotation}
+            onDeleteAnnotation={deleteAnnotation}
+            onParsePaper={canParsePaper ? handleParsePaper : undefined}
+            onToggleCollapsed={toggleOutlineCollapsed}
+            parseProvider={paperParserProvider}
+            parsePaperError={effectiveParseError}
+            parsePaperPending={parsePaperPending}
+            parseStatus={metadata.parseStatus}
+            onResetAnnotations={resetAnnotations}
+            onSaveAnnotation={saveAnnotation}
+            onSelectBlock={focusBlock}
+          />
+          <PaperPdfPanel
+            entry={entry}
+            metadata={metadata}
+            locale={locale}
+            onCopyFilePath={onCopyFilePath}
+            onOpenExternalFile={onOpenExternalFile}
+            onRevealFile={onRevealFile}
+          />
+        </div>
+      </TabsContent>
+      <TabsContent value="marginalia" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div
+          className={cn(
+            'grid h-full min-h-0 flex-1 grid-cols-1',
+            outlineCollapsed
+              ? 'xl:grid-cols-[3rem_minmax(360px,1fr)]'
+              : 'xl:grid-cols-[18rem_minmax(0,1fr)]',
+          )}
+          data-testid="paper-reader-marginalia-layout"
+        >
+          <div className="flex min-h-0 flex-col">
+            {outlineCollapsed ? null : <CurrentBlockPanel block={selectedBlock} locale={locale} />}
+            <BlockOutline
+              annotationError={annotations.error}
+              annotationLoadState={annotations.loadState}
+              annotationsByBlockId={annotations.annotationsByBlockId}
+              annotationResult={annotations.result}
+              collapsed={outlineCollapsed}
+              locale={locale}
+              blocks={blocks}
+              loadState={loadingBlocks ? 'loading' : blocksState.state}
+              result={blocksState.result}
+              error={blocksState.error}
+              selectedBlockId={selectedBlockId}
+              onCreateAnnotation={createAnnotation}
+              onDeleteAnnotation={deleteAnnotation}
+              onParsePaper={canParsePaper ? handleParsePaper : undefined}
+              onToggleCollapsed={toggleOutlineCollapsed}
+              parseProvider={paperParserProvider}
+              parsePaperError={effectiveParseError}
+              parsePaperPending={parsePaperPending}
+              parseStatus={metadata.parseStatus}
+              onResetAnnotations={resetAnnotations}
+              onSaveAnnotation={saveAnnotation}
+              onSelectBlock={focusBlock}
+            />
+          </div>
+          <MarginaliaPane
+            canAddSelectedBlock={selectedBlockId !== null}
+            contentState={marginaliaContent}
+            locale={locale}
+            onAddSelectedBlockToMarginalia={handleAddSelectedBlockToMarginaliaInPane}
+            onCreateMarginalia={handleCreateMarginaliaInPane}
+            onOpenMarginaliaInEditor={handleOpenMarginalia}
+          />
+        </div>
+      </TabsContent>
+    </Tabs>
   )
 }

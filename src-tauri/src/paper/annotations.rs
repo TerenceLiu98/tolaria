@@ -317,7 +317,9 @@ fn validate_annotation_for_write(
         line_errors: vec![],
     })?;
 
-    let object = value.as_object().expect("serialized annotation must be object");
+    let object = value
+        .as_object()
+        .expect("serialized annotation must be object");
     let line_errors = annotation_validation_errors(paper_id, object, 1);
     if line_errors.is_empty() {
         return Ok(());
@@ -597,8 +599,7 @@ mod tests {
         updated_annotation.kind = PaperAnnotationKind::Question;
         updated_annotation.note = Some("Why?".to_string());
 
-        let updated =
-            save_paper_annotation_file("paper-1", &path, updated_annotation).unwrap();
+        let updated = save_paper_annotation_file("paper-1", &path, updated_annotation).unwrap();
         assert_eq!(updated.annotations.len(), 1);
         assert_eq!(updated.annotations[0].block_id.as_deref(), Some("b2"));
         assert_eq!(updated.annotations[0].kind, PaperAnnotationKind::Question);
@@ -608,8 +609,11 @@ mod tests {
     fn deletes_annotation_by_rewriting_sidecar() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("annotations.jsonl");
-        fs::write(&path, annotation_json("ann-1", "b1") + &annotation_json("ann-2", "b2"))
-            .unwrap();
+        fs::write(
+            &path,
+            annotation_json("ann-1", "b1") + &annotation_json("ann-2", "b2"),
+        )
+        .unwrap();
 
         let result = delete_paper_annotation_file("paper-1", &path, "ann-1").unwrap();
 

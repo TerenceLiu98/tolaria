@@ -24,10 +24,25 @@ annotations: annotations.jsonl
       year: 2017,
       status: 'imported',
       parseStatus: 'unparsed',
+      parseError: null,
       sourcePdf: 'source.pdf',
       blocks: 'blocks.jsonl',
       annotations: 'annotations.jsonl',
     })
+  })
+
+  it('extracts parse failure detail when present', () => {
+    const metadata = parsePaperMetadata(`---
+type: Paper
+paper_id: failed-paper
+source_pdf: source.pdf
+parse_status: failed
+parse_error: MinerU returned 401 unauthorized
+---
+# Failed Paper
+`)
+
+    expect(metadata?.parseError).toBe('MinerU returned 401 unauthorized')
   })
 
   it('rejects non-Paper notes and incomplete Paper notes', () => {

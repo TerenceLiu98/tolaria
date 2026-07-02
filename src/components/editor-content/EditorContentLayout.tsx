@@ -362,6 +362,8 @@ function EditorCanvas({
   onCopyFilePath,
   onOpenExternalFile,
   onOpenPaperNote,
+  onParsePaper,
+  paperParserProvider,
   onRevealFile,
   onRawContentChange,
   sheetFlushRef,
@@ -387,6 +389,8 @@ function EditorCanvas({
   | 'onCopyFilePath'
   | 'onOpenExternalFile'
   | 'onOpenPaperNote'
+  | 'onParsePaper'
+  | 'paperParserProvider'
   | 'onRevealFile'
 >) {
   if (!showEditor) return null
@@ -407,6 +411,8 @@ function EditorCanvas({
           onCopyFilePath={onCopyFilePath}
           onOpenExternalFile={onOpenExternalFile}
           onOpenPaperNote={onOpenPaperNote}
+          onParsePaper={onParsePaper}
+          paperParserProvider={paperParserProvider}
           onRevealFile={onRevealFile}
         />
       </EditorFindScope>

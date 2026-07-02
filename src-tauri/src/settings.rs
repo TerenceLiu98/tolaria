@@ -16,6 +16,7 @@ const SUPPORTED_DEFAULT_AI_AGENTS: &[&str] = &[
 pub const DEFAULT_HIDE_GITIGNORED_FILES: bool = true;
 const SUPPORTED_NOTE_WIDTH_MODES: &[&str] = &["normal", "wide"];
 const SUPPORTED_DATE_DISPLAY_FORMATS: &[&str] = &["us", "european", "friendly", "iso"];
+const SUPPORTED_PAPER_PARSER_PROVIDERS: &[&str] = &["dev-fixture", "mineru"];
 const SUPPORTED_UI_LANGUAGE_ALIASES: &[(&str, &str)] = &[
     ("en", "en"),
     ("en-us", "en"),
@@ -111,6 +112,8 @@ pub struct Settings {
     pub default_ai_target: Option<String>,
     pub ai_model_providers: Option<Vec<AiModelProvider>>,
     pub ai_workspace_conversations: Option<Vec<AiWorkspaceConversationSetting>>,
+    pub paper_parser_provider: Option<String>,
+    pub paper_parser_mineru_token_ref: Option<String>,
     pub hide_gitignored_files: Option<bool>,
     pub all_notes_show_pdfs: Option<bool>,
     pub all_notes_show_images: Option<bool>,
@@ -168,6 +171,15 @@ pub fn normalize_note_width_mode(value: Option<&str>) -> Option<String> {
 pub fn normalize_date_display_format(value: Option<&str>) -> Option<String> {
     match value.map(|candidate| candidate.trim().to_ascii_lowercase()) {
         Some(format) if SUPPORTED_DATE_DISPLAY_FORMATS.contains(&format.as_str()) => Some(format),
+        _ => None,
+    }
+}
+
+pub fn normalize_paper_parser_provider(value: Option<&str>) -> Option<String> {
+    match value.map(|candidate| candidate.trim().to_ascii_lowercase()) {
+        Some(provider) if SUPPORTED_PAPER_PARSER_PROVIDERS.contains(&provider.as_str()) => {
+            Some(provider)
+        }
         _ => None,
     }
 }
@@ -231,6 +243,12 @@ fn normalize_settings(settings: Settings) -> Settings {
         ai_model_providers: normalize_ai_model_providers(settings.ai_model_providers),
         ai_workspace_conversations: normalize_ai_workspace_conversations(
             settings.ai_workspace_conversations,
+        ),
+        paper_parser_provider: normalize_paper_parser_provider(
+            settings.paper_parser_provider.as_deref(),
+        ),
+        paper_parser_mineru_token_ref: normalize_optional_string(
+            settings.paper_parser_mineru_token_ref,
         ),
         hide_gitignored_files: settings.hide_gitignored_files,
         all_notes_show_pdfs: settings.all_notes_show_pdfs,
@@ -452,6 +470,8 @@ mod tests {
             default_ai_target: Some("agent:codex".to_string()),
             ai_model_providers: None,
             ai_workspace_conversations: None,
+            paper_parser_provider: Some("dev-fixture".to_string()),
+            paper_parser_mineru_token_ref: Some("MINERU_API_TOKEN".to_string()),
             hide_gitignored_files: Some(false),
             multi_workspace_enabled: Some(true),
             all_notes_show_pdfs: Some(true),
@@ -490,6 +510,8 @@ mod tests {
             initial_h1_auto_rename_enabled: Some(false),
             ai_features_enabled: Some(false),
             default_ai_agent: Some("codex".to_string()),
+            paper_parser_provider: Some("dev-fixture".to_string()),
+            paper_parser_mineru_token_ref: Some(" MINERU_API_TOKEN ".to_string()),
             hide_gitignored_files: Some(false),
             multi_workspace_enabled: Some(true),
             all_notes_show_pdfs: Some(true),
@@ -513,6 +535,11 @@ mod tests {
         assert_eq!(loaded.initial_h1_auto_rename_enabled, Some(false));
         assert_eq!(loaded.ai_features_enabled, Some(false));
         assert_eq!(loaded.default_ai_agent.as_deref(), Some("codex"));
+        assert_eq!(loaded.paper_parser_provider.as_deref(), Some("dev-fixture"));
+        assert_eq!(
+            loaded.paper_parser_mineru_token_ref.as_deref(),
+            Some("MINERU_API_TOKEN")
+        );
         assert_eq!(loaded.hide_gitignored_files, Some(false));
         assert_eq!(loaded.multi_workspace_enabled, Some(true));
         assert_eq!(loaded.all_notes_show_pdfs, Some(true));
@@ -544,6 +571,8 @@ mod tests {
             date_display_format: Some("  ISO  ".to_string()),
             note_width_mode: Some("  WIDE  ".to_string()),
             default_ai_agent: Some("  codex  ".to_string()),
+            paper_parser_provider: Some("  MINERU  ".to_string()),
+            paper_parser_mineru_token_ref: Some("  MINERU_API_TOKEN  ".to_string()),
             ..Default::default()
         });
         assert_eq!(loaded.anonymous_id.as_deref(), Some("test-uuid"));
@@ -554,6 +583,11 @@ mod tests {
         assert_eq!(loaded.date_display_format.as_deref(), Some("iso"));
         assert_eq!(loaded.note_width_mode.as_deref(), Some("wide"));
         assert_eq!(loaded.default_ai_agent.as_deref(), Some("codex"));
+        assert_eq!(loaded.paper_parser_provider.as_deref(), Some("mineru"));
+        assert_eq!(
+            loaded.paper_parser_mineru_token_ref.as_deref(),
+            Some("MINERU_API_TOKEN")
+        );
     }
 
     #[test]
@@ -592,6 +626,20 @@ mod tests {
             ..Default::default()
         });
         assert!(loaded.default_ai_agent.is_none());
+    }
+
+    #[test]
+    fn test_invalid_paper_parser_provider_is_filtered() {
+        let loaded = save_and_reload(Settings {
+            paper_parser_provider: Some("unknown-parser".to_string()),
+            paper_parser_mineru_token_ref: Some("MINERU_API_TOKEN".to_string()),
+            ..Default::default()
+        });
+        assert!(loaded.paper_parser_provider.is_none());
+        assert_eq!(
+            loaded.paper_parser_mineru_token_ref.as_deref(),
+            Some("MINERU_API_TOKEN")
+        );
     }
 
     #[test]

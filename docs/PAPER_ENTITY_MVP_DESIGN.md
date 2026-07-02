@@ -54,6 +54,22 @@ Reader commands:
 
 Missing `blocks.jsonl` returns a `missing` state with no blocks. Empty sidecars return `empty`. Malformed JSONL or missing required fields returns structured line errors and does not mutate `source.pdf`, `paper.md`, or any sidecar.
 
+## Parser Provider Boundary
+
+Phase 4A introduces the parser-provider boundary that can produce `blocks.jsonl` without hard-wiring a production parser into the Reader. Parser choice is installation-local app settings, not vault state:
+
+- `none`: parsing is disabled and `parse_paper` returns a clear `missing_provider` error.
+- `dev-fixture`: writes a deterministic sample `blocks.jsonl` for local testing and development vaults.
+- `mineru`: resolves a configured API token directly or from an environment variable name, sends `source.pdf` to MinerU through the remote parser flow, and normalizes the returned content list into canonical SourceBlocks.
+
+The common parse result is `PaperParseResult`: `paperId`, `provider`, `parser`, `parserVersion`, `parsedAt`, `paperPath`, `blocksPath`, `blocks`, `assets`, and `warnings`. `parse_paper(vaultPath, paperId, settings)` resolves `papers/<paper-slug>/paper.md`, `source.pdf`, and `blocks.jsonl` through the active-vault boundary. Successful parsing writes normalized SourceBlock JSONL, updates `paper.md` parse metadata (`parse_status`, `parser_provider`, `parser_version`, `parsed_at`), reloads the app index, and never mutates `source.pdf`.
+
+Phase 4B implements the MinerU adapter behind that boundary. MinerU parsing uses a remote upload/poll/download flow: Tolaria requests a MinerU upload URL, uploads local `source.pdf` bytes, polls the batch result, downloads `content_list.json` or extracts it from the result ZIP, then normalizes entries into SourceBlocks. Supported normalized kinds are `title`, `heading`, `paragraph`, `figure`, `table`, `equation`, and `caption`; page numbers and bboxes are retained when present, and each block receives a stable `sha256:` hash. The configured MinerU value can be the API token itself or an environment variable name such as `MINERU_API_TOKEN`; it is installation-local and is not written to the vault.
+
+Parse metadata supports `unparsed`, `parsing`, `parsed`, and `failed`. Failed MinerU parses update `parse_status: failed` and `parse_error` but do not overwrite a previous valid `blocks.jsonl`. Successful reparses may replace `blocks.jsonl`; the result includes a warning when existing blocks were replaced.
+
+The Paper Reader missing-blocks state exposes "Parse Paper" or "Parse with MinerU" depending on the selected provider and explains that the PDF is available while the paper outline required for citations needs parsing first. After parsing succeeds, the Reader reloads SourceBlocks from the sidecar and keeps PDF preview behavior unchanged. If the last parse failed, the Reader shows a recoverable retry state with the provider error detail while preserving any old outline that still loads.
+
 ## Block Citation Syntax
 
 Phase 2B introduces durable Markdown citations for SourceBlocks:
@@ -76,14 +92,14 @@ Phase 2C adds the first Paper Reader surface without changing the underlying fil
 The reader shell displays:
 
 - Paper metadata parsed from `paper.md`.
-- `source_pdf` status and the existing `FilePreview` view for the resolved source PDF path.
-- `blocks.jsonl` load state: loading, missing, empty, ready, or error.
+- PDF readiness and the existing `FilePreview` view for the resolved source PDF path.
+- Parsed paper-structure state: loading, not parsed, empty, parsed, or error. The backing artifact is still `blocks.jsonl`, but the normal Reader UI presents it as the paper outline instead of exposing the sidecar filename.
 - Block count and current selected block id.
-- A simple SourceBlock outline loaded through the Phase 2A `read_paper_blocks` command.
+- A collapsible SourceBlock outline loaded through the Phase 2A `read_paper_blocks` command.
 
 Block interaction remains intentionally minimal. Selecting a block only focuses the outline row, and the copy action uses the canonical Phase 2B formatter to write `@block[paper_id#block_id]` to the clipboard. Citation navigation consumes the pending `{ paperId, blockId }` request from `src/paper/blockCitationNavigation.ts`, opens the Paper entity, and scrolls/focuses the requested SourceBlock row when the sidecar has that id.
 
-The Phase 2C reader does not write `source.pdf`, `paper.md`, or sidecars. Missing and empty sidecars render recoverable states; malformed sidecars render structured line errors from the existing sidecar reader. PDF page-coordinate overlays, parser integration, AI Ask, memory compilation, and graph UI remain out of scope for that phase.
+The Phase 2C reader does not write `source.pdf`, `paper.md`, or sidecars. Missing and empty parsed-structure artifacts render recoverable states; malformed sidecars render structured line errors from the existing sidecar reader. PDF page-coordinate overlays, parser integration, AI Ask, memory compilation, and graph UI remain out of scope for that phase.
 
 ## Annotation Sidecar Contract
 
@@ -130,3 +146,11 @@ paper:
 The note body starts with `# Marginalia: <Paper title>` and the sections `Key Claims`, `Questions`, and `Notes`. The Reader also exposes "Add Selected Block to Marginalia"; when a SourceBlock is selected, the action creates the default marginalia note with the canonical `@block[paper_id#block_id]` citation or appends that citation to the existing note. The first implementation appends safely rather than attempting cross-surface cursor insertion.
 
 If a future explicit "Create New Paper Note" action is added, the fallback naming convention is `marginalia-2.md`, `marginalia-3.md`, and so on under the same `papers/<paper-slug>/notes/` directory. The default action must continue to open existing `marginalia.md` rather than duplicating it.
+
+## Paper Reader Marginalia Mode
+
+Phase 3C adds a Paper Reader mode switch without mounting a second full editor instance. Read mode preserves the Phase 2C/3A reader surface: SourceBlock outline plus source PDF preview. Marginalia mode replaces the PDF pane with a paper-local marginalia preview pane while keeping the block outline available for reading and selection.
+
+The marginalia pane reads `papers/<paper-slug>/notes/marginalia.md` through the existing note-content command boundary and reports ready, missing, loading, or error states without creating the file during preview. The pane can create the default marginalia note, open it in the normal editor path, and append the selected block citation; after append it refreshes the displayed note content in place. This intentionally avoids cross-surface cursor insertion and avoids mounting two rich editors until the main editor architecture explicitly supports that safely.
+
+The split layout stacks on narrow widths and uses a two-pane grid on wide screens. Selected SourceBlock state is shared across Read and Marginalia modes so a block chosen while reading remains selected when adding a citation to the marginalia note.
