@@ -12,6 +12,7 @@ vi.mock('../utils/url', async () => {
 import { openExternalUrl } from '../utils/url'
 import { MarkdownContent } from './MarkdownContent'
 import { preprocessWikilinks } from '../utils/chatWikilinks'
+import { BLOCK_CITATION_NAVIGATE_EVENT } from '../paper/blockCitationNavigation'
 
 const mockOpenExternalUrl = vi.mocked(openExternalUrl)
 
@@ -227,6 +228,72 @@ describe('MarkdownContent', () => {
       const wikilink = container.querySelector('.chat-wikilink')!
       expect(wikilink.getAttribute('role')).toBe('link')
       expect(wikilink.getAttribute('tabindex')).toBe('0')
+    })
+  })
+
+  describe('block citations', () => {
+    it('renders @block citations as clickable tokens', () => {
+      const onBlockCitationClick = vi.fn()
+      const { container } = render(
+        <MarkdownContent
+          content={'Claim @block[vaswani-2017-attention#b0023 "Transformer claim"]'}
+          onBlockCitationClick={onBlockCitationClick}
+        />,
+      )
+
+      const citation = container.querySelector('.block-citation')!
+      expect(citation.textContent).toBe('Transformer claim')
+      expect(citation.getAttribute('data-block-citation-paper-id')).toBe('vaswani-2017-attention')
+      expect(citation.getAttribute('data-block-citation-block-id')).toBe('b0023')
+
+      fireEvent.click(citation)
+
+      expect(onBlockCitationClick).toHaveBeenCalledWith({
+        paperId: 'vaswani-2017-attention',
+        blockId: 'b0023',
+        label: 'Transformer claim',
+      })
+    })
+
+    it('dispatches navigation intent when no local citation handler is provided', () => {
+      const listener = vi.fn()
+      window.addEventListener(BLOCK_CITATION_NAVIGATE_EVENT, listener)
+      const { container } = render(
+        <MarkdownContent content="Claim @block[vaswani-2017-attention#b0023]" />,
+      )
+
+      fireEvent.click(container.querySelector('.block-citation')!)
+
+      expect(listener).toHaveBeenCalledTimes(1)
+      const event = listener.mock.calls[0][0] as CustomEvent
+      expect(event.detail).toEqual({
+        paperId: 'vaswani-2017-attention',
+        blockId: 'b0023',
+        label: null,
+      })
+
+      window.removeEventListener(BLOCK_CITATION_NAVIGATE_EVENT, listener)
+    })
+
+    it('renders malformed closed citations with a warning state', () => {
+      const { container } = render(
+        <MarkdownContent content="Broken @block[paper-only]" />,
+      )
+
+      const citation = container.querySelector('.block-citation--broken')!
+      expect(citation.textContent).toBe('@block[paper-only]')
+      expect(citation.getAttribute('data-block-citation-state')).toBe('malformed')
+      expect(citation.getAttribute('data-block-citation-reason')).toBe('missing_separator')
+    })
+
+    it('does not render block citations inside inline code or fenced code', () => {
+      const { container } = render(
+        <MarkdownContent content={'Use `@block[p#inline]`\n\n```\n@block[p#fenced]\n```'} />,
+      )
+
+      expect(container.querySelector('.block-citation')).toBeNull()
+      expect(container.textContent).toContain('@block[p#inline]')
+      expect(container.textContent).toContain('@block[p#fenced]')
     })
   })
 })

@@ -64,6 +64,7 @@ import { useAppViewActions } from './hooks/useAppViewActions'
 import { useAppWindowControls } from './hooks/useAppWindowControls'
 import { useAiWorkspacePublishedContext } from './hooks/useAiWorkspacePublishedContext'
 import { usePaperImport } from './paper/usePaperImport'
+import { useBlockCitationNavigation } from './paper/useBlockCitationNavigation'
 import type { ImportPaperPdfResult } from './paper/types'
 import {
   useNeighborhoodEntry,
@@ -562,6 +563,14 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     onImported: handlePaperImported,
     onToast: setToastMessage,
     vaultPath: resolvedPath,
+  })
+  const selectPaperSectionForCitation = useCallback(() => {
+    handleSetSelection({ kind: 'sectionGroup', type: 'Paper' })
+  }, [handleSetSelection])
+  useBlockCitationNavigation({
+    entries: visibleEntries,
+    onSelectPaper: handleSelectNote,
+    onSelectPaperSection: selectPaperSectionForCitation,
   })
   const noteActiveTabPath = notes.activeTabPath
   const noteActiveTabPathRef = notes.activeTabPathRef

@@ -208,3 +208,6 @@ proposed → active → superseded
 | [0147](0147-antigravity-cli-agent-adapter.md) | Antigravity CLI agent adapter | active |
 | [0148](0148-cancellable-ai-agent-streams.md) | Cancellable AI agent streams | active |
 | [0149](0149-shared-app-config-policy-manifest.md) | Shared app config policy manifest | active |
+| [0150](0150-paper-vault-entity-model.md) | Paper vault entity model | active |
+| [0151](0151-paper-sidecar-files.md) | Paper sidecar files | active |
+| [0152](0152-block-citation-markdown-syntax.md) | Block citation Markdown syntax | active |

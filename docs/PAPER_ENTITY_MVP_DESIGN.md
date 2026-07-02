@@ -53,3 +53,18 @@ Reader commands:
 - `search_paper_blocks(vaultPath, paperId, query)`
 
 Missing `blocks.jsonl` returns a `missing` state with no blocks. Empty sidecars return `empty`. Malformed JSONL or missing required fields returns structured line errors and does not mutate `source.pdf`, `paper.md`, or any sidecar.
+
+## Block Citation Syntax
+
+Phase 2B introduces durable Markdown citations for SourceBlocks:
+
+```markdown
+@block[paper_id#block_id]
+@block[paper_id#block_id "Display label"]
+```
+
+The canonical parser lives in `src/paper/blockCitations.ts`. It preserves the raw token and source range, extracts `paper_id`, `block_id`, and optional label, skips fenced and inline code, and returns malformed tokens as recoverable parse results instead of throwing.
+
+Validation is resolver-based so the app can check citations against `blocks.jsonl` without introducing a Paper database. The current frontend validator reports malformed syntax, missing Paper ids, and missing block ids. Rendering starts with a lightweight Markdown token path: valid citations become clickable block-citation links, malformed closed citations render with a warning state, and raw Markdown mode still shows the original `@block[...]` syntax unchanged.
+
+Clicking a valid rendered citation records pending `{ paperId, blockId }` focus intent and opens the matching Paper entity when it is present in the vault index. Future Paper Reader work can consume the pending block focus to scroll or highlight the exact PDF/source block.

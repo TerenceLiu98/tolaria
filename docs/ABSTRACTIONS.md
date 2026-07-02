@@ -308,6 +308,15 @@ The root `paper.md` Type document defines the Papers sidebar section. Paper iden
 
 `blocks.jsonl` is a line-oriented SourceBlock sidecar. Each line must include `id`, `paper_id`, `kind`, `page`, and `hash`; optional fields include `text`, `caption`, `bbox`, `section`, `order`, `source_asset`, `confidence`, and `parser`. Tolaria reads the file through active-vault-bound Tauri commands and reports missing, empty, and malformed sidecars as recoverable states instead of treating parser output as app database state.
 
+Block citations are durable Markdown tokens, not editor-only objects:
+
+```markdown
+@block[paper_id#block_id]
+@block[paper_id#block_id "Display label"]
+```
+
+`src/paper/blockCitations.ts` owns parsing, formatting, and resolver-based validation. It preserves raw ranges for round-trip safety, skips inline/fenced code, and reports malformed tokens as validation issues. `MarkdownContent` can render valid tokens as clickable citation links and malformed closed tokens as warning chips. Clicking records pending block focus through `src/paper/blockCitationNavigation.ts` and opens the matching Paper entity when the vault index contains one; block-level scroll/highlight remains a future Paper Reader responsibility.
+
 **UI behavior**:
 - Clicking a section group header pins the type document at the top of the NoteList if it exists
 - Viewing a type document in entity view shows an "Instances" group listing all entries of that type
