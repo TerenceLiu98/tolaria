@@ -1,7 +1,14 @@
+mod annotations;
 mod blocks;
 mod import;
 pub mod paths;
 
+pub use annotations::{
+    annotations_by_block, delete_paper_annotation_file, parse_annotations_jsonl,
+    read_paper_annotations_file, save_paper_annotation_file, PaperAnnotation, PaperAnnotationColor,
+    PaperAnnotationKind, PaperAnnotationsError, PaperAnnotationsLineError,
+    PaperAnnotationsReadResult, PaperAnnotationsState,
+};
 pub use blocks::{
     find_paper_block, read_paper_blocks_file, sample_blocks_jsonl, search_paper_blocks_file,
     PaperBlockLookupResult, PaperBlockSearchResult, PaperBlocksError, PaperBlocksLineError,

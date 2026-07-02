@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ClipboardText, FilePdf, ListBullets, WarningCircle } from '@phosphor-icons/react'
+import { ClipboardText, FilePdf, ListBullets, Trash, WarningCircle } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { translate, type AppLocale } from '../lib/i18n'
@@ -14,6 +14,11 @@ import {
   type BlockCitationNavigationEvent,
 } from './blockCitationNavigation'
 import { loadPaperBlocks, type PaperBlocksError, type PaperBlocksReadResult } from './blocks'
+import type {
+  AnnotationsByBlockId,
+  PaperAnnotationColor,
+  PaperAnnotationKind,
+} from './annotations'
 import {
   blockDisplayText,
   type PaperReaderBlocksState,
@@ -22,6 +27,12 @@ import {
   sourcePdfEntryForPaper,
 } from './paperReaderModel'
 import type { SourceBlock, SourceBlockLineError } from './sourceBlocks'
+import {
+  isPaperAnnotationsError,
+  paperAnnotationsErrorMessage,
+  usePaperAnnotations,
+  type AnnotationLoadState,
+} from './usePaperAnnotations'
 
 interface PaperReaderShellProps {
   entry: VaultEntry
@@ -222,18 +233,55 @@ function BlocksStateNotice({
   return null
 }
 
+function AnnotationStateNotice({
+  error,
+  loadState,
+  locale,
+}: {
+  error: unknown
+  loadState: AnnotationLoadState
+  locale: AppLocale
+}) {
+  if (loadState === 'loading') {
+    return <p className="px-4 pb-3 text-sm text-muted-foreground">{translate(locale, 'paper.reader.annotationsLoading')}</p>
+  }
+
+  if (loadState !== 'error') return null
+
+  const lineErrors = isPaperAnnotationsError(error) ? error.lineErrors : []
+  return (
+    <div className="space-y-2 px-4 pb-3 text-sm text-destructive" data-testid="paper-reader-annotations-error">
+      <div className="flex items-center gap-2 font-medium">
+        <WarningCircle className="size-4" />
+        <span>{translate(locale, 'paper.reader.annotationsError')}</span>
+      </div>
+      <p>{paperAnnotationsErrorMessage(error)}</p>
+      {lineErrors.map((lineError) => (
+        <p key={`${lineError.line}:${lineError.kind}`} className="text-xs text-muted-foreground">
+          line {lineError.line}: {lineError.message}
+        </p>
+      ))}
+    </div>
+  )
+}
+
 async function writeClipboardText(text: string): Promise<void> {
   if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable')
   await navigator.clipboard.writeText(text)
 }
 
 function BlockOutline({
+  annotationError,
+  annotationLoadState,
+  annotationsByBlockId,
   locale,
   blocks,
   loadState,
   result,
   error,
   selectedBlockId,
+  onCreateAnnotation,
+  onDeleteAnnotation,
   onSelectBlock,
 }: {
   locale: AppLocale
@@ -241,7 +289,12 @@ function BlockOutline({
   loadState: LoadState
   result: PaperBlocksReadResult | null
   error: unknown
+  annotationError: unknown
+  annotationLoadState: AnnotationLoadState
+  annotationsByBlockId: AnnotationsByBlockId
   selectedBlockId: string | null
+  onCreateAnnotation: (block: SourceBlock, kind: PaperAnnotationKind) => void
+  onDeleteAnnotation: (annotationId: string) => void
   onSelectBlock: (blockId: string) => void
 }) {
   const blockRefs = useRef(new Map<string, HTMLButtonElement>())
@@ -277,54 +330,111 @@ function BlockOutline({
         <h2 className="text-sm font-semibold text-foreground">{translate(locale, 'paper.reader.blocksJsonl')}</h2>
       </div>
       <BlocksStateNotice locale={locale} loadState={loadState} result={result} error={error} />
+      <AnnotationStateNotice locale={locale} loadState={annotationLoadState} error={annotationError} />
       <ol className="min-h-0 flex-1 space-y-1 overflow-auto p-3">
         {blocks.map((block) => {
           const selected = block.id === selectedBlockId
           const citation = formatBlockCitation({ paperId: block.paper_id, blockId: block.id })
+          const annotations = annotationsByBlockId[block.id] ?? []
           return (
             <li
               key={block.id}
               className={cn(
-                'flex items-start gap-2 rounded-md border border-transparent p-1',
+                'grid gap-2 rounded-md border border-transparent p-1',
                 selected && 'border-primary/35 bg-primary/5',
               )}
               data-testid={`paper-reader-block-${block.id}`}
             >
-              <Button
-                ref={setBlockRef(block.id)}
-                type="button"
-                variant="ghost"
-                className="h-auto min-w-0 flex-1 justify-start px-2 py-2 text-left"
-                aria-current={selected ? 'true' : undefined}
-                onClick={() => onSelectBlock(block.id)}
-              >
-                <span className="grid min-w-0 gap-1">
-                  <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-mono text-[11px] text-foreground">{block.id}</span>
-                    <span>{block.kind}</span>
-                    <span>p.{block.page}</span>
+              <div className="flex items-start gap-2">
+                <Button
+                  ref={setBlockRef(block.id)}
+                  type="button"
+                  variant="ghost"
+                  className="h-auto min-w-0 flex-1 justify-start px-2 py-2 text-left"
+                  aria-current={selected ? 'true' : undefined}
+                  onClick={() => onSelectBlock(block.id)}
+                >
+                  <span className="grid min-w-0 gap-1">
+                    <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                      <span className="font-mono text-[11px] text-foreground">{block.id}</span>
+                      <span>{block.kind}</span>
+                      <span>p.{block.page}</span>
+                      {annotations.length > 0 && (
+                        <span
+                          className="rounded-sm bg-accent px-1.5 py-0.5 text-[11px] font-medium text-accent-foreground"
+                          data-testid={`paper-reader-annotation-count-${block.id}`}
+                        >
+                          {translate(locale, 'paper.reader.annotationCount', { count: annotations.length })}
+                        </span>
+                      )}
+                    </span>
+                    <span className="line-clamp-3 whitespace-normal text-sm leading-5 text-foreground">
+                      {blockDisplayText(block)}
+                    </span>
                   </span>
-                  <span className="line-clamp-3 whitespace-normal text-sm leading-5 text-foreground">
-                    {blockDisplayText(block)}
-                  </span>
-                </span>
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                title={citation}
-                aria-label={citation}
-                onClick={() => copyCitation(block)}
-              >
-                <ClipboardText className="size-4" />
-              </Button>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  title={citation}
+                  aria-label={citation}
+                  onClick={() => copyCitation(block)}
+                >
+                  <ClipboardText className="size-4" />
+                </Button>
+              </div>
+              {selected && (
+                <div className="flex flex-wrap items-center gap-2 px-2 pb-1" data-testid={`paper-reader-annotation-controls-${block.id}`}>
+                  <Button type="button" variant="secondary" size="xs" onClick={() => onCreateAnnotation(block, 'highlight')}>
+                    {translate(locale, 'paper.reader.addHighlight')}
+                  </Button>
+                  <Button type="button" variant="secondary" size="xs" onClick={() => onCreateAnnotation(block, 'question')}>
+                    {translate(locale, 'paper.reader.addQuestion')}
+                  </Button>
+                  <Button type="button" variant="secondary" size="xs" onClick={() => onCreateAnnotation(block, 'comment')}>
+                    {translate(locale, 'paper.reader.addComment')}
+                  </Button>
+                </div>
+              )}
+              {annotations.length > 0 && (
+                <ul className="grid gap-1 px-2 pb-1" data-testid={`paper-reader-annotations-${block.id}`}>
+                  {annotations.map((annotation) => (
+                    <li
+                      key={annotation.id}
+                      className="flex items-center justify-between gap-2 rounded-md bg-muted/60 px-2 py-1 text-xs text-muted-foreground"
+                    >
+                      <span className="min-w-0 truncate">
+                        {annotation.kind}
+                        {annotation.color ? ` · ${annotation.color}` : ''}
+                        {annotation.note ? ` · ${annotation.note}` : ''}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        title={translate(locale, 'paper.reader.deleteAnnotation')}
+                        aria-label={translate(locale, 'paper.reader.deleteAnnotation')}
+                        onClick={() => onDeleteAnnotation(annotation.id)}
+                      >
+                        <Trash className="size-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           )
         })}
       </ol>
     </section>
   )
+}
+
+function annotationColorForKind(kind: PaperAnnotationKind): PaperAnnotationColor {
+  if (kind === 'question') return 'questioning'
+  if (kind === 'comment') return 'pending'
+  return 'important'
 }
 
 function PaperPdfPanel({
@@ -390,6 +500,22 @@ export function PaperReaderShell({
     selectedBlockId,
   )
   const blocks = blocksState.result?.blocks ?? []
+  const annotations = usePaperAnnotations(vaultPath, paperId)
+  const createAnnotation = useCallback((block: SourceBlock, kind: PaperAnnotationKind) => {
+    void annotations.createBlockLevelAnnotation({
+      blockId: block.id,
+      color: annotationColorForKind(kind),
+      kind,
+      text: kind === 'highlight' ? blockDisplayText(block) : undefined,
+    }).catch((error: unknown) => {
+      console.warn('[paper-reader] Failed to save annotation:', error)
+    })
+  }, [annotations])
+  const deleteAnnotation = useCallback((annotationId: string) => {
+    void annotations.deleteAnnotation(annotationId).catch((error: unknown) => {
+      console.warn('[paper-reader] Failed to delete annotation:', error)
+    })
+  }, [annotations])
 
   useBlockCitationFocus(paperId, focusBlock)
   useReaderOpenedAnalytics(paperId, summary.blocksState)
@@ -401,12 +527,17 @@ export function PaperReaderShell({
       <PaperMetadataPanel locale={locale} metadata={metadata} summary={summary} />
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(320px,0.85fr)_minmax(360px,1.15fr)]">
         <BlockOutline
+          annotationError={annotations.error}
+          annotationLoadState={annotations.loadState}
+          annotationsByBlockId={annotations.annotationsByBlockId}
           locale={locale}
           blocks={blocks}
           loadState={loadingBlocks ? 'loading' : blocksState.state}
           result={blocksState.result}
           error={blocksState.error}
           selectedBlockId={selectedBlockId}
+          onCreateAnnotation={createAnnotation}
+          onDeleteAnnotation={deleteAnnotation}
           onSelectBlock={focusBlock}
         />
         <PaperPdfPanel

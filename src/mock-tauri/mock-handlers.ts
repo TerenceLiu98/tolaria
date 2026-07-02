@@ -21,6 +21,11 @@ import {
   parseSourceBlocksJsonl,
   searchSourceBlocks,
 } from '../paper/sourceBlocks'
+import {
+  parsePaperAnnotationsJsonl,
+  validatePaperAnnotation,
+  type PaperAnnotation,
+} from '../paper/paperAnnotations'
 
 function syncWindowContent(): void {
   if (typeof window !== 'undefined') {
@@ -344,6 +349,15 @@ function mockPaperBlocksPath(args: { vaultPath?: string; vault_path?: string; pa
   }
 }
 
+function mockPaperAnnotationsPath(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const vaultPath = args.vaultPath ?? args.vault_path ?? mockLastVaultPath ?? DEFAULT_MOCK_VAULT_PATH
+  const paperId = args.paperId ?? args.paper_id ?? ''
+  return {
+    paperId,
+    path: `${vaultPath}/papers/${paperId}/annotations.jsonl`,
+  }
+}
+
 function structuredMockBlocksError({
   lineErrors,
   paperId,
@@ -356,6 +370,24 @@ function structuredMockBlocksError({
   return {
     kind: 'invalid_jsonl',
     message: 'blocks.jsonl contains malformed SourceBlock lines',
+    paperId,
+    path,
+    lineErrors,
+  }
+}
+
+function structuredMockAnnotationsError({
+  lineErrors,
+  paperId,
+  path,
+}: {
+  lineErrors: ReturnType<typeof parsePaperAnnotationsJsonl>['errors']
+  paperId: string
+  path: string
+}) {
+  return {
+    kind: 'invalid_jsonl',
+    message: 'annotations.jsonl contains malformed PaperAnnotation lines',
     paperId,
     path,
     lineErrors,
@@ -409,6 +441,75 @@ function handleSearchPaperBlocks(args: {
     state: result.state,
     blocks: searchSourceBlocks(result.blocks, query),
   }
+}
+
+function readMockPaperAnnotations(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const { paperId, path } = mockPaperAnnotationsPath(args)
+  const content = Reflect.get(MOCK_CONTENT, path)
+  if (typeof content !== 'string') {
+    return { paperId, path, state: 'missing' as const, annotations: [] }
+  }
+
+  const parsed = parsePaperAnnotationsJsonl(content, paperId)
+  if (parsed.errors.length > 0) throw structuredMockAnnotationsError({ lineErrors: parsed.errors, paperId, path })
+  return { paperId, path, state: parsed.state, annotations: parsed.annotations }
+}
+
+function writeMockPaperAnnotations({
+  annotations,
+  path,
+}: {
+  annotations: readonly PaperAnnotation[]
+  path: string
+}) {
+  const content = annotations.map((annotation) => JSON.stringify(annotation)).join('\n')
+  writeMockContent({ path, content: content ? `${content}\n` : '' })
+  mockSavedSinceCommit.add(path)
+  syncWindowContent()
+}
+
+function handleReadPaperAnnotations(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  return readMockPaperAnnotations(args)
+}
+
+function handleSavePaperAnnotation(args: {
+  annotation?: PaperAnnotation
+  vaultPath?: string
+  vault_path?: string
+  paperId?: string
+  paper_id?: string
+}) {
+  const { paperId, path } = mockPaperAnnotationsPath(args)
+  const annotation = args.annotation
+  const validation = validatePaperAnnotation(annotation, 1, paperId)
+  if (!validation.annotation) {
+    throw structuredMockAnnotationsError({ lineErrors: validation.errors, paperId, path })
+  }
+
+  const existing = readMockPaperAnnotations(args).annotations
+  const nextAnnotations = existing.some((candidate) => candidate.id === validation.annotation?.id)
+    ? existing.map((candidate) => candidate.id === validation.annotation?.id ? validation.annotation : candidate)
+    : [...existing, validation.annotation]
+  writeMockPaperAnnotations({ annotations: nextAnnotations, path })
+  return readMockPaperAnnotations(args)
+}
+
+function handleDeletePaperAnnotation(args: {
+  annotationId?: string
+  annotation_id?: string
+  vaultPath?: string
+  vault_path?: string
+  paperId?: string
+  paper_id?: string
+}) {
+  const { path } = mockPaperAnnotationsPath(args)
+  const annotationId = args.annotationId ?? args.annotation_id ?? ''
+  const existing = readMockPaperAnnotations(args).annotations
+  writeMockPaperAnnotations({
+    annotations: existing.filter((annotation) => annotation.id !== annotationId),
+    path,
+  })
+  return readMockPaperAnnotations(args)
 }
 
 function replaceMockTitleFrontmatter({ content, newTitle }: { content: string; newTitle: string }) {
@@ -622,6 +723,9 @@ export const mockHandlers: Record<string, (args: any) => any> = {
   read_paper_blocks: handleReadPaperBlocks,
   read_paper_block: handleReadPaperBlock,
   search_paper_blocks: handleSearchPaperBlocks,
+  read_paper_annotations: handleReadPaperAnnotations,
+  save_paper_annotation: handleSavePaperAnnotation,
+  delete_paper_annotation: handleDeletePaperAnnotation,
   get_note_content: (args: { path: string }) => MOCK_CONTENT[args.path] ?? '',
   validate_note_content: (args: { path: string; content: string }) => (MOCK_CONTENT[args.path] ?? '') === args.content,
   get_all_content: () => MOCK_CONTENT,

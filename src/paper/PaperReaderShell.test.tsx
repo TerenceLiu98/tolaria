@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VaultEntry } from '../types'
+import { MOCK_CONTENT } from '../mock-tauri/mock-content'
 import { clearPendingBlockFocus, setPendingBlockFocus } from './blockCitationNavigation'
 import { loadPaperBlocks } from './blocks'
 import { PaperReaderShell } from './PaperReaderShell'
@@ -17,11 +18,14 @@ vi.mock('../components/FilePreview', () => ({
 }))
 
 vi.mock('../lib/productAnalytics', () => ({
+  trackPaperAnnotationDeleted: vi.fn(),
+  trackPaperAnnotationSaved: vi.fn(),
   trackPaperBlockCitationCopied: vi.fn(),
   trackPaperReaderOpened: vi.fn(),
 }))
 
 const mockedLoadPaperBlocks = vi.mocked(loadPaperBlocks)
+const annotationsPath = '/vault/papers/attention/annotations.jsonl'
 
 const paperContent = [
   '---',
@@ -103,6 +107,7 @@ function readyBlocks() {
 describe('PaperReaderShell', () => {
   beforeEach(() => {
     clearPendingBlockFocus()
+    Reflect.deleteProperty(MOCK_CONTENT, annotationsPath)
     mockedLoadPaperBlocks.mockReset()
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -199,5 +204,77 @@ describe('PaperReaderShell', () => {
     expect(await screen.findByTestId('paper-reader-blocks-error')).toHaveTextContent('blocks.jsonl has malformed JSON')
     expect(screen.getByText('line 2: Line is not valid JSON')).toBeInTheDocument()
     expect(screen.getByTestId('paper-reader-shell')).toBeInTheDocument()
+  })
+
+  it('renders malformed annotation sidecar errors without hiding blocks', async () => {
+    readyBlocks()
+    MOCK_CONTENT[annotationsPath] = '{not json}\n'
+
+    render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
+
+    expect(await screen.findByTestId('paper-reader-annotations-error')).toHaveTextContent('annotations.jsonl contains malformed PaperAnnotation lines')
+    expect(screen.getByTestId('paper-reader-block-b0002')).toBeInTheDocument()
+  })
+
+  it('renders annotation markers on annotated blocks', async () => {
+    readyBlocks()
+    MOCK_CONTENT[annotationsPath] = [
+      JSON.stringify({
+        id: 'ann-1',
+        paper_id: 'attention',
+        block_id: 'b0002',
+        kind: 'highlight',
+        color: 'important',
+        created_at: '2026-07-02T10:15:00Z',
+      }),
+    ].join('\n') + '\n'
+
+    render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
+
+    expect(await screen.findByTestId('paper-reader-annotation-count-b0002')).toHaveTextContent('1 annotations')
+    expect(screen.getByTestId('paper-reader-annotations-b0002')).toHaveTextContent('highlight')
+  })
+
+  it('creates highlight, question, and comment annotations from the selected block', async () => {
+    readyBlocks()
+
+    render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
+
+    const block = await screen.findByTestId('paper-reader-block-b0002')
+    fireEvent.click(within(block).getByRole('button', { name: /parallelization/u }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Highlight' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Question' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Comment' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('paper-reader-annotation-count-b0002')).toHaveTextContent('3 annotations')
+    })
+    expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"highlight"')
+    expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"question"')
+    expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"comment"')
+  })
+
+  it('deletes annotations from the selected block', async () => {
+    readyBlocks()
+    MOCK_CONTENT[annotationsPath] = [
+      JSON.stringify({
+        id: 'ann-1',
+        paper_id: 'attention',
+        block_id: 'b0002',
+        kind: 'highlight',
+        color: 'important',
+        created_at: '2026-07-02T10:15:00Z',
+      }),
+    ].join('\n') + '\n'
+
+    render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
+
+    const annotations = await screen.findByTestId('paper-reader-annotations-b0002')
+    fireEvent.click(within(annotations).getByRole('button', { name: 'Delete annotation' }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('paper-reader-annotation-count-b0002')).not.toBeInTheDocument()
+    })
+    expect(MOCK_CONTENT[annotationsPath]).toBe('')
   })
 })

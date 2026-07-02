@@ -83,4 +83,27 @@ The reader shell displays:
 
 Block interaction remains intentionally minimal. Selecting a block only focuses the outline row, and the copy action uses the canonical Phase 2B formatter to write `@block[paper_id#block_id]` to the clipboard. Citation navigation consumes the pending `{ paperId, blockId }` request from `src/paper/blockCitationNavigation.ts`, opens the Paper entity, and scrolls/focuses the requested SourceBlock row when the sidecar has that id.
 
-The reader does not write `source.pdf`, `paper.md`, or sidecars. Missing and empty sidecars render recoverable states; malformed sidecars render structured line errors from the existing sidecar reader. PDF page-coordinate overlays, annotations, parser integration, AI Ask, memory compilation, and graph UI remain out of scope for this phase.
+The Phase 2C reader does not write `source.pdf`, `paper.md`, or sidecars. Missing and empty sidecars render recoverable states; malformed sidecars render structured line errors from the existing sidecar reader. PDF page-coordinate overlays, parser integration, AI Ask, memory compilation, and graph UI remain out of scope for that phase.
+
+## Annotation Sidecar Contract
+
+Phase 3A introduces `annotations.jsonl` as the durable sidecar for user-created Paper Reader marks. Each non-empty line is one PaperAnnotation JSON object. Required fields are:
+
+- `id`: stable annotation id.
+- `paper_id`: parent Paper id.
+- `kind`: one of `highlight`, `underline`, `question`, `comment`, or `bookmark`.
+- `created_at`: ISO timestamp written by the client that created the annotation.
+
+An annotation must target either a SourceBlock with `block_id` or a future PDF region with `page` plus `bbox`. Phase 3A only creates block-level annotations from the Reader UI; the model accepts coordinate targets so future PDF overlays can share the same sidecar without changing the file contract.
+
+Initial semantic colors are `questioning`, `important`, `original`, `pending`, and `conclusion`. Optional fields include `color`, `text`, `note`, `updated_at`, and `deleted_at`; unknown fields are preserved by the Rust reader for forward compatibility.
+
+Reader commands:
+
+- `read_paper_annotations(vaultPath, paperId)`
+- `save_paper_annotation(vaultPath, paperId, annotation)`
+- `delete_paper_annotation(vaultPath, paperId, annotationId)`
+
+`save_paper_annotation` creates or updates by id and rewrites `annotations.jsonl` after validating the existing sidecar. `delete_paper_annotation` uses the simplest durable v1 behavior: rewrite the file without the deleted record. Both commands stay inside the active-vault boundary and never modify `source.pdf`.
+
+The Paper Reader shows annotation counts on annotated SourceBlocks. Selecting a block exposes minimal block-level actions for highlight, question, and comment; deleting an annotation removes it from the sidecar and refreshes the row markers. Missing and empty annotation sidecars are valid zero-annotation states. Malformed annotation sidecars render recoverable errors instead of hiding Paper content.

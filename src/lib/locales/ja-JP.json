@@ -975,5 +975,12 @@
   "paper.reader.blocksMissing": "blocks.jsonl missing",
   "paper.reader.blocksEmpty": "blocks.jsonl empty",
   "paper.reader.blocksJsonl": "blocks.jsonl",
-  "paper.reader.metadataUnavailable": "Paper metadata unavailable"
+  "paper.reader.metadataUnavailable": "Paper metadata unavailable",
+  "paper.reader.annotationsLoading": "annotations.jsonl を読み込み中",
+  "paper.reader.annotationsError": "annotations.jsonl エラー",
+  "paper.reader.annotationCount": "{count} 件の注釈",
+  "paper.reader.addHighlight": "ハイライト",
+  "paper.reader.addQuestion": "質問",
+  "paper.reader.addComment": "コメント",
+  "paper.reader.deleteAnnotation": "注釈を削除"
 }

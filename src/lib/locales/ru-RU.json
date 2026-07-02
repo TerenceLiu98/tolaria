@@ -975,5 +975,12 @@
   "paper.reader.blocksMissing": "blocks.jsonl missing",
   "paper.reader.blocksEmpty": "blocks.jsonl empty",
   "paper.reader.blocksJsonl": "blocks.jsonl",
-  "paper.reader.metadataUnavailable": "Paper metadata unavailable"
+  "paper.reader.metadataUnavailable": "Paper metadata unavailable",
+  "paper.reader.annotationsLoading": "annotations.jsonl загружается",
+  "paper.reader.annotationsError": "ошибка annotations.jsonl",
+  "paper.reader.annotationCount": "{count} аннотаций",
+  "paper.reader.addHighlight": "Выделить",
+  "paper.reader.addQuestion": "Вопрос",
+  "paper.reader.addComment": "Комментарий",
+  "paper.reader.deleteAnnotation": "Удалить аннотацию"
 }

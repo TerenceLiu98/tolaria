@@ -16,6 +16,8 @@ type NotePdfExportFailureReason = 'export_unavailable' | 'export_error'
 type NotePdfExportSource = 'breadcrumb' | 'app_command' | 'note_list_context_menu'
 type PaperImportSource = 'command_palette'
 type PaperReaderBlocksState = 'missing' | 'empty' | 'ready' | 'loading' | 'error' | 'unavailable'
+type PaperAnnotationActionKind = 'highlight' | 'underline' | 'question' | 'comment' | 'bookmark'
+type PaperAnnotationActionColor = 'questioning' | 'important' | 'original' | 'pending' | 'conclusion'
 type AnalyticsBoolean = boolean
 type AiAgentResponseText = string
 type AiAgentToolCount = number
@@ -93,6 +95,20 @@ export function trackPaperReaderOpened(blocksState: PaperReaderBlocksState): voi
 
 export function trackPaperBlockCitationCopied(): void {
   trackEvent('paper_block_citation_copied')
+}
+
+export function trackPaperAnnotationSaved(params: {
+  color?: PaperAnnotationActionColor
+  kind: PaperAnnotationActionKind
+}): void {
+  trackEvent('paper_annotation_saved', {
+    color: params.color ?? 'none',
+    kind: params.kind,
+  })
+}
+
+export function trackPaperAnnotationDeleted(): void {
+  trackEvent('paper_annotation_deleted')
 }
 
 export function trackAllNotesVisibilityChanged(

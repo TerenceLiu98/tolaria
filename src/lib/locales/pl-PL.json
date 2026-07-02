@@ -975,5 +975,12 @@
   "paper.reader.blocksMissing": "blocks.jsonl missing",
   "paper.reader.blocksEmpty": "blocks.jsonl empty",
   "paper.reader.blocksJsonl": "blocks.jsonl",
-  "paper.reader.metadataUnavailable": "Paper metadata unavailable"
+  "paper.reader.metadataUnavailable": "Paper metadata unavailable",
+  "paper.reader.annotationsLoading": "Ładowanie annotations.jsonl",
+  "paper.reader.annotationsError": "Błąd annotations.jsonl",
+  "paper.reader.annotationCount": "{count} adnotacji",
+  "paper.reader.addHighlight": "Wyróżnij",
+  "paper.reader.addQuestion": "Pytanie",
+  "paper.reader.addComment": "Komentarz",
+  "paper.reader.deleteAnnotation": "Usuń adnotację"
 }

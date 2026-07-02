@@ -975,5 +975,12 @@
   "paper.reader.blocksMissing": "blocks.jsonl missing",
   "paper.reader.blocksEmpty": "blocks.jsonl empty",
   "paper.reader.blocksJsonl": "blocks.jsonl",
-  "paper.reader.metadataUnavailable": "Paper metadata unavailable"
+  "paper.reader.metadataUnavailable": "Paper metadata unavailable",
+  "paper.reader.annotationsLoading": "annotations.jsonl sedang dimuat",
+  "paper.reader.annotationsError": "kesalahan annotations.jsonl",
+  "paper.reader.annotationCount": "{count} anotasi",
+  "paper.reader.addHighlight": "Sorot",
+  "paper.reader.addQuestion": "Pertanyaan",
+  "paper.reader.addComment": "Komentar",
+  "paper.reader.deleteAnnotation": "Hapus anotasi"
 }

@@ -975,5 +975,12 @@
   "paper.reader.blocksMissing": "blocks.jsonl missing",
   "paper.reader.blocksEmpty": "blocks.jsonl empty",
   "paper.reader.blocksJsonl": "blocks.jsonl",
-  "paper.reader.metadataUnavailable": "Paper metadata unavailable"
+  "paper.reader.metadataUnavailable": "Paper metadata unavailable",
+  "paper.reader.annotationsLoading": "正在載入 annotations.jsonl",
+  "paper.reader.annotationsError": "annotations.jsonl 錯誤",
+  "paper.reader.annotationCount": "{count} 則註解",
+  "paper.reader.addHighlight": "醒目標示",
+  "paper.reader.addQuestion": "問題",
+  "paper.reader.addComment": "評論",
+  "paper.reader.deleteAnnotation": "刪除註解"
 }
