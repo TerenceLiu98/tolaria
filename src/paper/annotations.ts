@@ -78,3 +78,13 @@ export function deletePaperAnnotation(
     annotationId,
   })
 }
+
+export function resetPaperAnnotations(
+  vaultPath: string,
+  paperId: string,
+): Promise<PaperAnnotationsReadResult> {
+  return invokePaperAnnotationCommand<PaperAnnotationsReadResult>('reset_paper_annotations', {
+    vaultPath,
+    paperId,
+  })
+}

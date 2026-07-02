@@ -19,6 +19,7 @@ vi.mock('../components/FilePreview', () => ({
 
 vi.mock('../lib/productAnalytics', () => ({
   trackPaperAnnotationDeleted: vi.fn(),
+  trackPaperAnnotationSidecarReset: vi.fn(),
   trackPaperAnnotationSaved: vi.fn(),
   trackPaperBlockCitationCopied: vi.fn(),
   trackPaperReaderOpened: vi.fn(),
@@ -216,6 +217,36 @@ describe('PaperReaderShell', () => {
     expect(screen.getByTestId('paper-reader-block-b0002')).toBeInTheDocument()
   })
 
+  it('creates an empty annotation sidecar from the missing state', async () => {
+    readyBlocks()
+
+    render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
+
+    expect(await screen.findByText('annotations.jsonl missing')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Create empty sidecar' }))
+
+    await waitFor(() => {
+      expect(MOCK_CONTENT[annotationsPath]).toBe('')
+      expect(screen.getByText('annotations.jsonl empty')).toBeInTheDocument()
+    })
+  })
+
+  it('resets a malformed annotation sidecar without hiding blocks', async () => {
+    readyBlocks()
+    MOCK_CONTENT[annotationsPath] = '{not json}\n'
+
+    render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
+
+    expect(await screen.findByTestId('paper-reader-annotations-error')).toHaveTextContent('annotations.jsonl contains malformed PaperAnnotation lines')
+    fireEvent.click(screen.getByRole('button', { name: 'Reset annotations sidecar' }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('paper-reader-annotations-error')).not.toBeInTheDocument()
+      expect(MOCK_CONTENT[annotationsPath]).toBe('')
+    })
+    expect(screen.getByTestId('paper-reader-block-b0002')).toBeInTheDocument()
+  })
+
   it('renders annotation markers on annotated blocks', async () => {
     readyBlocks()
     MOCK_CONTENT[annotationsPath] = [
@@ -232,26 +263,76 @@ describe('PaperReaderShell', () => {
     render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
 
     expect(await screen.findByTestId('paper-reader-annotation-count-b0002')).toHaveTextContent('1 annotations')
-    expect(screen.getByTestId('paper-reader-annotations-b0002')).toHaveTextContent('highlight')
+    expect(screen.getByTestId('paper-reader-annotations-b0002')).toHaveTextContent('Highlight')
   })
 
-  it('creates highlight, question, and comment annotations from the selected block', async () => {
+  it('creates all annotation kinds and semantic colors from the selected block', async () => {
     readyBlocks()
 
     render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
 
     const block = await screen.findByTestId('paper-reader-block-b0002')
     fireEvent.click(within(block).getByRole('button', { name: /parallelization/u }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Highlight' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Question' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Comment' }))
+    const controls = await screen.findByTestId('paper-reader-annotation-controls-b0002')
+    fireEvent.click(within(controls).getByRole('combobox', { name: 'Annotation kind' }))
+    expect(screen.getByRole('option', { name: 'Highlight' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Underline' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Question' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Comment' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: 'Bookmark' }))
+
+    fireEvent.click(within(controls).getByRole('combobox', { name: 'Annotation color' }))
+    expect(screen.getByRole('option', { name: 'Questioning' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Important' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Original' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Pending' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: 'Conclusion' }))
+
+    fireEvent.change(within(controls).getByLabelText('Annotation note'), {
+      target: { value: 'Remember this block' },
+    })
+    fireEvent.click(within(controls).getByRole('button', { name: 'Add annotation' }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('paper-reader-annotation-count-b0002')).toHaveTextContent('3 annotations')
+      expect(screen.getByTestId('paper-reader-annotation-count-b0002')).toHaveTextContent('1 annotations')
     })
-    expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"highlight"')
-    expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"question"')
-    expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"comment"')
+    expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"bookmark"')
+    expect(MOCK_CONTENT[annotationsPath]).toContain('"color":"conclusion"')
+    expect(MOCK_CONTENT[annotationsPath]).toContain('"note":"Remember this block"')
+  })
+
+  it('updates annotation text, kind, and color', async () => {
+    readyBlocks()
+    MOCK_CONTENT[annotationsPath] = [
+      JSON.stringify({
+        id: 'ann-1',
+        paper_id: 'attention',
+        block_id: 'b0002',
+        kind: 'comment',
+        color: 'pending',
+        note: 'Initial note',
+        created_at: '2026-07-02T10:15:00Z',
+      }),
+    ].join('\n') + '\n'
+
+    render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
+
+    const editor = await screen.findByTestId('paper-reader-annotation-editor-ann-1')
+    fireEvent.click(within(editor).getByRole('combobox', { name: 'Annotation kind' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Underline' }))
+    fireEvent.click(within(editor).getByRole('combobox', { name: 'Annotation color' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Original' }))
+    fireEvent.change(within(editor).getByLabelText('Annotation note'), {
+      target: { value: 'Updated interpretation' },
+    })
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save annotation' }))
+
+    await waitFor(() => {
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"underline"')
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"color":"original"')
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"note":"Updated interpretation"')
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"updated_at"')
+    })
   })
 
   it('deletes annotations from the selected block', async () => {

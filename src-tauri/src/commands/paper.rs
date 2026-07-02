@@ -144,6 +144,26 @@ pub async fn delete_paper_annotation(
     })?
 }
 
+#[tauri::command]
+pub async fn reset_paper_annotations(
+    vault_path: PathBuf,
+    paper_id: String,
+) -> Result<PaperAnnotationsReadResult, PaperAnnotationsError> {
+    let error_paper_id = paper_id.clone();
+    tokio::task::spawn_blocking(move || {
+        let annotations_path = annotations_path_for_paper(&vault_path, &paper_id)?;
+        paper::reset_paper_annotations_file(&paper_id, &annotations_path)
+    })
+    .await
+    .map_err(|error| PaperAnnotationsError {
+        kind: "task_failed".to_string(),
+        message: format!("Task panicked: {error}"),
+        paper_id: error_paper_id,
+        path: String::new(),
+        line_errors: vec![],
+    })?
+}
+
 fn blocks_path_for_paper(vault_path: &Path, paper_id: &str) -> Result<PathBuf, PaperBlocksError> {
     let expanded_vault_path = expand_tilde(vault_path.to_string_lossy().as_ref()).into_owned();
     let boundary = VaultBoundary::from_request(Some(&expanded_vault_path))
@@ -274,5 +294,22 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(deleted.annotations.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn resets_paper_annotations_from_vault() {
+        let vault = TempDir::new().unwrap();
+        write_annotations(vault.path(), "paper-1", "{not json}\n");
+
+        let reset = reset_paper_annotations(vault.path().to_path_buf(), "paper-1".to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(reset.state, paper::PaperAnnotationsState::Empty);
+        assert_eq!(reset.annotations.len(), 0);
+        assert_eq!(
+            fs::read_to_string(vault.path().join("papers/paper-1/annotations.jsonl")).unwrap(),
+            ""
+        );
     }
 }

@@ -209,6 +209,15 @@ pub fn delete_paper_annotation_file(
     read_paper_annotations_file(paper_id, annotations_path)
 }
 
+pub fn reset_paper_annotations_file(
+    paper_id: &str,
+    annotations_path: &Path,
+) -> Result<PaperAnnotationsReadResult, PaperAnnotationsError> {
+    let path = annotations_path.to_string_lossy().into_owned();
+    write_annotations_jsonl(paper_id, annotations_path, &path, &[])?;
+    read_paper_annotations_file(paper_id, annotations_path)
+}
+
 pub fn annotations_by_block(
     annotations: &[PaperAnnotation],
     block_id: &str,
@@ -606,6 +615,19 @@ mod tests {
 
         assert_eq!(result.annotations.len(), 1);
         assert_eq!(result.annotations[0].id, "ann-2");
+    }
+
+    #[test]
+    fn resets_malformed_sidecar_to_empty_jsonl() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("annotations.jsonl");
+        fs::write(&path, "{not json}\n").unwrap();
+
+        let result = reset_paper_annotations_file("paper-1", &path).unwrap();
+
+        assert_eq!(result.state, PaperAnnotationsState::Empty);
+        assert!(result.annotations.is_empty());
+        assert_eq!(fs::read_to_string(path).unwrap(), "");
     }
 
     #[test]

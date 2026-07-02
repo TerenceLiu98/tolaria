@@ -111,6 +111,10 @@ export function trackPaperAnnotationDeleted(): void {
   trackEvent('paper_annotation_deleted')
 }
 
+export function trackPaperAnnotationSidecarReset(): void {
+  trackEvent('paper_annotation_sidecar_reset')
+}
+
 export function trackAllNotesVisibilityChanged(
   previous: AllNotesFileVisibility,
   next: AllNotesFileVisibility,

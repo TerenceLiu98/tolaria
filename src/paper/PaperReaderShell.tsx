@@ -1,8 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ClipboardText, FilePdf, ListBullets, Trash, WarningCircle } from '@phosphor-icons/react'
+import {
+  ArrowCounterClockwise,
+  Check,
+  ClipboardText,
+  FilePdf,
+  ListBullets,
+  Plus,
+  Trash,
+  WarningCircle,
+} from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { translate, type AppLocale } from '../lib/i18n'
+import { translate, type AppLocale, type TranslationKey } from '../lib/i18n'
 import { trackPaperBlockCitationCopied, trackPaperReaderOpened } from '../lib/productAnalytics'
 import type { VaultEntry } from '../types'
 import { FilePreview } from '../components/FilePreview'
@@ -16,8 +33,13 @@ import {
 import { loadPaperBlocks, type PaperBlocksError, type PaperBlocksReadResult } from './blocks'
 import type {
   AnnotationsByBlockId,
+  PaperAnnotation,
   PaperAnnotationColor,
   PaperAnnotationKind,
+} from './annotations'
+import {
+  PAPER_ANNOTATION_COLORS,
+  PAPER_ANNOTATION_KINDS,
 } from './annotations'
 import {
   blockDisplayText,
@@ -142,6 +164,44 @@ function StatusPill({ value }: { value: string }) {
   )
 }
 
+const DEFAULT_ANNOTATION_KIND: PaperAnnotationKind = 'highlight'
+const DEFAULT_ANNOTATION_COLOR: PaperAnnotationColor = 'important'
+
+const ANNOTATION_KIND_LABEL_KEYS: Record<PaperAnnotationKind, TranslationKey> = {
+  bookmark: 'paper.reader.addBookmark',
+  comment: 'paper.reader.addComment',
+  highlight: 'paper.reader.addHighlight',
+  question: 'paper.reader.addQuestion',
+  underline: 'paper.reader.addUnderline',
+}
+
+const ANNOTATION_COLOR_LABEL_KEYS: Record<PaperAnnotationColor, TranslationKey> = {
+  conclusion: 'paper.reader.colorConclusion',
+  important: 'paper.reader.colorImportant',
+  original: 'paper.reader.colorOriginal',
+  pending: 'paper.reader.colorPending',
+  questioning: 'paper.reader.colorQuestioning',
+}
+
+function annotationKindLabel(locale: AppLocale, kind: PaperAnnotationKind): string {
+  return translate(locale, ANNOTATION_KIND_LABEL_KEYS[kind])
+}
+
+function annotationColorLabel(locale: AppLocale, color: PaperAnnotationColor): string {
+  return translate(locale, ANNOTATION_COLOR_LABEL_KEYS[color])
+}
+
+function cleanOptionalNote(note: string): string | undefined {
+  const trimmed = note.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+function textSnapshotForAnnotation(block: SourceBlock, kind: PaperAnnotationKind): string | undefined {
+  return kind === 'highlight' || kind === 'underline'
+    ? blockDisplayText(block)
+    : undefined
+}
+
 function PaperMetadataPanel({
   locale,
   metadata,
@@ -237,31 +297,243 @@ function AnnotationStateNotice({
   error,
   loadState,
   locale,
+  onResetAnnotations,
+  result,
 }: {
   error: unknown
   loadState: AnnotationLoadState
   locale: AppLocale
+  onResetAnnotations: () => void
+  result: ReturnType<typeof usePaperAnnotations>['result']
 }) {
   if (loadState === 'loading') {
     return <p className="px-4 pb-3 text-sm text-muted-foreground">{translate(locale, 'paper.reader.annotationsLoading')}</p>
   }
 
-  if (loadState !== 'error') return null
-
-  const lineErrors = isPaperAnnotationsError(error) ? error.lineErrors : []
-  return (
-    <div className="space-y-2 px-4 pb-3 text-sm text-destructive" data-testid="paper-reader-annotations-error">
-      <div className="flex items-center gap-2 font-medium">
-        <WarningCircle className="size-4" />
-        <span>{translate(locale, 'paper.reader.annotationsError')}</span>
+  if (loadState === 'error') {
+    const lineErrors = isPaperAnnotationsError(error) ? error.lineErrors : []
+    return (
+      <div className="space-y-2 px-4 pb-3 text-sm text-destructive" data-testid="paper-reader-annotations-error">
+        <div className="flex items-center gap-2 font-medium">
+          <WarningCircle className="size-4" />
+          <span>{translate(locale, 'paper.reader.annotationsError')}</span>
+        </div>
+        <p>{paperAnnotationsErrorMessage(error)}</p>
+        {lineErrors.map((lineError) => (
+          <p key={`${lineError.line}:${lineError.kind}`} className="text-xs text-muted-foreground">
+            line {lineError.line}: {lineError.message}
+          </p>
+        ))}
+        <Button type="button" variant="outline" size="xs" onClick={onResetAnnotations}>
+          <ArrowCounterClockwise className="size-3.5" />
+          {translate(locale, 'paper.reader.resetAnnotationSidecar')}
+        </Button>
       </div>
-      <p>{paperAnnotationsErrorMessage(error)}</p>
-      {lineErrors.map((lineError) => (
-        <p key={`${lineError.line}:${lineError.kind}`} className="text-xs text-muted-foreground">
-          line {lineError.line}: {lineError.message}
-        </p>
-      ))}
+    )
+  }
+
+  if (result?.state === 'missing') {
+    return (
+      <div className="flex flex-wrap items-center gap-2 px-4 pb-3 text-sm text-muted-foreground" data-testid="paper-reader-annotations-missing">
+        <span>{translate(locale, 'paper.reader.annotationsMissing')}</span>
+        <Button type="button" variant="outline" size="xs" onClick={onResetAnnotations}>
+          <Plus className="size-3.5" />
+          {translate(locale, 'paper.reader.createAnnotationSidecar')}
+        </Button>
+      </div>
+    )
+  }
+
+  if (result?.state === 'empty') {
+    return <p className="px-4 pb-3 text-sm text-muted-foreground">{translate(locale, 'paper.reader.annotationsEmpty')}</p>
+  }
+
+  return null
+}
+
+function AnnotationKindSelect({
+  locale,
+  value,
+  onValueChange,
+}: {
+  locale: AppLocale
+  value: PaperAnnotationKind
+  onValueChange: (value: PaperAnnotationKind) => void
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={(nextValue) => {
+        const nextKind = PAPER_ANNOTATION_KINDS.find((kind) => kind === nextValue)
+        if (nextKind) onValueChange(nextKind)
+      }}
+    >
+      <SelectTrigger
+        size="sm"
+        className="h-7 w-[8.5rem] text-xs"
+        aria-label={translate(locale, 'paper.reader.annotationKind')}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {PAPER_ANNOTATION_KINDS.map((kind) => (
+          <SelectItem key={kind} value={kind}>
+            {annotationKindLabel(locale, kind)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+function AnnotationColorSelect({
+  locale,
+  value,
+  onValueChange,
+}: {
+  locale: AppLocale
+  value: PaperAnnotationColor
+  onValueChange: (value: PaperAnnotationColor) => void
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={(nextValue) => {
+        const nextColor = PAPER_ANNOTATION_COLORS.find((color) => color === nextValue)
+        if (nextColor) onValueChange(nextColor)
+      }}
+    >
+      <SelectTrigger
+        size="sm"
+        className="h-7 w-[8.5rem] text-xs"
+        aria-label={translate(locale, 'paper.reader.annotationColor')}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {PAPER_ANNOTATION_COLORS.map((color) => (
+          <SelectItem key={color} value={color}>
+            {annotationColorLabel(locale, color)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+function BlockAnnotationComposer({
+  block,
+  locale,
+  onCreateAnnotation,
+}: {
+  block: SourceBlock
+  locale: AppLocale
+  onCreateAnnotation: (block: SourceBlock, input: {
+    color: PaperAnnotationColor
+    kind: PaperAnnotationKind
+    note?: string
+    text?: string
+  }) => void
+}) {
+  const [kind, setKind] = useState<PaperAnnotationKind>(DEFAULT_ANNOTATION_KIND)
+  const [color, setColor] = useState<PaperAnnotationColor>(DEFAULT_ANNOTATION_COLOR)
+  const [note, setNote] = useState('')
+
+  const createAnnotation = useCallback(() => {
+    onCreateAnnotation(block, {
+      color,
+      kind,
+      note: cleanOptionalNote(note),
+      text: textSnapshotForAnnotation(block, kind),
+    })
+    setNote('')
+  }, [block, color, kind, note, onCreateAnnotation])
+
+  return (
+    <div
+      className="grid gap-2 rounded-md border border-border/60 bg-muted/30 p-2"
+      data-testid={`paper-reader-annotation-controls-${block.id}`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <AnnotationKindSelect locale={locale} value={kind} onValueChange={setKind} />
+        <AnnotationColorSelect locale={locale} value={color} onValueChange={setColor} />
+        <Button type="button" variant="secondary" size="xs" onClick={createAnnotation}>
+          <Plus className="size-3.5" />
+          {translate(locale, 'paper.reader.addAnnotation')}
+        </Button>
+      </div>
+      <Textarea
+        aria-label={translate(locale, 'paper.reader.annotationNote')}
+        className="min-h-14 resize-y text-xs"
+        placeholder={translate(locale, 'paper.reader.annotationNotePlaceholder')}
+        value={note}
+        onChange={(event) => setNote(event.currentTarget.value)}
+      />
     </div>
+  )
+}
+
+function PaperAnnotationEditor({
+  annotation,
+  locale,
+  onDeleteAnnotation,
+  onSaveAnnotation,
+}: {
+  annotation: PaperAnnotation
+  locale: AppLocale
+  onDeleteAnnotation: (annotationId: string) => void
+  onSaveAnnotation: (annotation: PaperAnnotation) => void
+}) {
+  const [kind, setKind] = useState<PaperAnnotationKind>(annotation.kind)
+  const [color, setColor] = useState<PaperAnnotationColor>(annotation.color ?? DEFAULT_ANNOTATION_COLOR)
+  const [note, setNote] = useState(annotation.note ?? '')
+
+  const saveAnnotation = useCallback(() => {
+    onSaveAnnotation({
+      ...annotation,
+      color,
+      kind,
+      note: cleanOptionalNote(note),
+      updated_at: new Date().toISOString(),
+    })
+  }, [annotation, color, kind, note, onSaveAnnotation])
+
+  return (
+    <li
+      className="grid gap-2 rounded-md bg-muted/60 px-2 py-2 text-xs text-muted-foreground"
+      data-testid={`paper-reader-annotation-editor-${annotation.id}`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <AnnotationKindSelect locale={locale} value={kind} onValueChange={setKind} />
+        <AnnotationColorSelect locale={locale} value={color} onValueChange={setColor} />
+        <Button
+          type="button"
+          variant="secondary"
+          size="xs"
+          onClick={saveAnnotation}
+        >
+          <Check className="size-3.5" />
+          {translate(locale, 'paper.reader.saveAnnotation')}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          title={translate(locale, 'paper.reader.deleteAnnotation')}
+          aria-label={translate(locale, 'paper.reader.deleteAnnotation')}
+          onClick={() => onDeleteAnnotation(annotation.id)}
+        >
+          <Trash className="size-4" />
+        </Button>
+      </div>
+      <Textarea
+        aria-label={translate(locale, 'paper.reader.annotationNote')}
+        className="min-h-14 resize-y text-xs"
+        placeholder={translate(locale, 'paper.reader.annotationNotePlaceholder')}
+        value={note}
+        onChange={(event) => setNote(event.currentTarget.value)}
+      />
+    </li>
   )
 }
 
@@ -274,6 +546,7 @@ function BlockOutline({
   annotationError,
   annotationLoadState,
   annotationsByBlockId,
+  annotationResult,
   locale,
   blocks,
   loadState,
@@ -282,6 +555,8 @@ function BlockOutline({
   selectedBlockId,
   onCreateAnnotation,
   onDeleteAnnotation,
+  onResetAnnotations,
+  onSaveAnnotation,
   onSelectBlock,
 }: {
   locale: AppLocale
@@ -292,9 +567,17 @@ function BlockOutline({
   annotationError: unknown
   annotationLoadState: AnnotationLoadState
   annotationsByBlockId: AnnotationsByBlockId
+  annotationResult: ReturnType<typeof usePaperAnnotations>['result']
   selectedBlockId: string | null
-  onCreateAnnotation: (block: SourceBlock, kind: PaperAnnotationKind) => void
+  onCreateAnnotation: (block: SourceBlock, input: {
+    color: PaperAnnotationColor
+    kind: PaperAnnotationKind
+    note?: string
+    text?: string
+  }) => void
   onDeleteAnnotation: (annotationId: string) => void
+  onResetAnnotations: () => void
+  onSaveAnnotation: (annotation: PaperAnnotation) => void
   onSelectBlock: (blockId: string) => void
 }) {
   const blockRefs = useRef(new Map<string, HTMLButtonElement>())
@@ -330,7 +613,13 @@ function BlockOutline({
         <h2 className="text-sm font-semibold text-foreground">{translate(locale, 'paper.reader.blocksJsonl')}</h2>
       </div>
       <BlocksStateNotice locale={locale} loadState={loadState} result={result} error={error} />
-      <AnnotationStateNotice locale={locale} loadState={annotationLoadState} error={annotationError} />
+      <AnnotationStateNotice
+        locale={locale}
+        loadState={annotationLoadState}
+        error={annotationError}
+        result={annotationResult}
+        onResetAnnotations={onResetAnnotations}
+      />
       <ol className="min-h-0 flex-1 space-y-1 overflow-auto p-3">
         {blocks.map((block) => {
           const selected = block.id === selectedBlockId
@@ -385,41 +674,22 @@ function BlockOutline({
                 </Button>
               </div>
               {selected && (
-                <div className="flex flex-wrap items-center gap-2 px-2 pb-1" data-testid={`paper-reader-annotation-controls-${block.id}`}>
-                  <Button type="button" variant="secondary" size="xs" onClick={() => onCreateAnnotation(block, 'highlight')}>
-                    {translate(locale, 'paper.reader.addHighlight')}
-                  </Button>
-                  <Button type="button" variant="secondary" size="xs" onClick={() => onCreateAnnotation(block, 'question')}>
-                    {translate(locale, 'paper.reader.addQuestion')}
-                  </Button>
-                  <Button type="button" variant="secondary" size="xs" onClick={() => onCreateAnnotation(block, 'comment')}>
-                    {translate(locale, 'paper.reader.addComment')}
-                  </Button>
-                </div>
+                <BlockAnnotationComposer
+                  block={block}
+                  locale={locale}
+                  onCreateAnnotation={onCreateAnnotation}
+                />
               )}
               {annotations.length > 0 && (
                 <ul className="grid gap-1 px-2 pb-1" data-testid={`paper-reader-annotations-${block.id}`}>
                   {annotations.map((annotation) => (
-                    <li
+                    <PaperAnnotationEditor
                       key={annotation.id}
-                      className="flex items-center justify-between gap-2 rounded-md bg-muted/60 px-2 py-1 text-xs text-muted-foreground"
-                    >
-                      <span className="min-w-0 truncate">
-                        {annotation.kind}
-                        {annotation.color ? ` · ${annotation.color}` : ''}
-                        {annotation.note ? ` · ${annotation.note}` : ''}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        title={translate(locale, 'paper.reader.deleteAnnotation')}
-                        aria-label={translate(locale, 'paper.reader.deleteAnnotation')}
-                        onClick={() => onDeleteAnnotation(annotation.id)}
-                      >
-                        <Trash className="size-4" />
-                      </Button>
-                    </li>
+                      annotation={annotation}
+                      locale={locale}
+                      onDeleteAnnotation={onDeleteAnnotation}
+                      onSaveAnnotation={onSaveAnnotation}
+                    />
                   ))}
                 </ul>
               )}
@@ -429,12 +699,6 @@ function BlockOutline({
       </ol>
     </section>
   )
-}
-
-function annotationColorForKind(kind: PaperAnnotationKind): PaperAnnotationColor {
-  if (kind === 'question') return 'questioning'
-  if (kind === 'comment') return 'pending'
-  return 'important'
 }
 
 function PaperPdfPanel({
@@ -501,19 +765,35 @@ export function PaperReaderShell({
   )
   const blocks = blocksState.result?.blocks ?? []
   const annotations = usePaperAnnotations(vaultPath, paperId)
-  const createAnnotation = useCallback((block: SourceBlock, kind: PaperAnnotationKind) => {
+  const createAnnotation = useCallback((block: SourceBlock, input: {
+    color: PaperAnnotationColor
+    kind: PaperAnnotationKind
+    note?: string
+    text?: string
+  }) => {
     void annotations.createBlockLevelAnnotation({
       blockId: block.id,
-      color: annotationColorForKind(kind),
-      kind,
-      text: kind === 'highlight' ? blockDisplayText(block) : undefined,
+      color: input.color,
+      kind: input.kind,
+      note: input.note,
+      text: input.text,
     }).catch((error: unknown) => {
       console.warn('[paper-reader] Failed to save annotation:', error)
+    })
+  }, [annotations])
+  const saveAnnotation = useCallback((annotation: PaperAnnotation) => {
+    void annotations.saveAnnotation(annotation).catch((error: unknown) => {
+      console.warn('[paper-reader] Failed to update annotation:', error)
     })
   }, [annotations])
   const deleteAnnotation = useCallback((annotationId: string) => {
     void annotations.deleteAnnotation(annotationId).catch((error: unknown) => {
       console.warn('[paper-reader] Failed to delete annotation:', error)
+    })
+  }, [annotations])
+  const resetAnnotations = useCallback(() => {
+    void annotations.resetAnnotations().catch((error: unknown) => {
+      console.warn('[paper-reader] Failed to reset annotation sidecar:', error)
     })
   }, [annotations])
 
@@ -530,6 +810,7 @@ export function PaperReaderShell({
           annotationError={annotations.error}
           annotationLoadState={annotations.loadState}
           annotationsByBlockId={annotations.annotationsByBlockId}
+          annotationResult={annotations.result}
           locale={locale}
           blocks={blocks}
           loadState={loadingBlocks ? 'loading' : blocksState.state}
@@ -538,6 +819,8 @@ export function PaperReaderShell({
           selectedBlockId={selectedBlockId}
           onCreateAnnotation={createAnnotation}
           onDeleteAnnotation={deleteAnnotation}
+          onResetAnnotations={resetAnnotations}
+          onSaveAnnotation={saveAnnotation}
           onSelectBlock={focusBlock}
         />
         <PaperPdfPanel

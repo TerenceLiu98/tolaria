@@ -97,4 +97,21 @@ describe('mockHandlers paper annotation commands', () => {
       lineErrors: [expect.objectContaining({ kind: 'malformed_json', line: 1 })],
     })
   })
+
+  it('resets malformed annotation sidecars to an empty recoverable state', () => {
+    const vaultPath = '/Users/mock/Annotation Test'
+    const paperId = 'paper-annotations-reset'
+    const path = `${vaultPath}/papers/${paperId}/annotations.jsonl`
+    MOCK_CONTENT[path] = '{not json}\n'
+
+    const reset = mockHandlers.reset_paper_annotations({ vaultPath, paperId })
+
+    expect(reset).toMatchObject({
+      annotations: [],
+      paperId,
+      path,
+      state: 'empty',
+    })
+    expect(MOCK_CONTENT[path]).toBe('')
+  })
 })

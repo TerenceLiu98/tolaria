@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  PAPER_ANNOTATION_COLORS,
+  PAPER_ANNOTATION_KINDS,
   annotationsForBlock,
   createBlockAnnotation,
   groupAnnotationsByBlockId,
@@ -45,9 +47,14 @@ describe('paperAnnotations', () => {
   })
 
   it('validates kind and color conventions', () => {
-    expect(isPaperAnnotationKind('highlight')).toBe(true)
+    for (const kind of PAPER_ANNOTATION_KINDS) {
+      expect(isPaperAnnotationKind(kind)).toBe(true)
+    }
+    for (const color of PAPER_ANNOTATION_COLORS) {
+      expect(isPaperAnnotationColor(color)).toBe(true)
+    }
+
     expect(isPaperAnnotationKind('ink')).toBe(false)
-    expect(isPaperAnnotationColor('questioning')).toBe(true)
     expect(isPaperAnnotationColor('blue')).toBe(false)
 
     const result = validatePaperAnnotation({

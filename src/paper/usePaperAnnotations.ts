@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { trackPaperAnnotationDeleted, trackPaperAnnotationSaved } from '../lib/productAnalytics'
+import {
+  trackPaperAnnotationDeleted,
+  trackPaperAnnotationSaved,
+  trackPaperAnnotationSidecarReset,
+} from '../lib/productAnalytics'
 import {
   createBlockAnnotation,
   deletePaperAnnotation,
   groupAnnotationsByBlockId,
   loadPaperAnnotations,
+  resetPaperAnnotations,
   savePaperAnnotation,
   type AnnotationsByBlockId,
   type PaperAnnotation,
@@ -37,6 +42,7 @@ export interface UsePaperAnnotationsResult {
   error: unknown
   loadState: AnnotationLoadState
   reload: () => Promise<PaperAnnotationsReadResult | null>
+  resetAnnotations: () => Promise<PaperAnnotationsReadResult>
   result: PaperAnnotationsReadResult | null
   saveAnnotation: (annotation: PaperAnnotation) => Promise<PaperAnnotationsReadResult>
 }
@@ -169,6 +175,20 @@ export function usePaperAnnotations(
     return nextResult
   }, [activeRequestKey, paperId, vaultPath])
 
+  const resetAnnotationsSidecar = useCallback(async () => {
+    if (!vaultPath || !paperId || !activeRequestKey) {
+      throw new Error('Paper annotation sidecar is unavailable without an active vault and paper id')
+    }
+    const sequence = operationSequenceRef.current + 1
+    operationSequenceRef.current = sequence
+    const nextResult = await resetPaperAnnotations(vaultPath, paperId)
+    if (operationSequenceRef.current === sequence) {
+      setSettledState({ key: activeRequestKey, result: nextResult, error: null, state: 'loaded' })
+    }
+    trackPaperAnnotationSidecarReset()
+    return nextResult
+  }, [activeRequestKey, paperId, vaultPath])
+
   return {
     annotations,
     annotationsByBlockId,
@@ -177,6 +197,7 @@ export function usePaperAnnotations(
     error,
     loadState,
     reload,
+    resetAnnotations: resetAnnotationsSidecar,
     result,
     saveAnnotation: saveAnnotationToSidecar,
   }

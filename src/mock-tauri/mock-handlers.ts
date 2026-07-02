@@ -512,6 +512,12 @@ function handleDeletePaperAnnotation(args: {
   return readMockPaperAnnotations(args)
 }
 
+function handleResetPaperAnnotations(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const { path } = mockPaperAnnotationsPath(args)
+  writeMockPaperAnnotations({ annotations: [], path })
+  return readMockPaperAnnotations(args)
+}
+
 function replaceMockTitleFrontmatter({ content, newTitle }: { content: string; newTitle: string }) {
   return /^title:\s*/m.test(content)
     ? content.replace(/^title:\s*.*$/m, `title: ${newTitle}`)
@@ -726,6 +732,7 @@ export const mockHandlers: Record<string, (args: any) => any> = {
   read_paper_annotations: handleReadPaperAnnotations,
   save_paper_annotation: handleSavePaperAnnotation,
   delete_paper_annotation: handleDeletePaperAnnotation,
+  reset_paper_annotations: handleResetPaperAnnotations,
   get_note_content: (args: { path: string }) => MOCK_CONTENT[args.path] ?? '',
   validate_note_content: (args: { path: string; content: string }) => (MOCK_CONTENT[args.path] ?? '') === args.content,
   get_all_content: () => MOCK_CONTENT,

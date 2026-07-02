@@ -103,7 +103,8 @@ Reader commands:
 - `read_paper_annotations(vaultPath, paperId)`
 - `save_paper_annotation(vaultPath, paperId, annotation)`
 - `delete_paper_annotation(vaultPath, paperId, annotationId)`
+- `reset_paper_annotations(vaultPath, paperId)`
 
-`save_paper_annotation` creates or updates by id and rewrites `annotations.jsonl` after validating the existing sidecar. `delete_paper_annotation` uses the simplest durable v1 behavior: rewrite the file without the deleted record. Both commands stay inside the active-vault boundary and never modify `source.pdf`.
+`save_paper_annotation` creates or updates by id and rewrites `annotations.jsonl` after validating the existing sidecar. `delete_paper_annotation` uses the simplest durable v1 behavior: rewrite the file without the deleted record. `reset_paper_annotations` rewrites only `annotations.jsonl` to an empty sidecar so missing or malformed annotation states can recover without touching `paper.md`, `blocks.jsonl`, or `source.pdf`. All commands stay inside the active-vault boundary and never modify `source.pdf`.
 
-The Paper Reader shows annotation counts on annotated SourceBlocks. Selecting a block exposes minimal block-level actions for highlight, question, and comment; deleting an annotation removes it from the sidecar and refreshes the row markers. Missing and empty annotation sidecars are valid zero-annotation states. Malformed annotation sidecars render recoverable errors instead of hiding Paper content.
+The Paper Reader shows annotation counts on annotated SourceBlocks. Selecting a block exposes a compact annotation composer with all five kinds and all five semantic colors. Existing block-level annotations can edit kind, color, and note text inline; saving rewrites the sidecar record with `updated_at`, and deleting an annotation removes it from the sidecar and refreshes the row markers. Missing and empty annotation sidecars are valid zero-annotation states. Malformed annotation sidecars render recoverable errors with an explicit reset action instead of hiding Paper content.

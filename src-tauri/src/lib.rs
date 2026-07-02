@@ -539,6 +539,7 @@ macro_rules! app_invoke_handler {
             commands::read_paper_annotations,
             commands::save_paper_annotation,
             commands::delete_paper_annotation,
+            commands::reset_paper_annotations,
             commands::sync_note_title,
             commands::save_image,
             commands::copy_image_to_vault,
