@@ -97,6 +97,18 @@ export function trackPaperBlockCitationCopied(): void {
   trackEvent('paper_block_citation_copied')
 }
 
+export function trackPaperMarginaliaOpened(params: { created: AnalyticsBoolean }): void {
+  trackEvent('paper_marginalia_opened', {
+    created: numericFlag(params.created),
+  })
+}
+
+export function trackPaperMarginaliaCitationAdded(params: { created: AnalyticsBoolean }): void {
+  trackEvent('paper_marginalia_citation_added', {
+    created: numericFlag(params.created),
+  })
+}
+
 export function trackPaperAnnotationSaved(params: {
   color?: PaperAnnotationActionColor
   kind: PaperAnnotationActionKind

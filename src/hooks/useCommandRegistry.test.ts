@@ -53,6 +53,42 @@ function findCommand(commands: CommandAction[], id: string): CommandAction | und
   return commands.find(c => c.id === id)
 }
 
+function paperEntry() {
+  return {
+    path: '/vault/papers/attention/paper.md',
+    filename: 'paper.md',
+    title: 'Attention Is All You Need',
+    isA: 'Paper',
+    aliases: [],
+    belongsTo: [],
+    relatedTo: [],
+    status: null,
+    archived: false,
+    modifiedAt: null,
+    createdAt: null,
+    fileSize: 0,
+    snippet: '',
+    wordCount: 0,
+    relationships: {},
+    icon: null,
+    color: null,
+    order: null,
+    sidebarLabel: null,
+    template: null,
+    sort: null,
+    view: null,
+    visible: true,
+    organized: false,
+    favorite: false,
+    favoriteIndex: null,
+    listPropertiesDisplay: [],
+    outgoingLinks: [],
+    properties: { paper_id: 'attention' },
+    hasH1: false,
+    fileKind: 'markdown',
+  }
+}
+
 function expectFolderCommandStates(overrides: Record<string, unknown>, expected: {
   copy: boolean
   delete: boolean
@@ -127,6 +163,38 @@ describe('useCommandRegistry', () => {
     expect(findCommand(result.current, 'import-paper-pdf')).toBeDefined()
     expect(findCommand(result.current, 'new-paper')).toBeUndefined()
     expect(findCommand(result.current, 'list-paper')).toBeDefined()
+  })
+
+  it('includes a Paper marginalia command for the active Paper entry', () => {
+    const onOpenPaperMarginalia = vi.fn()
+    const config = makeConfig({
+      activeTabPath: '/vault/papers/attention/paper.md',
+      entries: [paperEntry()],
+      onOpenPaperMarginalia,
+    })
+    const { result } = renderHook(() => useCommandRegistry(config))
+    const cmd = findCommand(result.current, 'open-paper-marginalia')
+
+    expect(cmd).toBeDefined()
+    expect(cmd!.group).toBe('Note')
+    expect(cmd!.label).toBe('Create/Open Marginalia Note')
+    expect(cmd!.enabled).toBe(true)
+
+    cmd!.execute()
+    expect(onOpenPaperMarginalia).toHaveBeenCalledOnce()
+  })
+
+  it('disables the Paper marginalia command for non-Paper entries', () => {
+    const onOpenPaperMarginalia = vi.fn()
+    const config = makeConfig({
+      entries: [{ ...paperEntry(), isA: 'Note', path: '/vault/test.md' }],
+      onOpenPaperMarginalia,
+    })
+    const { result } = renderHook(() => useCommandRegistry(config))
+    const cmd = findCommand(result.current, 'open-paper-marginalia')
+
+    expect(cmd).toBeDefined()
+    expect(cmd!.enabled).toBe(false)
   })
 
   it('commit-push is enabled when modifiedCount > 0', () => {

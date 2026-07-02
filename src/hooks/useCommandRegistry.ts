@@ -69,6 +69,7 @@ interface CommandRegistryConfig {
   onRestoreDeletedNote?: () => void
   canRestoreDeletedNote?: boolean
   onImportPaperPdf?: () => void
+  onOpenPaperMarginalia?: () => void
   onQuickOpen: () => void
   onCreateNote: (type?: string, options?: ImmediateCreateOptions) => void
   onCreateNoteOfType: (type: string) => void
@@ -174,7 +175,7 @@ export function useCommandRegistry(config: CommandRegistryConfig): import('./com
     onOpenInNewWindow, onRevealActiveFile, onCopyActiveFilePath, onCopyActiveDeepLink, onOpenActiveFileExternal, onExportNoteAsPdf, onToggleFavorite, onToggleOrganized,
     onCustomizeNoteListColumns, canCustomizeNoteListColumns,
     onRestoreDeletedNote, canRestoreDeletedNote,
-    onImportPaperPdf,
+    onImportPaperPdf, onOpenPaperMarginalia,
     selection, noteListFilter, onSetNoteListFilter,
     gitFeaturesEnabled, isGitVault, gitRepositories, onInitializeGit, onPullRepository,
   } = config
@@ -311,8 +312,8 @@ export function useCommandRegistry(config: CommandRegistryConfig): import('./com
     [isSectionGroup, noteListFilter, onSetNoteListFilter],
   )
   const paperCommands = useMemo(
-    () => buildPaperCommands({ onImportPaperPdf }),
-    [onImportPaperPdf],
+    () => buildPaperCommands({ activeEntry, onImportPaperPdf, onOpenPaperMarginalia }),
+    [activeEntry, onImportPaperPdf, onOpenPaperMarginalia],
   )
   const commands = useMemo(() => [
     ...navigationCommands,

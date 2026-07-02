@@ -136,6 +136,7 @@ interface AppCommandsConfig {
   onRestoreDeletedNote?: () => void
   canRestoreDeletedNote?: boolean
   onImportPaperPdf?: () => void
+  onOpenPaperMarginalia?: () => void
 }
 
 type CommandRegistryConfig = Parameters<typeof useCommandRegistry>[0]
@@ -263,6 +264,7 @@ type CommandRegistryNoteActions = Pick<
   | 'noteListColumnsLabel'
   | 'onExportNoteAsPdf'
   | 'onImportPaperPdf'
+  | 'onOpenPaperMarginalia'
 >
 
 function aiFeaturesAreEnabled(config: Pick<AppCommandsConfig, 'aiFeaturesEnabled'>): boolean {
@@ -593,6 +595,7 @@ function createCommandRegistryNoteConfig(
     noteListColumnsLabel: config.noteListColumnsLabel,
     onExportNoteAsPdf: config.onExportNoteAsPdf,
     onImportPaperPdf: config.onImportPaperPdf,
+    onOpenPaperMarginalia: config.onOpenPaperMarginalia,
   }
 }
 

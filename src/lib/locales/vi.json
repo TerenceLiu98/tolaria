@@ -999,5 +999,9 @@
   "paper.reader.colorImportant": "Quan trọng",
   "paper.reader.colorOriginal": "Nguyên bản",
   "paper.reader.colorPending": "Đang chờ",
-  "paper.reader.colorConclusion": "Kết luận"
+  "paper.reader.colorConclusion": "Kết luận",
+  "command.note.openPaperMarginalia": "Create/Open Marginalia Note",
+  "paper.reader.openMarginalia": "Create/Open Marginalia Note",
+  "paper.reader.addSelectedBlockToMarginalia": "Add Selected Block to Marginalia",
+  "paper.reader.marginaliaError": "Marginalia note error: {message}"
 }

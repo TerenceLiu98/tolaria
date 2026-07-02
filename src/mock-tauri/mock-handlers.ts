@@ -715,6 +715,59 @@ function handleMoveNoteToWorkspace(args: {
   return { new_path: newPath, updated_files: updatedFiles, failed_updates: 0 }
 }
 
+function frontmatterScalar(content: string, key: string): string | null {
+  const match = content.match(new RegExp(`^${key}:\\s*['"]?([^'"\\n]+)['"]?\\s*$`, 'mu'))
+  return match?.[1]?.trim() ?? null
+}
+
+function titleFromMockContent(path: string, content: string): string {
+  const heading = content.match(/^#\s+(.+)$/mu)?.[1]?.trim()
+  if (heading) return heading
+  const filename = path.split('/').pop() ?? 'unknown.md'
+  return filename.replace(/\.md$/iu, '')
+}
+
+function addMockEntryForCreatedContent(path: string, content: string): void {
+  if (MOCK_ENTRIES.some((entry) => entry.path === path)) return
+
+  const now = Math.floor(Date.now() / 1000)
+  const filename = path.split('/').pop() ?? 'unknown.md'
+  const typeName = frontmatterScalar(content, 'type') ?? 'Note'
+  MOCK_ENTRIES.push({
+    path,
+    filename,
+    title: titleFromMockContent(path, content),
+    isA: typeName,
+    aliases: [],
+    belongsTo: [],
+    relatedTo: [],
+    status: frontmatterScalar(content, 'status'),
+    archived: false,
+    modifiedAt: now,
+    createdAt: now,
+    fileSize: content.length,
+    snippet: '',
+    wordCount: 0,
+    relationships: {},
+    icon: null,
+    color: null,
+    order: null,
+    sidebarLabel: null,
+    template: null,
+    sort: null,
+    view: null,
+    visible: true,
+    properties: { type: typeName },
+    organized: false,
+    favorite: false,
+    favoriteIndex: null,
+    listPropertiesDisplay: [],
+    outgoingLinks: [],
+    hasH1: /^#\s+/mu.test(content),
+    fileKind: 'markdown',
+  })
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock handler map accepts heterogeneous arg types
 export const mockHandlers: Record<string, (args: any) => any> = {
   list_vault: () => MOCK_ENTRIES,
@@ -735,6 +788,14 @@ export const mockHandlers: Record<string, (args: any) => any> = {
   reset_paper_annotations: handleResetPaperAnnotations,
   get_note_content: (args: { path: string }) => MOCK_CONTENT[args.path] ?? '',
   validate_note_content: (args: { path: string; content: string }) => (MOCK_CONTENT[args.path] ?? '') === args.content,
+  create_note_content: (args: { path: string; content: string }) => {
+    if (Object.hasOwn(MOCK_CONTENT, args.path)) throw new Error('A note with that name already exists')
+    MOCK_CONTENT[args.path] = args.content
+    addMockEntryForCreatedContent(args.path, args.content)
+    mockSavedSinceCommit.add(args.path)
+    syncWindowContent()
+    return null
+  },
   get_all_content: () => MOCK_CONTENT,
   get_file_history: (args: { path: string }) => mockFileHistory(args.path),
   get_modified_files: () => {

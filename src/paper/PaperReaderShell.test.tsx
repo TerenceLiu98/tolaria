@@ -21,12 +21,15 @@ vi.mock('../lib/productAnalytics', () => ({
   trackPaperAnnotationDeleted: vi.fn(),
   trackPaperAnnotationSidecarReset: vi.fn(),
   trackPaperAnnotationSaved: vi.fn(),
+  trackPaperMarginaliaCitationAdded: vi.fn(),
+  trackPaperMarginaliaOpened: vi.fn(),
   trackPaperBlockCitationCopied: vi.fn(),
   trackPaperReaderOpened: vi.fn(),
 }))
 
 const mockedLoadPaperBlocks = vi.mocked(loadPaperBlocks)
 const annotationsPath = '/vault/papers/attention/annotations.jsonl'
+const marginaliaPath = '/vault/papers/attention/notes/marginalia.md'
 
 const paperContent = [
   '---',
@@ -109,6 +112,7 @@ describe('PaperReaderShell', () => {
   beforeEach(() => {
     clearPendingBlockFocus()
     Reflect.deleteProperty(MOCK_CONTENT, annotationsPath)
+    Reflect.deleteProperty(MOCK_CONTENT, marginaliaPath)
     mockedLoadPaperBlocks.mockReset()
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -165,6 +169,74 @@ describe('PaperReaderShell', () => {
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('@block[attention#b0001]')
+    })
+  })
+
+  it('creates and opens the default marginalia note from the reader action', async () => {
+    readyBlocks()
+    const onOpenPaperNote = vi.fn()
+
+    render(
+      <PaperReaderShell
+        entry={paperEntry()}
+        content={paperContent}
+        vaultPath="/vault"
+        onOpenPaperNote={onOpenPaperNote}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create/Open Marginalia Note' }))
+
+    await waitFor(() => {
+      expect(MOCK_CONTENT[marginaliaPath]).toContain('type: ResearchNote')
+      expect(onOpenPaperNote).toHaveBeenCalledWith(marginaliaPath)
+    })
+    expect(MOCK_CONTENT[marginaliaPath]).toContain('paper:\n  - "[[papers/attention/paper]]"')
+  })
+
+  it('opens existing marginalia instead of overwriting it', async () => {
+    readyBlocks()
+    MOCK_CONTENT[marginaliaPath] = '# Existing marginalia\n'
+    const onOpenPaperNote = vi.fn()
+
+    render(
+      <PaperReaderShell
+        entry={paperEntry()}
+        content={paperContent}
+        vaultPath="/vault"
+        onOpenPaperNote={onOpenPaperNote}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create/Open Marginalia Note' }))
+
+    await waitFor(() => {
+      expect(onOpenPaperNote).toHaveBeenCalledWith(marginaliaPath)
+    })
+    expect(MOCK_CONTENT[marginaliaPath]).toBe('# Existing marginalia\n')
+  })
+
+  it('appends the selected block citation to marginalia', async () => {
+    readyBlocks()
+    MOCK_CONTENT[marginaliaPath] = '# Existing marginalia\n'
+    const onOpenPaperNote = vi.fn()
+
+    render(
+      <PaperReaderShell
+        entry={paperEntry()}
+        content={paperContent}
+        vaultPath="/vault"
+        onOpenPaperNote={onOpenPaperNote}
+      />,
+    )
+
+    const block = await screen.findByTestId('paper-reader-block-b0002')
+    fireEvent.click(within(block).getByRole('button', { name: /parallelization/u }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Selected Block to Marginalia' }))
+
+    await waitFor(() => {
+      expect(MOCK_CONTENT[marginaliaPath]).toBe('# Existing marginalia\n\n- @block[attention#b0002]\n')
+      expect(onOpenPaperNote).toHaveBeenCalledWith(marginaliaPath)
     })
   })
 

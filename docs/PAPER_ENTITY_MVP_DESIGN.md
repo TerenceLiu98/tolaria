@@ -108,3 +108,25 @@ Reader commands:
 `save_paper_annotation` creates or updates by id and rewrites `annotations.jsonl` after validating the existing sidecar. `delete_paper_annotation` uses the simplest durable v1 behavior: rewrite the file without the deleted record. `reset_paper_annotations` rewrites only `annotations.jsonl` to an empty sidecar so missing or malformed annotation states can recover without touching `paper.md`, `blocks.jsonl`, or `source.pdf`. All commands stay inside the active-vault boundary and never modify `source.pdf`.
 
 The Paper Reader shows annotation counts on annotated SourceBlocks. Selecting a block exposes a compact annotation composer with all five kinds and all five semantic colors. Existing block-level annotations can edit kind, color, and note text inline; saving rewrites the sidecar record with `updated_at`, and deleting an annotation removes it from the sidecar and refreshes the row markers. Missing and empty annotation sidecars are valid zero-annotation states. Malformed annotation sidecars render recoverable errors with an explicit reset action instead of hiding Paper content.
+
+## Marginalia ResearchNote Workflow
+
+Phase 3B connects Paper reading to note writing without adding split-pane editing or a Paper database. The default paper-local note path is:
+
+```text
+papers/<paper-slug>/notes/marginalia.md
+```
+
+The Paper Reader action "Create/Open Marginalia Note" creates that file through the existing note-content command boundary, or opens it when it already exists. The default template is a normal Tolaria Markdown note with `type: ResearchNote` and a vault-relative wikilink back to the Paper:
+
+```yaml
+---
+type: ResearchNote
+paper:
+  - "[[papers/<paper-slug>/paper]]"
+---
+```
+
+The note body starts with `# Marginalia: <Paper title>` and the sections `Key Claims`, `Questions`, and `Notes`. The Reader also exposes "Add Selected Block to Marginalia"; when a SourceBlock is selected, the action creates the default marginalia note with the canonical `@block[paper_id#block_id]` citation or appends that citation to the existing note. The first implementation appends safely rather than attempting cross-surface cursor insertion.
+
+If a future explicit "Create New Paper Note" action is added, the fallback naming convention is `marginalia-2.md`, `marginalia-3.md`, and so on under the same `papers/<paper-slug>/notes/` directory. The default action must continue to open existing `marginalia.md` rather than duplicating it.

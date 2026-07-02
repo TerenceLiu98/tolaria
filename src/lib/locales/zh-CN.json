@@ -999,5 +999,9 @@
   "paper.reader.colorImportant": "重要",
   "paper.reader.colorOriginal": "原创",
   "paper.reader.colorPending": "待处理",
-  "paper.reader.colorConclusion": "结论"
+  "paper.reader.colorConclusion": "结论",
+  "command.note.openPaperMarginalia": "Create/Open Marginalia Note",
+  "paper.reader.openMarginalia": "Create/Open Marginalia Note",
+  "paper.reader.addSelectedBlockToMarginalia": "Add Selected Block to Marginalia",
+  "paper.reader.marginaliaError": "Marginalia note error: {message}"
 }

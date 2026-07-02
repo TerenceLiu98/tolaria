@@ -999,5 +999,9 @@
   "paper.reader.colorImportant": "Viktigt",
   "paper.reader.colorOriginal": "Original",
   "paper.reader.colorPending": "Väntande",
-  "paper.reader.colorConclusion": "Slutsats"
+  "paper.reader.colorConclusion": "Slutsats",
+  "command.note.openPaperMarginalia": "Create/Open Marginalia Note",
+  "paper.reader.openMarginalia": "Create/Open Marginalia Note",
+  "paper.reader.addSelectedBlockToMarginalia": "Add Selected Block to Marginalia",
+  "paper.reader.marginaliaError": "Marginalia note error: {message}"
 }

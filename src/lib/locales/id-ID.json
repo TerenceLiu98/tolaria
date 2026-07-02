@@ -999,5 +999,9 @@
   "paper.reader.colorImportant": "Penting",
   "paper.reader.colorOriginal": "Asli",
   "paper.reader.colorPending": "Tertunda",
-  "paper.reader.colorConclusion": "Kesimpulan"
+  "paper.reader.colorConclusion": "Kesimpulan",
+  "command.note.openPaperMarginalia": "Create/Open Marginalia Note",
+  "paper.reader.openMarginalia": "Create/Open Marginalia Note",
+  "paper.reader.addSelectedBlockToMarginalia": "Add Selected Block to Marginalia",
+  "paper.reader.marginaliaError": "Marginalia note error: {message}"
 }

@@ -361,6 +361,7 @@ function EditorCanvas({
   onEditorChange,
   onCopyFilePath,
   onOpenExternalFile,
+  onOpenPaperNote,
   onRevealFile,
   onRawContentChange,
   sheetFlushRef,
@@ -385,6 +386,7 @@ function EditorCanvas({
   | 'locale'
   | 'onCopyFilePath'
   | 'onOpenExternalFile'
+  | 'onOpenPaperNote'
   | 'onRevealFile'
 >) {
   if (!showEditor) return null
@@ -404,6 +406,7 @@ function EditorCanvas({
           locale={locale}
           onCopyFilePath={onCopyFilePath}
           onOpenExternalFile={onOpenExternalFile}
+          onOpenPaperNote={onOpenPaperNote}
           onRevealFile={onRevealFile}
         />
       </EditorFindScope>

@@ -5,6 +5,7 @@ import {
   ClipboardText,
   FilePdf,
   ListBullets,
+  NotePencil,
   Plus,
   Trash,
   WarningCircle,
@@ -20,7 +21,12 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { translate, type AppLocale, type TranslationKey } from '../lib/i18n'
-import { trackPaperBlockCitationCopied, trackPaperReaderOpened } from '../lib/productAnalytics'
+import {
+  trackPaperBlockCitationCopied,
+  trackPaperMarginaliaCitationAdded,
+  trackPaperMarginaliaOpened,
+  trackPaperReaderOpened,
+} from '../lib/productAnalytics'
 import type { VaultEntry } from '../types'
 import { FilePreview } from '../components/FilePreview'
 import { formatBlockCitation } from './blockCitations'
@@ -48,6 +54,10 @@ import {
   paperReaderSummary,
   sourcePdfEntryForPaper,
 } from './paperReaderModel'
+import {
+  addBlockCitationToMarginalia,
+  createOrOpenPaperMarginalia,
+} from './marginalia'
 import type { SourceBlock, SourceBlockLineError } from './sourceBlocks'
 import {
   isPaperAnnotationsError,
@@ -63,6 +73,7 @@ interface PaperReaderShellProps {
   locale?: AppLocale
   onCopyFilePath?: (path: string) => void
   onOpenExternalFile?: (path: string) => void
+  onOpenPaperNote?: (path: string) => void | Promise<void>
   onRevealFile?: (path: string) => void
 }
 
@@ -203,12 +214,20 @@ function textSnapshotForAnnotation(block: SourceBlock, kind: PaperAnnotationKind
 }
 
 function PaperMetadataPanel({
+  canAddSelectedBlock,
   locale,
   metadata,
+  marginaliaError,
+  onAddSelectedBlockToMarginalia,
+  onOpenMarginalia,
   summary,
 }: {
+  canAddSelectedBlock: boolean
   locale: AppLocale
   metadata: NonNullable<ReturnType<typeof paperMetadataForReader>>
+  marginaliaError: string | null
+  onAddSelectedBlockToMarginalia: () => void
+  onOpenMarginalia: () => void
   summary: ReturnType<typeof paperReaderSummary>
 }) {
   const sourcePdfStatus = metadata.sourcePdf
@@ -226,8 +245,27 @@ function PaperMetadataPanel({
           <StatusPill value={translate(locale, 'paper.reader.sourcePdfStatus', { status: sourcePdfStatus })} />
           <StatusPill value={translate(locale, 'paper.reader.blocksStatus', { status: summary.blocksState })} />
           <StatusPill value={translate(locale, 'paper.reader.blocksCount', { count: summary.blockCount })} />
+          <Button type="button" variant="outline" size="sm" onClick={onOpenMarginalia}>
+            <NotePencil className="size-4" />
+            {translate(locale, 'paper.reader.openMarginalia')}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={!canAddSelectedBlock}
+            onClick={onAddSelectedBlockToMarginalia}
+          >
+            <Plus className="size-4" />
+            {translate(locale, 'paper.reader.addSelectedBlockToMarginalia')}
+          </Button>
         </div>
       </div>
+      {marginaliaError && (
+        <p className="mt-3 text-xs text-destructive" data-testid="paper-reader-marginalia-error">
+          {translate(locale, 'paper.reader.marginaliaError', { message: marginaliaError })}
+        </p>
+      )}
       <dl className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <dt className="font-medium text-foreground">{translate(locale, 'paper.reader.paperId')}</dt>
@@ -748,10 +786,12 @@ export function PaperReaderShell({
   locale = 'en',
   onCopyFilePath,
   onOpenExternalFile,
+  onOpenPaperNote,
   onRevealFile,
 }: PaperReaderShellProps) {
   const metadata = useMemo(() => paperMetadataForReader(content), [content])
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
+  const [marginaliaError, setMarginaliaError] = useState<string | null>(null)
   const focusBlock = useCallback((blockId: string) => setSelectedBlockId(blockId), [])
   const paperId = metadata?.paperId ?? null
   const blocksState = usePaperBlocks(vaultPath, paperId)
@@ -796,6 +836,47 @@ export function PaperReaderShell({
       console.warn('[paper-reader] Failed to reset annotation sidecar:', error)
     })
   }, [annotations])
+  const openMarginaliaPath = useCallback(async (path: string) => {
+    await onOpenPaperNote?.(path)
+  }, [onOpenPaperNote])
+  const handleOpenMarginalia = useCallback(() => {
+    if (!metadata) return
+    setMarginaliaError(null)
+    void createOrOpenPaperMarginalia({
+      paperPath: entry.path,
+      paperTitle: metadata.title,
+      vaultPath,
+    })
+      .then(async (result) => {
+        trackPaperMarginaliaOpened({ created: result.created })
+        await openMarginaliaPath(result.path)
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn('[paper-reader] Failed to create/open marginalia:', error)
+        setMarginaliaError(message)
+      })
+  }, [entry.path, metadata, openMarginaliaPath, vaultPath])
+  const handleAddSelectedBlockToMarginalia = useCallback(() => {
+    if (!metadata || !selectedBlockId) return
+    setMarginaliaError(null)
+    void addBlockCitationToMarginalia({
+      blockId: selectedBlockId,
+      paperId: metadata.paperId,
+      paperPath: entry.path,
+      paperTitle: metadata.title,
+      vaultPath,
+    })
+      .then(async (result) => {
+        trackPaperMarginaliaCitationAdded({ created: result.created })
+        await openMarginaliaPath(result.path)
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn('[paper-reader] Failed to add selected block to marginalia:', error)
+        setMarginaliaError(message)
+      })
+  }, [entry.path, metadata, openMarginaliaPath, selectedBlockId, vaultPath])
 
   useBlockCitationFocus(paperId, focusBlock)
   useReaderOpenedAnalytics(paperId, summary.blocksState)
@@ -804,7 +885,15 @@ export function PaperReaderShell({
 
   return (
     <section className="flex min-h-0 flex-1 flex-col bg-background text-foreground" data-testid="paper-reader-shell">
-      <PaperMetadataPanel locale={locale} metadata={metadata} summary={summary} />
+      <PaperMetadataPanel
+        canAddSelectedBlock={selectedBlockId !== null}
+        locale={locale}
+        marginaliaError={marginaliaError}
+        metadata={metadata}
+        onAddSelectedBlockToMarginalia={handleAddSelectedBlockToMarginalia}
+        onOpenMarginalia={handleOpenMarginalia}
+        summary={summary}
+      />
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(320px,0.85fr)_minmax(360px,1.15fr)]">
         <BlockOutline
           annotationError={annotations.error}

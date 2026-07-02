@@ -211,3 +211,4 @@ proposed → active → superseded
 | [0150](0150-paper-vault-entity-model.md) | Paper vault entity model | active |
 | [0151](0151-paper-sidecar-files.md) | Paper sidecar files | active |
 | [0152](0152-block-citation-markdown-syntax.md) | Block citation Markdown syntax | active |
+| [0153](0153-paper-local-marginalia-research-notes.md) | Paper-local marginalia ResearchNotes | active |
