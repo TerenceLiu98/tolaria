@@ -36,6 +36,33 @@ type: Type
 A Note is a general-purpose document — research notes, meeting notes, strategy docs, or anything that doesn't fit a more specific type.
 ";
 
+/// Content for `paper.md` — restores the default Paper type definition when missing.
+const PAPER_TYPE_DEFINITION: &str = "\
+---
+type: Type
+icon: file-text
+color: purple
+order: 10
+sidebar_label: Papers
+_list_properties_display:
+  - year
+  - status
+  - parse_status
+template: |
+  # New Paper
+
+  ## Summary
+
+  ## Key Claims
+
+  ## Questions
+---
+
+# Paper
+
+A Paper represents a research PDF and the portable sidecar artifacts Tolaria stores beside it.
+";
+
 const LEGACY_CLAUDE_MD_SHIM: &str = "@AGENTS.md
 
 This file is a Claude Code compatibility shim. Keep shared agent instructions in `AGENTS.md`.
@@ -358,6 +385,7 @@ fn ensure_root_type_definition(vault_path: &Path, file_name: &str, content: &str
 fn ensure_root_type_definitions(vault_path: &Path) {
     ensure_root_type_definition(vault_path, "type.md", TYPE_TYPE_DEFINITION);
     ensure_root_type_definition(vault_path, "note.md", NOTE_TYPE_DEFINITION);
+    ensure_root_type_definition(vault_path, "paper.md", PAPER_TYPE_DEFINITION);
 }
 
 /// Migrate legacy `config/agents.md` → root `AGENTS.md` for existing vaults.
@@ -403,6 +431,7 @@ pub fn repair_config_files(vault_path: impl AsRef<str>) -> Result<String, String
 
     write_if_missing(&vault.join("type.md"), TYPE_TYPE_DEFINITION)?;
     write_if_missing(&vault.join("note.md"), NOTE_TYPE_DEFINITION)?;
+    write_if_missing(&vault.join("paper.md"), PAPER_TYPE_DEFINITION)?;
 
     Ok("Config files repaired".to_string())
 }
@@ -559,14 +588,17 @@ mod tests {
     fn assert_root_type_definitions_seeded(vault: &Path) {
         assert!(vault.join("type.md").exists());
         assert!(vault.join("note.md").exists());
+        assert!(vault.join("paper.md").exists());
         assert!(!vault.join("config").exists());
     }
 
     fn assert_type_definition_content(vault: &Path) {
         let type_content = fs::read_to_string(vault.join("type.md")).unwrap();
         let note_content = fs::read_to_string(vault.join("note.md")).unwrap();
+        let paper_content = fs::read_to_string(vault.join("paper.md")).unwrap();
         assert_type_definition_body(&type_content);
         assert_note_definition_body(&note_content);
+        assert_paper_definition_body(&paper_content);
     }
 
     fn assert_type_definition_body(type_content: &str) {
@@ -578,6 +610,13 @@ mod tests {
     fn assert_note_definition_body(note_content: &str) {
         assert!(note_content.contains("type: Type"));
         assert!(note_content.contains("# Note"));
+    }
+
+    fn assert_paper_definition_body(paper_content: &str) {
+        assert!(paper_content.contains("type: Type"));
+        assert!(paper_content.contains("sidebar_label: Papers"));
+        assert!(paper_content.contains("_list_properties_display:"));
+        assert!(paper_content.contains("# Paper"));
     }
 
     #[test]

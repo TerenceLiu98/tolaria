@@ -290,6 +290,22 @@ Type templates can be stored explicitly in the `template` frontmatter property. 
 
 **Instance schema/defaults**: Custom scalar/scalar-array properties and relationship fields on a type document define the expected shape for notes of that type. Existing instances do not get mutated when a type changes; the Inspector enriches their real frontmatter with gray placeholders for missing type-defined properties/relationships. Valued type fields are copied into frontmatter only when Tolaria creates a new instance of that type. Blank type fields stay as placeholders.
 
+### Paper Bundles
+
+A Paper is a normal Markdown vault entity with `type: Paper`. Imported PDFs use this bundle convention:
+
+```text
+papers/<paper-slug>/
+  paper.md
+  source.pdf
+  blocks.jsonl
+  annotations.jsonl
+```
+
+`paper.md` is the canonical entity note. `source.pdf` is immutable app-managed input, while `blocks.jsonl` and `annotations.jsonl` are durable sidecar conventions for later parsing and annotation phases. A missing sidecar means the corresponding phase has not produced that artifact yet.
+
+The root `paper.md` Type document defines the Papers sidebar section. Paper identity is stored in `paper_id`, not inferred from title text, and the current source PDF pointer is the `source_pdf` frontmatter field.
+
 **UI behavior**:
 - Clicking a section group header pins the type document at the top of the NoteList if it exists
 - Viewing a type document in entity view shows an "Instances" group listing all entries of that type
