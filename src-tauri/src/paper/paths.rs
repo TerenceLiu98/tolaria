@@ -6,6 +6,7 @@ pub const PAPER_NOTE_FILENAME: &str = "paper.md";
 pub const SOURCE_PDF_FILENAME: &str = "source.pdf";
 pub const BLOCKS_FILENAME: &str = "blocks.jsonl";
 pub const ANNOTATIONS_FILENAME: &str = "annotations.jsonl";
+pub const METADATA_FILENAME: &str = "metadata.json";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,6 +16,7 @@ pub struct PaperBundlePaths {
     pub source_pdf: PathBuf,
     pub blocks: PathBuf,
     pub annotations: PathBuf,
+    pub metadata: PathBuf,
 }
 
 pub fn normalize_paper_slug(input: &str) -> String {
@@ -69,6 +71,7 @@ pub fn paper_bundle_paths(vault_path: &Path, paper_slug: &str) -> PaperBundlePat
         source_pdf: paper_dir.join(SOURCE_PDF_FILENAME),
         blocks: paper_dir.join(BLOCKS_FILENAME),
         annotations: paper_dir.join(ANNOTATIONS_FILENAME),
+        metadata: paper_dir.join(METADATA_FILENAME),
         paper_dir,
     }
 }
@@ -137,6 +140,10 @@ mod tests {
         assert_eq!(
             paths.annotations,
             PathBuf::from("/vault/papers/vaswani-2017-attention/annotations.jsonl")
+        );
+        assert_eq!(
+            paths.metadata,
+            PathBuf::from("/vault/papers/vaswani-2017-attention/metadata.json")
         );
     }
 

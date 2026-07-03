@@ -63,9 +63,11 @@ export async function parsePaper(
   vaultPath: string,
   paperId: string,
   settings?: Partial<Settings> | PaperParserSettings,
+  options: { force?: boolean } = {},
 ): Promise<PaperParseResult> {
   const parserSettings = await resolvePaperParserSettings(settings)
   return invokePaperParserCommand<PaperParseResult>('parse_paper', {
+    force: options.force ?? false,
     paperId,
     settings: parserSettings,
     vaultPath,

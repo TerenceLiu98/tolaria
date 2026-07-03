@@ -66,6 +66,7 @@ import { useAiWorkspacePublishedContext } from './hooks/useAiWorkspacePublishedC
 import { usePaperImport } from './paper/usePaperImport'
 import { useBlockCitationNavigation } from './paper/useBlockCitationNavigation'
 import { paperMetadataForReader } from './paper/paperReaderModel'
+import { extractPaperMetadata } from './paper/metadata'
 import { parsePaper } from './paper/parser'
 import { normalizePaperParserSettings } from './paper/parserSettings'
 import type { ImportPaperPdfResult } from './paper/types'
@@ -566,6 +567,27 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   const handlePaperImported = useCallback(async (result: ImportPaperPdfResult) => {
     markRecentVaultWrite(result.paperPath)
     markRecentVaultWrite(result.sourcePdfPath)
+    try {
+      await extractPaperMetadata(resolvedPath, result.paperId)
+      markRecentVaultWrite(result.paperPath)
+    } catch (error: unknown) {
+      console.warn('[paper-import] Failed to extract paper metadata before parsing:', appErrorMessage(error))
+    }
+    const parserSettings = normalizePaperParserSettings(settings)
+    if (parserSettings.provider !== 'none') {
+      trackPaperParseRequested(parserSettings.provider)
+      try {
+        const parseResult = await parsePaper(resolvedPath, result.paperId, settings)
+        markRecentVaultWrite(parseResult.blocksPath)
+        markRecentVaultWrite(parseResult.paperPath)
+        trackPaperParseCompleted(parseResult.provider, parseResult.blocks.length)
+        setToastMessage(translate(appLocale, 'paper.parse.success', { count: parseResult.blocks.length }))
+      } catch (error: unknown) {
+        const message = appErrorMessage(error)
+        trackPaperParseFailed(parserSettings.provider, appErrorReason(error))
+        setToastMessage(translate(appLocale, 'paper.parse.failure', { error: message }))
+      }
+    }
     const entries = await reloadVaultEntries()
     await reloadVaultFolders()
     await refreshGitModifiedFiles()
@@ -573,26 +595,6 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     if (!importedPaper) return
     handleSetSelection({ kind: 'sectionGroup', type: 'Paper' })
     await handleSelectNote(importedPaper)
-    const parserSettings = normalizePaperParserSettings(settings)
-    if (parserSettings.provider === 'none') return
-
-    trackPaperParseRequested(parserSettings.provider)
-    try {
-      const parseResult = await parsePaper(resolvedPath, result.paperId, settings)
-      markRecentVaultWrite(parseResult.blocksPath)
-      markRecentVaultWrite(parseResult.paperPath)
-      const parsedEntries = await reloadVaultEntries()
-      await reloadVaultFolders()
-      await refreshGitModifiedFiles()
-      const parsedPaper = parsedEntries.find((entry) => entry.path === parseResult.paperPath)
-      if (parsedPaper) await handleSelectNote(parsedPaper)
-      trackPaperParseCompleted(parseResult.provider, parseResult.blocks.length)
-      setToastMessage(translate(appLocale, 'paper.parse.success', { count: parseResult.blocks.length }))
-    } catch (error: unknown) {
-      const message = appErrorMessage(error)
-      trackPaperParseFailed(parserSettings.provider, appErrorReason(error))
-      setToastMessage(translate(appLocale, 'paper.parse.failure', { error: message }))
-    }
   }, [
     appLocale,
     handleSelectNote,
@@ -1431,6 +1433,11 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   })
   const activeTabEntry = activeTab?.entry ?? null
   const activeTabPath = activeTabEntry?.path
+  const activePaperMetadata = useMemo(
+    () => activeTabEntry?.isA === 'Paper' ? paperMetadataForReader(activeTab?.content ?? null) : null,
+    [activeTab?.content, activeTabEntry?.isA],
+  )
+  const activePaperCanParse = activeTabEntry?.isA === 'Paper' && activePaperMetadata?.parseStatus !== 'parsed'
   const handleSelectNoteForPdfExport = notes.handleSelectNote
   const handleExportNotePdfFromList = useCallback((entry: VaultEntry) => {
     if (!isMarkdownEntry(entry)) return
@@ -1490,7 +1497,8 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   const paperParserSettings = useMemo(() => normalizePaperParserSettings(settings), [settings])
   const parsePaperActiveTabPathRef = notes.activeTabPathRef
   const replaceActiveTabAfterParse = notes.handleReplaceActiveTab
-  const handleParsePaperFromReader = useCallback(async (paperId: string) => {
+  const handleParsePaperFromReader = useCallback(async (paperId: string, options: { force?: boolean } = {}) => {
+    if (!options.force && activePaperMetadata?.paperId === paperId && activePaperMetadata.parseStatus === 'parsed') return
     trackPaperParseRequested(paperParserSettings.provider)
 
     try {
@@ -1498,7 +1506,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
         throw new Error(translate(appLocale, 'save.toast.missingActiveVault'))
       }
 
-      const result = await parsePaper(activeEditorVaultPath, paperId, settings)
+      const result = await parsePaper(activeEditorVaultPath, paperId, settings, { force: options.force })
       markRecentVaultWrite(result.blocksPath)
       markRecentVaultWrite(result.paperPath)
       const entries = await reloadVaultEntries()
@@ -1517,6 +1525,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     }
   }, [
     activeEditorVaultPath,
+    activePaperMetadata,
     appLocale,
     markRecentVaultWrite,
     paperParserSettings.provider,
@@ -1529,7 +1538,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   const handleParseActivePaperCommand = useCallback(() => {
     if (!activeTab || activeTab.entry.isA !== 'Paper') return
     const metadata = paperMetadataForReader(activeTab.content)
-    if (!metadata) return
+    if (!metadata || metadata.parseStatus === 'parsed') return
     void handleParsePaperFromReader(metadata.paperId)
   }, [activeTab, handleParsePaperFromReader])
   const noteGitUrls = useNoteGitUrls({
@@ -1648,7 +1657,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     onRestoreDeletedNote: restoreDeletedNoteCommand,
     canRestoreDeletedNote: !!activeDeletedFile,
     onImportPaperPdf: resolvedPath ? importPaperPdf : undefined,
-    onParsePaper: activeTab?.entry.isA === 'Paper' ? handleParseActivePaperCommand : undefined,
+    onParsePaper: activePaperCanParse ? handleParseActivePaperCommand : undefined,
   })
 
   const {

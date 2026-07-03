@@ -23,6 +23,7 @@ import {
   searchSourceBlocks,
 } from '../paper/sourceBlocks'
 import { paperMarkdownFromSourceBlocks } from '../paper/paperMarkdown'
+import type { PaperMetadata, PaperMetadataValues } from '../paper/metadata'
 import {
   parsePaperAnnotationsJsonl,
   validatePaperAnnotation,
@@ -363,6 +364,15 @@ function mockPaperAnnotationsPath(args: { vaultPath?: string; vault_path?: strin
   }
 }
 
+function mockPaperMetadataPath(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const vaultPath = args.vaultPath ?? args.vault_path ?? mockLastVaultPath ?? DEFAULT_MOCK_VAULT_PATH
+  const paperId = args.paperId ?? args.paper_id ?? ''
+  return {
+    paperId,
+    path: `${vaultPath}/papers/${paperId}/metadata.json`,
+  }
+}
+
 function mockPaperPdfOutlinePath(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
   const vaultPath = args.vaultPath ?? args.vault_path ?? mockLastVaultPath ?? DEFAULT_MOCK_VAULT_PATH
   const paperId = args.paperId ?? args.paper_id ?? ''
@@ -531,6 +541,7 @@ function mockParseError({
 }
 
 function handleParsePaper(args: {
+  force?: boolean
   paperId?: string
   paper_id?: string
   settings?: { mineruTokenRef?: string | null; provider?: string | null }
@@ -561,6 +572,15 @@ function handleParsePaper(args: {
     throw mockParseError({
       kind: 'unsupported_provider',
       message: `Unsupported paper parser provider: ${provider}`,
+      paperId,
+      provider,
+    })
+  }
+  const paperContent = Reflect.get(MOCK_CONTENT, paperPath)
+  if (!args.force && typeof paperContent === 'string' && frontmatterScalar(paperContent, 'parse_status') === 'parsed') {
+    throw mockParseError({
+      kind: 'already_parsed',
+      message: 'Paper has already been parsed.',
       paperId,
       provider,
     })
@@ -624,6 +644,197 @@ function handleReadPaperPdfOutline(args: { vaultPath?: string; vault_path?: stri
     path,
     state: parsed.length > 0 ? 'ready' as const : 'empty' as const,
   }
+}
+
+function extractMockDoi(content: string): string | null {
+  return content.match(/\b10\.\d{4,9}\/[-._;()/:A-Z0-9]+\b/iu)?.[0].replace(/[.,;]$/u, '').toLowerCase() ?? null
+}
+
+function extractMockArxivId(content: string): string | null {
+  return content.match(/\barxiv[:\s]*([0-9]{4}\.[0-9]{4,5})(?:v[0-9]+)?\b/iu)?.[1] ?? null
+}
+
+function mockPaperMetadataValues(content: string, fallbackTitle: string): PaperMetadataValues {
+  const body = stripMockFrontmatter(content).replace(/<!--\s*tolaria:block.*?-->/gsu, '')
+  const lines = body.split(/\r?\n/u)
+    .map(line => line.trim().replace(/^#+\s*/u, ''))
+    .filter(Boolean)
+  const title = lines.find(line => line.length > 4 && !line.includes('@')) ?? fallbackTitle
+  const abstractIndex = lines.findIndex(line => line.toLowerCase() === 'abstract')
+  const authorLines = abstractIndex > 0
+    ? lines.slice(1, abstractIndex).filter(line => !line.includes('@') && !/\d/u.test(line))
+    : []
+  const authors = authorLines
+    .flatMap(line => line.split(/,|;|\sand\s/u))
+    .map(author => author.trim())
+    .filter(author => author.split(/\s+/u).length >= 2)
+  return {
+    title,
+    authors,
+    year: Number(body.match(/\b(19[7-9]\d|20\d{2})\b/u)?.[1] ?? '') || null,
+    venue: null,
+    venueShort: null,
+    venueType: null,
+    publicationDate: null,
+    publicationStage: null,
+    doi: extractMockDoi(body),
+    arxivId: extractMockArxivId(body),
+    abstract: abstractIndex >= 0 ? lines.slice(abstractIndex + 1, abstractIndex + 4).join(' ') : null,
+  }
+}
+
+function mockPaperEntryTitle(paperId: string): string {
+  return MOCK_ENTRIES.find(entry => entry.properties?.paper_id === paperId)?.title ?? paperId
+}
+
+function writeMockPaperMetadataFrontmatter(path: string, metadata: PaperMetadata): void {
+  const content = Reflect.get(MOCK_CONTENT, path)
+  if (typeof content !== 'string') return
+  const fields: Record<string, string | number | string[] | null | undefined> = {
+    title: metadata.title,
+    authors: metadata.authors.length > 0 ? metadata.authors : undefined,
+    year: metadata.year,
+    venue: metadata.venue,
+    venue_short: metadata.venueShort,
+    venue_type: metadata.venueType,
+    publication_date: metadata.publicationDate,
+    publication_stage: metadata.publicationStage,
+    doi: metadata.doi,
+    arxiv_id: metadata.arxivId,
+    metadata_status: metadata.status,
+    metadata_confidence: Math.round(metadata.confidence * 100) / 100,
+  }
+  let nextContent = content
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined || value === null || value === '') continue
+    const serialized = Array.isArray(value)
+      ? `${key}:\n${value.map(item => `  - ${JSON.stringify(item)}`).join('\n')}`
+      : `${key}: ${typeof value === 'string' ? JSON.stringify(value) : value}`
+    nextContent = nextContent.match(new RegExp(`^${key}:.*(?:\\n  -.*)*$`, 'mu'))
+      ? nextContent.replace(new RegExp(`^${key}:.*(?:\\n  -.*)*$`, 'mu'), serialized)
+      : nextContent.replace(/^---$/mu, `---\n${serialized}`)
+  }
+  writeMockContent({ path, content: nextContent })
+  mockSavedSinceCommit.add(path)
+}
+
+function buildMockPaperMetadata(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }): PaperMetadata {
+  const { paperId, path: paperPath } = mockPaperNotePath(args)
+  const content = Reflect.get(MOCK_CONTENT, paperPath)
+  const values = mockPaperMetadataValues(typeof content === 'string' ? content : '', mockPaperEntryTitle(paperId))
+  const confidence = values.doi || values.arxivId ? 0.9 : values.title ? 0.68 : 0
+  return {
+    ...values,
+    paperId,
+    status: confidence >= 0.78 ? 'ready' : confidence > 0 ? 'needs_review' : 'missing',
+    confidence,
+    updatedAt: new Date().toISOString(),
+    sources: [{
+      provider: 'parsed_markdown',
+      identifier: null,
+      confidence,
+      matchedBy: 'paper_md_heuristic',
+      metadata: values,
+    }],
+    candidates: confidence > 0 && confidence < 0.78 ? [{
+      id: 'parsed_markdown-1',
+      provider: 'parsed_markdown',
+      confidence,
+      reason: 'Local title/author heuristic needs review',
+      metadata: values,
+    }] : [],
+    errors: [],
+  }
+}
+
+function handleReadPaperMetadata(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const { paperId, path } = mockPaperMetadataPath(args)
+  const content = Reflect.get(MOCK_CONTENT, path)
+  if (typeof content !== 'string') return { paperId, path, state: 'missing' as const, metadata: null }
+  if (content.trim().length === 0) return { paperId, path, state: 'empty' as const, metadata: null }
+  return { paperId, path, state: 'ready' as const, metadata: JSON.parse(content) as PaperMetadata }
+}
+
+function handleExtractPaperMetadata(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const { path } = mockPaperMetadataPath(args)
+  const { path: paperPath } = mockPaperNotePath(args)
+  const metadata = buildMockPaperMetadata(args)
+  writeMockContent({ path, content: `${JSON.stringify(metadata, null, 2)}\n` })
+  writeMockPaperMetadataFrontmatter(paperPath, metadata)
+  mockSavedSinceCommit.add(path)
+  syncWindowContent()
+  return metadata
+}
+
+function handleApplyPaperMetadataCandidate(args: {
+  candidateId?: string
+  candidate_id?: string
+  vaultPath?: string
+  vault_path?: string
+  paperId?: string
+  paper_id?: string
+}) {
+  const candidateId = args.candidateId ?? args.candidate_id ?? ''
+  const { path: paperPath } = mockPaperNotePath(args)
+  const { path } = mockPaperMetadataPath(args)
+  const result = handleReadPaperMetadata(args)
+  if (!result.metadata) throw new Error('metadata.json has no candidates to apply')
+  const candidate = result.metadata.candidates.find(candidate => candidate.id === candidateId)
+  if (!candidate) throw new Error(`Metadata candidate \`${candidateId}\` was not found`)
+  const metadata: PaperMetadata = {
+    ...result.metadata,
+    ...candidate.metadata,
+    status: 'ready',
+    confidence: candidate.confidence,
+    updatedAt: new Date().toISOString(),
+    candidates: result.metadata.candidates.filter(candidate => candidate.id !== candidateId),
+  }
+  writeMockContent({ path, content: `${JSON.stringify(metadata, null, 2)}\n` })
+  writeMockPaperMetadataFrontmatter(paperPath, metadata)
+  syncWindowContent()
+  return metadata
+}
+
+function handleSavePaperMetadata(args: {
+  values?: PaperMetadataValues
+  vaultPath?: string
+  vault_path?: string
+  paperId?: string
+  paper_id?: string
+}) {
+  const { paperId } = mockPaperNotePath(args)
+  const { path: paperPath } = mockPaperNotePath(args)
+  const { path } = mockPaperMetadataPath(args)
+  const existing = handleReadPaperMetadata(args).metadata
+  const values = args.values ?? existing ?? mockPaperMetadataValues('', mockPaperEntryTitle(paperId))
+  const metadata: PaperMetadata = {
+    ...(existing ?? {
+      paperId,
+      sources: [],
+      errors: [],
+    }),
+    ...values,
+    paperId,
+    status: 'ready',
+    confidence: 1,
+    updatedAt: new Date().toISOString(),
+    candidates: [],
+    sources: [
+      ...(existing?.sources ?? []),
+      {
+        provider: 'manual',
+        identifier: null,
+        confidence: 1,
+        matchedBy: 'user_edit',
+        metadata: values,
+      },
+    ],
+    errors: existing?.errors ?? [],
+  }
+  writeMockContent({ path, content: `${JSON.stringify(metadata, null, 2)}\n` })
+  writeMockPaperMetadataFrontmatter(paperPath, metadata)
+  syncWindowContent()
+  return metadata
 }
 
 function writeMockPaperAnnotations({
@@ -955,6 +1166,11 @@ export const mockHandlers: Record<string, (args: any) => any> = {
   read_paper_block: handleReadPaperBlock,
   search_paper_blocks: handleSearchPaperBlocks,
   read_paper_pdf_outline: handleReadPaperPdfOutline,
+  read_paper_metadata: handleReadPaperMetadata,
+  extract_paper_metadata: handleExtractPaperMetadata,
+  refresh_paper_metadata: handleExtractPaperMetadata,
+  apply_paper_metadata_candidate: handleApplyPaperMetadataCandidate,
+  save_paper_metadata: handleSavePaperMetadata,
   read_paper_annotations: handleReadPaperAnnotations,
   save_paper_annotation: handleSavePaperAnnotation,
   delete_paper_annotation: handleDeletePaperAnnotation,

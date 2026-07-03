@@ -8,6 +8,17 @@ type: Paper
 paper_id: vaswani-2017-attention
 title: Attention Is All You Need
 year: 2017
+authors:
+  - "Ashish Vaswani"
+venue: NeurIPS
+venue_short: NeurIPS
+venue_type: conference
+publication_date: 2017-12-04
+publication_stage: published
+doi: "10.5555/3295222.3295349"
+arxiv_id: "1706.03762"
+metadata_status: ready
+metadata_confidence: 0.94
 status: imported
 parse_status: unparsed
 source_pdf: source.pdf
@@ -28,6 +39,16 @@ annotations: annotations.jsonl
       sourcePdf: 'source.pdf',
       blocks: 'blocks.jsonl',
       annotations: 'annotations.jsonl',
+      authors: ['Ashish Vaswani'],
+      venue: 'NeurIPS',
+      venueShort: 'NeurIPS',
+      venueType: 'conference',
+      publicationDate: '2017-12-04',
+      publicationStage: 'published',
+      doi: '10.5555/3295222.3295349',
+      arxivId: '1706.03762',
+      metadataStatus: 'ready',
+      metadataConfidence: 0.94,
     })
   })
 

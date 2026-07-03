@@ -10,13 +10,23 @@ import {
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { translate, type AppLocale, type TranslationKey } from '../lib/i18n'
+import { translate, type AppLocale } from '../lib/i18n'
 import {
   trackPaperBlockCitationCopied,
   trackPaperReaderModeChanged,
@@ -32,6 +42,16 @@ import {
 import type { NoteComment } from '../comments/commentProvider'
 import { parsePaper } from './parser'
 import type { PaperParserProvider } from './parserSettings'
+import {
+  applyPaperMetadataCandidate,
+  extractPaperMetadata,
+  readPaperMetadata,
+  refreshPaperMetadata,
+  savePaperMetadata,
+  type PaperMetadata as ResolvedPaperMetadata,
+  type PaperMetadataValues,
+  type PaperMetadataReadResult,
+} from './metadata'
 import { formatBlockCitation } from './blockCitations'
 import {
   BLOCK_CITATION_NAVIGATE_EVENT,
@@ -77,13 +97,14 @@ interface PaperReaderShellProps {
   onCopyFilePath?: (path: string) => void
   onOpenExternalFile?: (path: string) => void
   onNavigateWikilink: (target: string) => void
-  onParsePaper?: (paperId: string) => void | Promise<void>
+  onParsePaper?: (paperId: string, options?: { force?: boolean }) => void | Promise<void>
   paperParserProvider?: PaperParserProvider
   onRevealFile?: (path: string) => void
 }
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error'
 type ReaderMode = 'markdown' | 'pdf'
+type PaperActionConfirmation = 'parse' | 'refreshMetadata'
 
 interface PdfFocusRequest {
   blockId: string
@@ -97,6 +118,17 @@ interface BlocksLoadState {
 }
 
 interface SettledBlocksLoadState extends BlocksLoadState {
+  key: string
+  state: 'loaded' | 'error'
+}
+
+interface MetadataLoadState {
+  result: PaperMetadataReadResult | null
+  error: unknown
+  state: LoadState
+}
+
+interface SettledMetadataLoadState extends MetadataLoadState {
   key: string
   state: 'loaded' | 'error'
 }
@@ -148,7 +180,36 @@ function usePaperBlocks(vaultPath: string | undefined, paperId: string | null, r
 
   if (!requestKey) return { result: null, error: null, state: 'idle' }
   if (settledLoadState?.key !== requestKey) {
-    return { result: null, error: null, state: 'loading' }
+    return { result: settledLoadState?.result ?? null, error: null, state: 'loading' }
+  }
+
+  return settledLoadState
+}
+
+function usePaperMetadata(vaultPath: string | undefined, paperId: string | null, refreshKey: number): MetadataLoadState {
+  const requestKey = vaultPath && paperId ? `${vaultPath}\u0000${paperId}\u0000${refreshKey}` : null
+  const [settledLoadState, setSettledLoadState] = useState<SettledMetadataLoadState | null>(null)
+
+  useEffect(() => {
+    if (!vaultPath || !paperId || !requestKey) return
+
+    let cancelled = false
+    void readPaperMetadata(vaultPath, paperId)
+      .then((result) => {
+        if (!cancelled) setSettledLoadState({ key: requestKey, result, error: null, state: 'loaded' })
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setSettledLoadState({ key: requestKey, result: null, error, state: 'error' })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [paperId, requestKey, vaultPath])
+
+  if (!requestKey) return { result: null, error: null, state: 'idle' }
+  if (settledLoadState?.key !== requestKey) {
+    return { result: settledLoadState?.result ?? null, error: null, state: 'loading' }
   }
 
   return settledLoadState
@@ -209,16 +270,75 @@ function paperParseButtonLabel(
   return translate(locale, provider === 'mineru' ? 'paper.reader.parseWithMineru' : 'paper.reader.parsePaper')
 }
 
-function paperStructureStatusLabel(locale: AppLocale, blocksState: PaperReaderBlocksState): string {
-  const labelKeys: Record<PaperReaderBlocksState, TranslationKey> = {
-    empty: 'paper.reader.structureEmpty',
-    error: 'paper.reader.structureError',
-    loading: 'paper.reader.structureLoading',
-    missing: 'paper.reader.structureMissing',
-    ready: 'paper.reader.structureReady',
-    unavailable: 'paper.reader.structureUnavailable',
+function metadataConfidenceLabel(confidence: number | null | undefined): string {
+  if (!Number.isFinite(confidence)) return '0%'
+  return `${Math.round(Math.max(0, Math.min(1, Number(confidence))) * 100)}%`
+}
+
+interface PaperMetadataFormState {
+  title: string
+  authors: string
+  year: string
+  venue: string
+  venueShort: string
+  doi: string
+  arxivId: string
+}
+
+function metadataFormState(metadata: ResolvedPaperMetadata | null): PaperMetadataFormState {
+  return {
+    title: metadata?.title ?? '',
+    authors: metadata?.authors.join('\n') ?? '',
+    year: metadata?.year ? String(metadata.year) : '',
+    venue: metadata?.venue ?? '',
+    venueShort: metadata?.venueShort ?? '',
+    doi: metadata?.doi ?? '',
+    arxivId: metadata?.arxivId ?? '',
   }
-  return translate(locale, labelKeys[blocksState])
+}
+
+function cleanOptional(value: string): string | null {
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function metadataValuesFromForm(
+  form: PaperMetadataFormState,
+  current: ResolvedPaperMetadata | null,
+): PaperMetadataValues {
+  const year = Number.parseInt(form.year.trim(), 10)
+  return {
+    title: cleanOptional(form.title),
+    authors: form.authors
+      .split(/[\n,;]/u)
+      .map(author => author.trim())
+      .filter(author => author.length > 0),
+    year: Number.isFinite(year) ? year : null,
+    venue: cleanOptional(form.venue),
+    venueShort: cleanOptional(form.venueShort),
+    venueType: current?.venueType ?? null,
+    publicationDate: current?.publicationDate ?? null,
+    publicationStage: current?.publicationStage ?? null,
+    doi: cleanOptional(form.doi),
+    arxivId: cleanOptional(form.arxivId),
+    abstract: current?.abstract ?? null,
+  }
+}
+
+function metadataValuesFromCurrent(current: ResolvedPaperMetadata): PaperMetadataValues {
+  return {
+    title: current.title ?? null,
+    authors: current.authors,
+    year: current.year ?? null,
+    venue: current.venue ?? null,
+    venueShort: current.venueShort ?? null,
+    venueType: current.venueType ?? null,
+    publicationDate: current.publicationDate ?? null,
+    publicationStage: current.publicationStage ?? null,
+    doi: current.doi ?? null,
+    arxivId: current.arxivId ?? null,
+    abstract: current.abstract ?? null,
+  }
 }
 
 const EMPTY_SOURCE_BLOCKS: SourceBlock[] = []
@@ -229,10 +349,58 @@ function cleanOptionalNote(note: string): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
+function PaperActionConfirmDialog({
+  action,
+  locale,
+  onCancel,
+  onConfirm,
+}: {
+  action: PaperActionConfirmation | null
+  locale: AppLocale
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const titleKey = action === 'parse'
+    ? 'paper.reader.confirmParseAgainTitle'
+    : 'paper.reader.confirmRefreshMetadataTitle'
+  const messageKey = action === 'parse'
+    ? 'paper.reader.confirmParseAgainMessage'
+    : 'paper.reader.confirmRefreshMetadataMessage'
+  const confirmKey = action === 'parse'
+    ? 'paper.reader.confirmParseAgainAction'
+    : 'paper.reader.confirmRefreshMetadataAction'
+
+  return (
+    <Dialog open={Boolean(action)} onOpenChange={(open) => { if (!open) onCancel() }}>
+      <DialogContent showCloseButton={false} className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{translate(locale, titleKey)}</DialogTitle>
+          <DialogDescription>{translate(locale, messageKey)}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel}>
+            {translate(locale, 'common.cancel')}
+          </Button>
+          <Button type="button" onClick={onConfirm}>
+            {translate(locale, confirmKey)}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function PaperMetadataPanel({
   locale,
+  metadataError,
+  metadataReadyForAction,
+  metadataPending,
+  metadataResult,
   metadata,
+  onApplyMetadataCandidate,
+  onSaveMetadata,
   onParsePaper,
+  onRefreshMetadata,
   onSelectPdfMode,
   onSelectReadMode,
   parsePaperPending,
@@ -240,18 +408,23 @@ function PaperMetadataPanel({
   summary,
 }: {
   locale: AppLocale
+  metadataError: unknown
+  metadataReadyForAction: boolean
+  metadataPending: boolean
+  metadataResult: PaperMetadataReadResult | null
   metadata: NonNullable<ReturnType<typeof paperMetadataForReader>>
+  onApplyMetadataCandidate: (candidateId: string) => void
+  onSaveMetadata: (values: PaperMetadataValues) => void
   onParsePaper?: () => void
+  onRefreshMetadata?: () => void
   onSelectPdfMode: () => void
   onSelectReadMode: () => void
   parsePaperPending: boolean
   parseProvider?: PaperParserProvider
   summary: ReturnType<typeof paperReaderSummary>
 }) {
-  const sourcePdfStatus = metadata.sourcePdf
-    ? translate(locale, 'paper.reader.statusConfigured')
-    : translate(locale, 'paper.reader.statusMissing')
-  const structureStatus = paperStructureStatusLabel(locale, summary.blocksState)
+  const [metadataDialogOpen, setMetadataDialogOpen] = useState(false)
+  const resolvedMetadata = metadataResult?.metadata ?? null
 
   return (
     <section className="border-b border-border px-5 py-4" data-testid="paper-reader-metadata">
@@ -269,35 +442,196 @@ function PaperMetadataPanel({
               PDF
             </TabsTrigger>
           </TabsList>
-          <StatusPill value={translate(locale, 'paper.reader.sourcePdfStatus', { status: sourcePdfStatus })} />
-          <StatusPill value={translate(locale, 'paper.reader.blocksStatus', { status: structureStatus })} />
-          <StatusPill value={translate(locale, 'paper.reader.blocksCount', { count: summary.blockCount })} />
           {onParsePaper ? (
-            <Button type="button" variant="secondary" size="sm" disabled={parsePaperPending} onClick={onParsePaper}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={parsePaperPending}
+              onClick={onParsePaper}
+            >
               <MagnifyingGlass className="size-4" />
               {paperParseButtonLabel(locale, parseProvider, parsePaperPending)}
             </Button>
           ) : null}
+          {onRefreshMetadata ? (
+            <Dialog open={metadataDialogOpen} onOpenChange={setMetadataDialogOpen}>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setMetadataDialogOpen(true)}>
+                <ClipboardText className="size-4" />
+                {translate(locale, 'paper.reader.metadata')}
+              </Button>
+              <DialogContent className="max-h-[calc(100vh-4rem)] w-[min(42rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-hidden sm:max-w-2xl">
+                <DialogHeader className="min-w-0">
+                  <DialogTitle>{translate(locale, 'paper.reader.metadata')}</DialogTitle>
+                  <DialogDescription>{translate(locale, 'paper.reader.metadataEditDescription')}</DialogDescription>
+                </DialogHeader>
+                <PaperMetadataInspector
+                  locale={locale}
+                  metadata={resolvedMetadata}
+                  metadataError={metadataError}
+                  metadataPending={metadataPending}
+                  metadataReadyForAction={metadataReadyForAction}
+                  onApplyCandidate={onApplyMetadataCandidate}
+                  onRefreshMetadata={onRefreshMetadata}
+                  onSaveMetadata={onSaveMetadata}
+                />
+              </DialogContent>
+            </Dialog>
+          ) : null}
         </div>
       </div>
-      <dl className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <dt className="font-medium text-foreground">{translate(locale, 'paper.reader.paperId')}</dt>
-          <dd className="truncate" data-testid="paper-reader-paper-id">{metadata.paperId}</dd>
+      <span className="sr-only" data-testid="paper-reader-paper-id">{metadata.paperId}</span>
+      <span className="sr-only" data-testid="paper-reader-selected-block">{summary.selectedBlockId ?? translate(locale, 'paper.reader.none')}</span>
+    </section>
+  )
+}
+
+function PaperMetadataInspector({
+  locale,
+  metadata,
+  metadataError,
+  metadataPending,
+  metadataReadyForAction,
+  onApplyCandidate,
+  onRefreshMetadata,
+  onSaveMetadata,
+}: {
+  locale: AppLocale
+  metadata: ResolvedPaperMetadata | null
+  metadataError: unknown
+  metadataPending: boolean
+  metadataReadyForAction: boolean
+  onApplyCandidate: (candidateId: string) => void
+  onRefreshMetadata?: () => void
+  onSaveMetadata: (values: PaperMetadataValues) => void
+}) {
+  const [form, setForm] = useState(() => metadataFormState(metadata))
+  useEffect(() => {
+    setForm(metadataFormState(metadata))
+  }, [metadata])
+
+  if (metadataError) {
+    return (
+      <div className="grid gap-3" data-testid="paper-reader-metadata-inspector">
+        <p className="text-xs text-destructive" data-testid="paper-reader-metadata-error">
+          {paperParseErrorMessage(metadataError)}
+        </p>
+        {onRefreshMetadata ? (
+          <Button type="button" variant="secondary" size="sm" disabled={metadataPending || !metadataReadyForAction} onClick={onRefreshMetadata}>
+            <ArrowCounterClockwise className="size-4" />
+            {metadataPending ? translate(locale, 'paper.reader.metadataRefreshing') : translate(locale, 'paper.reader.refreshMetadata')}
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
+  if (!metadata) {
+    return (
+      <div className="grid gap-3" data-testid="paper-reader-metadata-inspector">
+        <p className="text-sm text-muted-foreground">{translate(locale, 'paper.reader.metadataUnavailable')}</p>
+        {onRefreshMetadata ? (
+          <Button type="button" variant="secondary" size="sm" disabled={metadataPending || !metadataReadyForAction} onClick={onRefreshMetadata}>
+            <ArrowCounterClockwise className="size-4" />
+            {metadataPending ? translate(locale, 'paper.reader.metadataRefreshing') : translate(locale, 'paper.reader.refreshMetadata')}
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
+
+  const details = [
+    metadata.authors.length > 0 ? metadata.authors.join(', ') : null,
+    metadata.year ? String(metadata.year) : null,
+    metadata.venueShort ?? metadata.venue,
+    metadata.doi ? `DOI ${metadata.doi}` : null,
+    metadata.arxivId ? `arXiv ${metadata.arxivId}` : null,
+  ].filter((detail): detail is string => Boolean(detail))
+
+  return (
+    <section className="grid min-w-0 gap-4 overflow-y-auto overflow-x-hidden pr-1" data-testid="paper-reader-metadata-inspector">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-foreground">{translate(locale, 'paper.reader.metadata')}</p>
+          {details.length > 0 ? (
+            <p className="mt-1 truncate text-xs text-muted-foreground">{details.join(' · ')}</p>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">{translate(locale, 'paper.reader.metadataUnavailable')}</p>
+          )}
         </div>
-        <div>
-          <dt className="font-medium text-foreground">{translate(locale, 'paper.reader.parseStatus')}</dt>
-          <dd>{metadata.parseStatus ?? 'unparsed'}</dd>
+        <StatusPill value={translate(locale, 'paper.reader.metadataConfidence', { confidence: metadataConfidenceLabel(metadata.confidence) })} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {onRefreshMetadata ? (
+          <Button type="button" variant="secondary" size="xs" disabled={metadataPending || !metadataReadyForAction} onClick={onRefreshMetadata}>
+            <ArrowCounterClockwise className="size-4" />
+            {metadataPending ? translate(locale, 'paper.reader.metadataRefreshing') : translate(locale, 'paper.reader.refreshMetadata')}
+          </Button>
+        ) : null}
+        {metadata.status === 'needs_review' ? (
+          <Button type="button" variant="outline" size="xs" onClick={() => onSaveMetadata(metadataValuesFromCurrent(metadata))}>
+            {translate(locale, 'paper.reader.keepCurrentMetadata')}
+          </Button>
+        ) : null}
+      </div>
+      {metadata.candidates.length > 0 ? (
+        <div className="mt-3 grid min-w-0 gap-2" data-testid="paper-reader-metadata-candidates">
+          <p className="text-xs font-medium text-foreground">{translate(locale, 'paper.reader.metadataNeedsReview')}</p>
+          {metadata.candidates.map((candidate) => (
+            <div key={candidate.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-md bg-background/70 px-2 py-2 text-xs">
+              <span className="min-w-0 truncate text-muted-foreground">
+                {candidate.metadata.title ?? candidate.reason}
+              </span>
+              <Button type="button" variant="secondary" size="xs" onClick={() => onApplyCandidate(candidate.id)}>
+                {translate(locale, 'paper.reader.applyMetadataCandidate')}
+              </Button>
+            </div>
+          ))}
         </div>
-        <div>
-          <dt className="font-medium text-foreground">{translate(locale, 'paper.reader.blocksField')}</dt>
-          <dd>{translate(locale, 'paper.reader.blocksCount', { count: summary.blockCount })}</dd>
+      ) : null}
+      <div className="grid min-w-0 gap-3">
+        <label className="grid min-w-0 gap-1 text-xs font-medium text-foreground">
+          {translate(locale, 'paper.reader.metadataTitle')}
+          <Input value={form.title} onChange={(event) => setForm(current => ({ ...current, title: event.target.value }))} />
+        </label>
+        <label className="grid min-w-0 gap-1 text-xs font-medium text-foreground">
+          {translate(locale, 'paper.reader.metadataAuthors')}
+          <Textarea
+            className="min-h-20 min-w-0 resize-y"
+            value={form.authors}
+            onChange={(event) => setForm(current => ({ ...current, authors: event.target.value }))}
+          />
+        </label>
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+          <label className="grid min-w-0 gap-1 text-xs font-medium text-foreground">
+            {translate(locale, 'paper.reader.metadataYear')}
+            <Input value={form.year} onChange={(event) => setForm(current => ({ ...current, year: event.target.value }))} />
+          </label>
+          <label className="grid min-w-0 gap-1 text-xs font-medium text-foreground">
+            {translate(locale, 'paper.reader.metadataVenue')}
+            <Input value={form.venue} onChange={(event) => setForm(current => ({ ...current, venue: event.target.value }))} />
+          </label>
+          <label className="grid min-w-0 gap-1 text-xs font-medium text-foreground">
+            {translate(locale, 'paper.reader.metadataVenueShort')}
+            <Input value={form.venueShort} onChange={(event) => setForm(current => ({ ...current, venueShort: event.target.value }))} />
+          </label>
+          <label className="grid min-w-0 gap-1 text-xs font-medium text-foreground">
+            {translate(locale, 'paper.reader.metadataDoi')}
+            <Input value={form.doi} onChange={(event) => setForm(current => ({ ...current, doi: event.target.value }))} />
+          </label>
+          <label className="grid min-w-0 gap-1 text-xs font-medium text-foreground sm:col-span-2">
+            {translate(locale, 'paper.reader.metadataArxivId')}
+            <Input value={form.arxivId} onChange={(event) => setForm(current => ({ ...current, arxivId: event.target.value }))} />
+          </label>
         </div>
-        <div>
-          <dt className="font-medium text-foreground">{translate(locale, 'paper.reader.selectedBlock')}</dt>
-          <dd data-testid="paper-reader-selected-block">{summary.selectedBlockId ?? translate(locale, 'paper.reader.none')}</dd>
-        </div>
-      </dl>
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="outline">{translate(locale, 'common.cancel')}</Button>
+        </DialogClose>
+        <Button type="button" onClick={() => onSaveMetadata(metadataValuesFromForm(form, metadata))}>
+          {translate(locale, 'common.save')}
+        </Button>
+      </DialogFooter>
     </section>
   )
 }
@@ -314,7 +648,7 @@ function BlocksStateNotice({
   error: unknown
 }) {
   if (loadState === 'loading') {
-    return <p className="px-4 py-3 text-sm text-muted-foreground">{translate(locale, 'paper.reader.blocksLoading')}</p>
+    return null
   }
 
   if (loadState === 'error') {
@@ -757,8 +1091,12 @@ export function PaperReaderShell({
   const [openCommentBlockId, setOpenCommentBlockId] = useState<string | null>(null)
   const [readerMode, setReaderMode] = useState<ReaderMode>('markdown')
   const [blocksRefreshKey, setBlocksRefreshKey] = useState(0)
+  const [metadataRefreshKey, setMetadataRefreshKey] = useState(0)
   const [pdfFocusRequest, setPdfFocusRequest] = useState<PdfFocusRequest | null>(null)
   const [parsePaperPending, setParsePaperPending] = useState(false)
+  const [metadataPending, setMetadataPending] = useState(false)
+  const [pendingConfirmation, setPendingConfirmation] = useState<PaperActionConfirmation | null>(null)
+  const autoMetadataRequestRef = useRef<string | null>(null)
   const handleReaderModeChange = useCallback((nextValue: string) => {
     if (nextValue === 'markdown' || nextValue === 'pdf') setReaderMode(nextValue)
   }, [])
@@ -766,16 +1104,70 @@ export function PaperReaderShell({
   const selectPdfMode = useCallback(() => setReaderMode('pdf'), [])
   const paperId = metadata?.paperId ?? null
   const blocksState = usePaperBlocks(vaultPath, paperId, blocksRefreshKey)
-  const canParsePaper = Boolean(onParsePaper || vaultPath)
-  const handleParsePaper = useCallback(() => {
+  const paperMetadataState = usePaperMetadata(vaultPath, paperId, metadataRefreshKey)
+  const canShowParsePaper = Boolean(onParsePaper || vaultPath)
+  const canRefreshMetadata = Boolean(vaultPath && paperId)
+  const refreshMetadata = useCallback(() => {
+    if (!vaultPath || !paperId) return
+    setMetadataPending(true)
+    void refreshPaperMetadata(vaultPath, paperId)
+      .then(() => setMetadataRefreshKey((currentKey) => currentKey + 1))
+      .catch((error: unknown) => {
+        console.warn('[paper-reader] Failed to refresh paper metadata:', paperParseErrorMessage(error))
+      })
+      .finally(() => setMetadataPending(false))
+  }, [paperId, vaultPath])
+  const handleApplyMetadataCandidate = useCallback((candidateId: string) => {
+    if (!vaultPath || !paperId) return
+    setMetadataPending(true)
+    void applyPaperMetadataCandidate(vaultPath, paperId, candidateId)
+      .then(() => setMetadataRefreshKey((currentKey) => currentKey + 1))
+      .catch((error: unknown) => {
+        console.warn('[paper-reader] Failed to apply paper metadata candidate:', paperParseErrorMessage(error))
+      })
+      .finally(() => setMetadataPending(false))
+  }, [paperId, vaultPath])
+  const handleSaveMetadata = useCallback((values: PaperMetadataValues) => {
+    if (!vaultPath || !paperId) return
+    setMetadataPending(true)
+    void savePaperMetadata(vaultPath, paperId, values)
+      .then(() => setMetadataRefreshKey((currentKey) => currentKey + 1))
+      .catch((error: unknown) => {
+        console.warn('[paper-reader] Failed to save paper metadata:', paperParseErrorMessage(error))
+      })
+      .finally(() => setMetadataPending(false))
+  }, [paperId, vaultPath])
+  useEffect(() => {
+    if (!vaultPath || !paperId || paperMetadataState.state !== 'loaded') return
+    if (paperMetadataState.result?.state !== 'missing') return
+    const requestKey = `${vaultPath}\u0000${paperId}`
+    if (autoMetadataRequestRef.current === requestKey) return
+    autoMetadataRequestRef.current = requestKey
+    void extractPaperMetadata(vaultPath, paperId)
+      .then(() => setMetadataRefreshKey((currentKey) => currentKey + 1))
+      .catch((error: unknown) => {
+        console.warn('[paper-reader] Failed to extract paper metadata:', paperParseErrorMessage(error))
+      })
+  }, [paperId, paperMetadataState.result?.state, paperMetadataState.state, vaultPath])
+  const parsePaperFromReader = useCallback((options: { force?: boolean } = {}) => {
     if (!paperId || (!onParsePaper && !vaultPath)) return
 
     setParsePaperPending(true)
+    const force = options.force ?? false
     const parseRequest = onParsePaper
-      ? onParsePaper(paperId)
-      : parsePaper(vaultPath!, paperId)
+      ? onParsePaper(paperId, { force })
+      : parsePaper(vaultPath!, paperId, undefined, { force })
     void Promise.resolve(parseRequest)
-      .then(() => setBlocksRefreshKey((currentKey) => currentKey + 1))
+      .then(() => {
+        setBlocksRefreshKey((currentKey) => currentKey + 1)
+        if (vaultPath) {
+          void refreshPaperMetadata(vaultPath, paperId)
+            .then(() => setMetadataRefreshKey((currentKey) => currentKey + 1))
+            .catch((error: unknown) => {
+              console.warn('[paper-reader] Failed to refresh paper metadata after parse:', paperParseErrorMessage(error))
+            })
+        }
+      })
       .catch((error: unknown) => {
         console.warn('[paper-reader] Failed to parse paper:', paperParseErrorMessage(error))
       })
@@ -784,12 +1176,44 @@ export function PaperReaderShell({
   const loadingBlocks = blocksState.state === 'loading' || (Boolean(vaultPath && paperId) && blocksState.state === 'idle')
   const summary = paperReaderSummary(
     blocksState.result,
-    loadingBlocks,
+    loadingBlocks && !blocksState.result,
     Boolean(vaultPath),
     blocksState.state === 'error',
     selectedBlockId,
   )
   const blocks = blocksState.result?.blocks ?? EMPTY_SOURCE_BLOCKS
+  const paperAlreadyParsed = metadata?.parseStatus === 'parsed'
+    || (blocksState.result?.state === 'ready' && blocks.length > 0)
+  const metadataAlreadyExists = Boolean(paperMetadataState.result?.metadata)
+  const handleRequestParsePaper = useCallback(() => {
+    if (paperAlreadyParsed) {
+      setPendingConfirmation('parse')
+      return
+    }
+
+    parsePaperFromReader()
+  }, [paperAlreadyParsed, parsePaperFromReader])
+  const handleRequestRefreshMetadata = useCallback(() => {
+    if (metadataAlreadyExists) {
+      setPendingConfirmation('refreshMetadata')
+      return
+    }
+
+    refreshMetadata()
+  }, [metadataAlreadyExists, refreshMetadata])
+  const handleCancelConfirmation = useCallback(() => setPendingConfirmation(null), [])
+  const handleConfirmAction = useCallback(() => {
+    const action = pendingConfirmation
+    setPendingConfirmation(null)
+    if (action === 'parse') {
+      parsePaperFromReader({ force: true })
+      return
+    }
+
+    if (action === 'refreshMetadata') {
+      refreshMetadata()
+    }
+  }, [parsePaperFromReader, pendingConfirmation, refreshMetadata])
   const sidecarHealth = useMemo(
     () => paperSidecarHealth(blocks, blocksState.result?.state ?? null),
     [blocks, blocksState.result?.state],
@@ -863,13 +1287,26 @@ export function PaperReaderShell({
     >
       <PaperMetadataPanel
         locale={locale}
+        metadataError={paperMetadataState.error}
+        metadataReadyForAction={paperMetadataState.state === 'loaded' || paperMetadataState.state === 'error'}
+        metadataPending={metadataPending}
+        metadataResult={paperMetadataState.result}
         metadata={metadata}
-        onParsePaper={canParsePaper ? handleParsePaper : undefined}
+        onApplyMetadataCandidate={handleApplyMetadataCandidate}
+        onSaveMetadata={handleSaveMetadata}
+        onParsePaper={canShowParsePaper ? handleRequestParsePaper : undefined}
+        onRefreshMetadata={canRefreshMetadata ? handleRequestRefreshMetadata : undefined}
         onSelectPdfMode={selectPdfMode}
         onSelectReadMode={selectReadMode}
         parsePaperPending={parsePaperPending}
         parseProvider={paperParserProvider}
         summary={summary}
+      />
+      <PaperActionConfirmDialog
+        action={pendingConfirmation}
+        locale={locale}
+        onCancel={handleCancelConfirmation}
+        onConfirm={handleConfirmAction}
       />
       <TabsContent value="markdown" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden">
         <div

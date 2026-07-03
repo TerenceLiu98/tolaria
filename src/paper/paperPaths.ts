@@ -3,6 +3,7 @@ export const PAPER_NOTE_FILENAME = 'paper.md'
 export const PAPER_SOURCE_PDF_FILENAME = 'source.pdf'
 export const PAPER_BLOCKS_FILENAME = 'blocks.jsonl'
 export const PAPER_ANNOTATIONS_FILENAME = 'annotations.jsonl'
+export const PAPER_METADATA_FILENAME = 'metadata.json'
 
 export interface PaperRelativePaths {
   paperDir: string
@@ -10,6 +11,7 @@ export interface PaperRelativePaths {
   sourcePdf: string
   blocks: string
   annotations: string
+  metadata: string
 }
 
 export function normalizePaperSlug(input: string): string {
@@ -30,6 +32,7 @@ export function buildPaperRelativePaths(slug: string): PaperRelativePaths {
     sourcePdf: `${paperDir}/${PAPER_SOURCE_PDF_FILENAME}`,
     blocks: `${paperDir}/${PAPER_BLOCKS_FILENAME}`,
     annotations: `${paperDir}/${PAPER_ANNOTATIONS_FILENAME}`,
+    metadata: `${paperDir}/${PAPER_METADATA_FILENAME}`,
   }
 }
 

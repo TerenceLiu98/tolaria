@@ -214,6 +214,38 @@ describe('NoteItem', () => {
     expect(screen.queryByText(/tolaria:block/u)).not.toBeInTheDocument()
   })
 
+  it('uses a compact bibliographic subtitle for Paper rows instead of the body snippet', () => {
+    const entry = makeEntry({
+      title: 'Attention Is All You Need',
+      isA: 'Paper',
+      snippet: 'The dominant sequence transduction models are based on complex recurrent networks.',
+      properties: {
+        authors: ['Ashish Vaswani', 'Noam Shazeer'],
+        year: 2017,
+        venue_short: 'NeurIPS',
+      },
+    })
+
+    render(<NoteItem entry={entry} isSelected={false} typeEntryMap={{}} onClickNote={vi.fn()} />)
+
+    expect(screen.getByTestId('note-snippet')).toHaveTextContent('Vaswani et al. · 2017 · NeurIPS')
+    expect(screen.queryByText(/dominant sequence/u)).not.toBeInTheDocument()
+  })
+
+  it('does not fall back to the body snippet for Paper rows without bibliographic metadata', () => {
+    const entry = makeEntry({
+      title: 'Unresolved Paper',
+      isA: 'Paper',
+      snippet: 'This is the parsed paper body and should stay out of the Paper list subtitle.',
+      properties: {},
+    })
+
+    render(<NoteItem entry={entry} isSelected={false} typeEntryMap={{}} onClickNote={vi.fn()} />)
+
+    expect(screen.queryByTestId('note-snippet')).not.toBeInTheDocument()
+    expect(screen.queryByText(/parsed paper body/u)).not.toBeInTheDocument()
+  })
+
   it('adds more breathing room between note sections', () => {
     const entry = makeEntry({
       title: 'Spaced note',

@@ -2,6 +2,7 @@ mod annotations;
 mod blocks;
 mod import;
 mod markdown;
+mod metadata;
 mod parse;
 pub mod paths;
 mod pdf_outline;
@@ -19,6 +20,15 @@ pub use blocks::{
 };
 pub use import::{import_paper_pdf, ImportPaperPdfResult};
 pub use markdown::{paper_block_anchor, paper_markdown_from_blocks, paper_note_with_markdown_body};
+pub use metadata::{
+    apply_paper_metadata_candidate_file, extract_arxiv_id, extract_doi,
+    extract_paper_metadata_file, normalize_arxiv_entry, normalize_crossref_work,
+    normalize_openalex_work, read_paper_metadata_file, refresh_paper_metadata_file,
+    save_paper_metadata_file, PaperMetadata, PaperMetadataCandidate, PaperMetadataError,
+    PaperMetadataErrorResult, PaperMetadataReadResult, PaperMetadataSidecarState,
+    PaperMetadataSource, PaperMetadataStatus, PaperMetadataValues, PaperPublicationStage,
+    PaperVenueType,
+};
 pub use parse::{
     parse_paper_bundle, PaperAsset, PaperParseError, PaperParseResult, PaperParseWarning,
     PaperParserProvider, PaperParserSettings,

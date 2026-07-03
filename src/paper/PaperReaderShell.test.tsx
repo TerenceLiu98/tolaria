@@ -78,6 +78,7 @@ vi.mock('../lib/productAnalytics', () => ({
 const mockedLoadPaperBlocks = vi.mocked(loadPaperBlocks)
 const mockedParsePaper = vi.mocked(parsePaper)
 const annotationsPath = '/vault/papers/attention/annotations.jsonl'
+const metadataPath = '/vault/papers/attention/metadata.json'
 
 const paperContent = [
   '---',
@@ -94,6 +95,9 @@ const paperContent = [
   '<!-- tolaria:block id="b0002" page="2" kind="paragraph" hash="sha256:paragraph" -->',
   'This paragraph comes from parsed paper.md.',
 ].join('\n')
+
+const unparsedPaperContent = paperContent.replace('parse_status: parsed', 'parse_status: unparsed')
+const failedPaperContent = paperContent.replace('parse_status: parsed', 'parse_status: failed')
 
 const blocks: SourceBlock[] = [
   {
@@ -179,16 +183,37 @@ function renderPaperReader(overrides: Partial<PaperReaderShellProps> = {}) {
       entries={[entry]}
       entry={entry}
       onNavigateWikilink={vi.fn()}
+      paperParserProvider="dev-fixture"
       vaultPath="/vault"
       {...overrides}
     />,
   )
 }
 
+async function openMetadataDialog() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Paper metadata' }))
+  return screen.findByRole('dialog', { name: 'Paper metadata' })
+}
+
 describe('PaperReaderShell', () => {
   beforeEach(() => {
     clearPendingBlockFocus()
     Reflect.deleteProperty(MOCK_CONTENT, annotationsPath)
+    MOCK_CONTENT[metadataPath] = `${JSON.stringify({
+      authors: ['Ashish Vaswani'],
+      candidates: [],
+      confidence: 0.94,
+      errors: [],
+      paperId: 'attention',
+      sources: [],
+      status: 'ready',
+      title: 'Attention Is All You Need',
+      updatedAt: '2026-07-02T10:00:00.000Z',
+      venue: 'NeurIPS',
+      venueShort: 'NeurIPS',
+      venueType: 'conference',
+      year: 2017,
+    })}\n`
     mockedLoadPaperBlocks.mockReset()
     mockedParsePaper.mockReset()
     Object.defineProperty(navigator, 'clipboard', {
@@ -204,13 +229,75 @@ describe('PaperReaderShell', () => {
 
     expect(screen.getByTestId('paper-reader-shell')).toBeInTheDocument()
     expect(screen.getByTestId('paper-reader-paper-id')).toHaveTextContent('attention')
-    expect(screen.getByText('PDF: ready')).toBeInTheDocument()
-    expect(await screen.findByText('Structure: parsed')).toBeInTheDocument()
+    expect(await screen.findByTestId('note-surface')).toBeInTheDocument()
+    expect(screen.queryByText('PDF: ready')).not.toBeInTheDocument()
+    expect(screen.queryByText('Structure: parsed')).not.toBeInTheDocument()
+    expect(screen.queryByText('448 source blocks')).not.toBeInTheDocument()
+    expect(screen.queryByText('Metadata: ready')).not.toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-outline')).not.toBeInTheDocument()
     expect(screen.getByTestId('note-surface')).toHaveAttribute('data-readonly', 'false')
     expect(screen.getByTestId('note-surface')).toHaveAttribute('data-source-path', '/vault/papers/attention/paper.md')
     expect(screen.getByTestId('note-surface-comment-seam')).toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-source-preview')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('paper-reader-metadata-inspector')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Paper metadata' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Refresh Metadata' })).not.toBeInTheDocument()
+  })
+
+  it('refreshes missing Paper metadata and shows review candidates', async () => {
+    readyBlocks()
+    Reflect.deleteProperty(MOCK_CONTENT, metadataPath)
+
+    renderPaperReader()
+
+    const dialog = await openMetadataDialog()
+    expect(await within(dialog).findByText('Metadata needs review')).toBeInTheDocument()
+    expect(within(dialog).getByTestId('paper-reader-metadata-candidates')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
+
+    await waitFor(() => {
+      expect(within(dialog).queryByText('Metadata needs review')).not.toBeInTheDocument()
+      expect(MOCK_CONTENT[metadataPath]).toContain('"status": "ready"')
+    })
+  })
+
+  it('marks reviewed metadata as ready when keeping the current values', async () => {
+    readyBlocks()
+    Reflect.deleteProperty(MOCK_CONTENT, metadataPath)
+
+    renderPaperReader()
+
+    const dialog = await openMetadataDialog()
+    expect(await within(dialog).findByText('Metadata needs review')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep Current' }))
+
+    await waitFor(() => {
+      expect(within(dialog).queryByText('Metadata needs review')).not.toBeInTheDocument()
+      expect(MOCK_CONTENT[metadataPath]).toContain('"status": "ready"')
+      expect(MOCK_CONTENT[metadataPath]).toContain('"candidates": []')
+    })
+  })
+
+  it('edits Paper metadata from the review inspector and syncs paper frontmatter', async () => {
+    readyBlocks()
+    Reflect.deleteProperty(MOCK_CONTENT, metadataPath)
+    MOCK_CONTENT[paperEntry().path] = paperContent
+
+    renderPaperReader()
+
+    const dialog = await openMetadataDialog()
+    expect(await within(dialog).findByText('Metadata needs review')).toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText('Title'), { target: { value: 'Corrected Transformer Paper' } })
+    fireEvent.change(within(dialog).getByLabelText('Venue'), { target: { value: 'NeurIPS' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(within(dialog).queryByText('Metadata needs review')).not.toBeInTheDocument()
+      expect(MOCK_CONTENT[metadataPath]).toContain('"title": "Corrected Transformer Paper"')
+      expect(MOCK_CONTENT[metadataPath]).toContain('"venue": "NeurIPS"')
+      expect(MOCK_CONTENT['/vault/papers/attention/paper.md']).toContain('title: "Corrected Transformer Paper"')
+      expect(MOCK_CONTENT['/vault/papers/attention/paper.md']).toContain('metadata_status: "ready"')
+    })
   })
 
   it('keeps the Markdown reading surface independently scrollable', async () => {
@@ -218,7 +305,7 @@ describe('PaperReaderShell', () => {
 
     renderPaperReader()
 
-    expect(await screen.findByText('Structure: parsed')).toBeInTheDocument()
+    expect(await screen.findByTestId('note-surface')).toBeInTheDocument()
     expect(screen.getByTestId('paper-reader-shell')).toHaveClass('flex', 'overflow-hidden')
     expect(screen.getByTestId('paper-reader-block-view')).toHaveClass('overflow-hidden')
     expect(screen.getByTestId('paper-reader-read-scroll-area')).toHaveClass('overflow-y-auto')
@@ -243,7 +330,7 @@ describe('PaperReaderShell', () => {
 
     renderPaperReader()
 
-    expect(await screen.findByText('Structure: parsed')).toBeInTheDocument()
+    expect(await screen.findByTestId('note-surface')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Read' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('paper-reader-markdown-layout')).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /note/i })).not.toBeInTheDocument()
@@ -260,7 +347,7 @@ describe('PaperReaderShell', () => {
 
     renderPaperReader()
 
-    expect(await screen.findByText('Structure: parsed')).toBeInTheDocument()
+    expect(await screen.findByTestId('note-surface')).toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-outline')).not.toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-outline-items')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Collapse paper outline' })).not.toBeInTheDocument()
@@ -272,20 +359,115 @@ describe('PaperReaderShell', () => {
     expect(screen.getByTestId('paper-reader-pdf-layout')).toHaveClass('flex')
   })
 
-  it('keeps missing paper structure quiet in the reading surface', async () => {
-    mockedLoadPaperBlocks.mockResolvedValueOnce({
-      blocks: [],
+  it('runs parser from the Parse Paper button for unparsed paper structure', async () => {
+    mockedLoadPaperBlocks
+      .mockResolvedValueOnce({
+        blocks: [],
+        paperId: 'attention',
+        path: '/vault/papers/attention/blocks.jsonl',
+        state: 'missing',
+      })
+      .mockResolvedValueOnce({
+        blocks,
+        paperId: 'attention',
+        path: '/vault/papers/attention/blocks.jsonl',
+        state: 'ready',
+      })
+    mockedParsePaper.mockResolvedValueOnce({
+      assets: [],
+      blocks,
+      blocksPath: '/vault/papers/attention/blocks.jsonl',
       paperId: 'attention',
-      path: '/vault/papers/attention/blocks.jsonl',
-      state: 'missing',
+      paperPath: '/vault/papers/attention/paper.md',
+      parsedAt: '2026-07-02T00:00:00.000Z',
+      parser: 'dev-fixture',
+      parserVersion: 'fixture',
+      provider: 'dev-fixture',
+      warnings: [],
     })
-    renderPaperReader()
+    renderPaperReader({ content: unparsedPaperContent })
 
-    expect(await screen.findByText('Structure: not parsed')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Parse Paper' })).toBeInTheDocument()
+    expect(mockedParsePaper).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Parse Paper' }))
+
+    await waitFor(() => expect(mockedParsePaper).toHaveBeenCalledWith('/vault', 'attention', undefined, { force: false }))
     expect(screen.queryByText('Paper is not parsed yet')).not.toBeInTheDocument()
     expect(screen.queryByText('Parse this PDF to create the reading view and block citations.')).not.toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-blocks-missing')).not.toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Parse Paper' })).toHaveLength(1)
+  })
+
+  it('asks before refreshing existing Paper metadata', async () => {
+    readyBlocks()
+
+    renderPaperReader()
+
+    expect(screen.queryByRole('button', { name: 'Refresh Metadata' })).not.toBeInTheDocument()
+    const dialog = await openMetadataDialog()
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Refresh Metadata' })).toBeEnabled())
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Refresh Metadata' }))
+
+    expect(screen.getByText('Refresh existing metadata?')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('Refresh existing metadata?')).not.toBeInTheDocument()
+  })
+
+  it('extracts metadata before parse can be started from an uploaded Paper', async () => {
+    Reflect.deleteProperty(MOCK_CONTENT, metadataPath)
+    mockedLoadPaperBlocks
+      .mockResolvedValueOnce({
+        blocks: [],
+        paperId: 'attention',
+        path: '/vault/papers/attention/blocks.jsonl',
+        state: 'missing',
+      })
+      .mockResolvedValueOnce({
+        blocks,
+        paperId: 'attention',
+        path: '/vault/papers/attention/blocks.jsonl',
+        state: 'ready',
+      })
+    const onParsePaper = vi.fn().mockImplementation(() => {
+      expect(MOCK_CONTENT[metadataPath]).toContain('"paperId": "attention"')
+      return Promise.resolve()
+    })
+
+    renderPaperReader({ content: unparsedPaperContent, onParsePaper })
+
+    await waitFor(() => expect(MOCK_CONTENT[metadataPath]).toContain('"paperId": "attention"'))
+    fireEvent.click(screen.getByRole('button', { name: 'Parse Paper' }))
+
+    await waitFor(() => expect(onParsePaper).toHaveBeenCalledWith('attention', { force: false }))
+  })
+
+  it('asks before parsing again when a Paper is already marked parsed', async () => {
+    mockedLoadPaperBlocks
+      .mockResolvedValueOnce({
+        blocks: [],
+        paperId: 'attention',
+        path: '/vault/papers/attention/blocks.jsonl',
+        state: 'missing',
+      })
+      .mockResolvedValueOnce({
+        blocks,
+        paperId: 'attention',
+        path: '/vault/papers/attention/blocks.jsonl',
+        state: 'ready',
+      })
+    const onParsePaper = vi.fn().mockResolvedValue(undefined)
+
+    renderPaperReader({ onParsePaper })
+
+    await waitFor(() => expect(mockedLoadPaperBlocks).toHaveBeenCalledTimes(1))
+    expect(mockedParsePaper).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Parse Paper' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Parse this Paper again?')
+    expect(onParsePaper).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Parse again' }))
+    await waitFor(() => expect(onParsePaper).toHaveBeenCalledWith('attention', { force: true }))
   })
 
   it('shows recoverable health warnings for minimally normalized parsed blocks', async () => {
@@ -305,7 +487,63 @@ describe('PaperReaderShell', () => {
     expect(screen.getByText('Some blocks only have minimal metadata')).toBeInTheDocument()
   })
 
-  it('shows and runs the parse action when paper structure is missing', async () => {
+  it('runs the parse action without confirmation for an unparsed Paper', async () => {
+    mockedLoadPaperBlocks
+      .mockResolvedValueOnce({
+        blocks: [],
+        paperId: 'attention',
+        path: '/vault/papers/attention/blocks.jsonl',
+        state: 'missing',
+      })
+      .mockResolvedValueOnce({
+        blocks,
+        paperId: 'attention',
+        path: '/vault/papers/attention/blocks.jsonl',
+        state: 'ready',
+      })
+    const onParsePaper = vi.fn()
+      .mockResolvedValueOnce(undefined)
+
+    renderPaperReader({ content: unparsedPaperContent, onParsePaper })
+
+    expect(await screen.findByRole('button', { name: 'Parse Paper' })).toBeInTheDocument()
+    expect(screen.queryByText('Paper is not parsed yet')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Parse Paper' }))
+
+    await waitFor(() => expect(onParsePaper).toHaveBeenCalledWith('attention', { force: false }))
+    await waitFor(() => expect(mockedLoadPaperBlocks).toHaveBeenCalledTimes(2))
+    expect(await screen.findByTestId('note-surface')).toBeInTheDocument()
+  })
+
+  it('keeps the Parse Paper button clickable when no parser provider is configured', async () => {
+    mockedLoadPaperBlocks
+      .mockResolvedValueOnce({
+        blocks: [],
+        paperId: 'attention',
+        path: '/vault/papers/attention/blocks.jsonl',
+        state: 'missing',
+      })
+      .mockResolvedValueOnce({
+        blocks,
+        paperId: 'attention',
+        path: '/vault/papers/attention/blocks.jsonl',
+        state: 'ready',
+      })
+    const onParsePaper = vi.fn()
+
+    renderPaperReader({
+      content: unparsedPaperContent,
+      onParsePaper,
+      paperParserProvider: 'none',
+    })
+
+    const parseButton = await screen.findByRole('button', { name: 'Parse Paper' })
+    expect(parseButton).toBeEnabled()
+    fireEvent.click(parseButton)
+    await waitFor(() => expect(onParsePaper).toHaveBeenCalledWith('attention', { force: false }))
+  })
+
+  it('lets a failed Paper parse be retried from the Parse Paper button', async () => {
     mockedLoadPaperBlocks
       .mockResolvedValueOnce({
         blocks: [],
@@ -321,18 +559,18 @@ describe('PaperReaderShell', () => {
       })
     const onParsePaper = vi.fn().mockResolvedValue(undefined)
 
-    renderPaperReader({ onParsePaper })
+    renderPaperReader({
+      content: failedPaperContent,
+      onParsePaper,
+    })
 
-    expect(await screen.findByText('Structure: not parsed')).toBeInTheDocument()
-    expect(screen.queryByText('Paper is not parsed yet')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Parse Paper' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Parse Paper' }))
 
-    await waitFor(() => expect(onParsePaper).toHaveBeenCalledWith('attention'))
-    await waitFor(() => expect(mockedLoadPaperBlocks).toHaveBeenCalledTimes(2))
-    expect(await screen.findByTestId('note-surface')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(onParsePaper).toHaveBeenCalledWith('attention', { force: false }))
   })
 
-  it('labels the parse action for MinerU provider and can use the direct parser fallback', async () => {
+  it('uses the direct parser fallback for MinerU provider from the Parse button', async () => {
     mockedLoadPaperBlocks
       .mockResolvedValueOnce({
         blocks: [],
@@ -359,11 +597,11 @@ describe('PaperReaderShell', () => {
       warnings: [],
     })
 
-    renderPaperReader({ paperParserProvider: 'mineru' })
+    renderPaperReader({ content: unparsedPaperContent, paperParserProvider: 'mineru' })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Parse with MinerU' }))
 
-    await waitFor(() => expect(mockedParsePaper).toHaveBeenCalledWith('/vault', 'attention'))
+    await waitFor(() => expect(mockedParsePaper).toHaveBeenCalledWith('/vault', 'attention', undefined, { force: false }))
     expect(await screen.findByTestId('note-surface')).toBeInTheDocument()
   })
 

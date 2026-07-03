@@ -292,10 +292,18 @@ status: reading
 source_pdf: source.pdf
 blocks: blocks.jsonl
 annotations: annotations.jsonl
+metadata: metadata.json
 graph: graph.json
 memory: memory.md
 doi:
 arxiv_id: "1706.03762"
+venue: NeurIPS
+venue_short: NeurIPS
+venue_type: conference
+publication_date: 2017-12-04
+publication_stage: published
+metadata_status: ready
+metadata_confidence: 0.94
 url: https://arxiv.org/abs/1706.03762
 ---
 # Attention Is All You Need
@@ -321,8 +329,26 @@ Recommended fields:
 - `status`
 - `doi`
 - `arxiv_id`
+- `venue`
+- `venue_short`
+- `venue_type`
+- `publication_date`
+- `publication_stage`
+- `metadata_status`
+- `metadata_confidence`
 - `url`
 - `blocks`
+- `metadata`
+
+### 9.1.1 Paper Metadata Sidecar
+
+Canonical metadata is stored in:
+
+```text
+papers/<paper-slug>/metadata.json
+```
+
+The sidecar stores resolved bibliographic metadata, provider provenance, candidates, confidence, and errors. `paper.md` frontmatter mirrors only clean user-facing fields. DOI and arXiv exact matches are high-confidence identifiers; fuzzy title/author matches create review candidates unless confidence is high. Provider failures are recoverable and should not block Paper reading.
 - `annotations`
 - `graph`
 - `memory`
@@ -1421,7 +1447,7 @@ Cover:
 2. Should `blocks.jsonl` be the only block source, or should `paper.md` include a parsed Markdown projection?
 3. Should annotations be append-only JSONL, or should deletion rewrite the file?
 4. How should re-parse repair map old block IDs to new block IDs?
-5. Should remote parser metadata live in `paper.md` frontmatter or a separate sidecar?
+5. How should remote metadata providers be rate-limited and cached across vaults?
 6. Should research memory be paper-local only in MVP, or should project/vault-level memory ship early?
 7. How much of Tolaria's existing BlockNote editor should be extended for citation chips versus rendering citation chips as Markdown decorations?
 8. Should Zotero import/export be part of v1 or deferred?

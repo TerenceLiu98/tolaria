@@ -7,8 +7,8 @@ use crate::commands::expand_tilde;
 use crate::paper::{
     self, ImportPaperPdfResult, PaperAnnotation, PaperAnnotationsError, PaperAnnotationsReadResult,
     PaperBlockLookupResult, PaperBlockSearchResult, PaperBlocksError, PaperBlocksReadResult,
-    PaperParseError, PaperParseResult, PaperParserProvider, PaperParserSettings,
-    PaperPdfOutlineReadResult,
+    PaperMetadata, PaperMetadataErrorResult, PaperMetadataReadResult, PaperParseError,
+    PaperParseResult, PaperParserProvider, PaperParserSettings, PaperPdfOutlineReadResult,
 };
 
 #[tauri::command]
@@ -103,10 +103,123 @@ pub async fn read_paper_pdf_outline(
 }
 
 #[tauri::command]
+pub async fn read_paper_metadata(
+    vault_path: PathBuf,
+    paper_id: String,
+) -> Result<PaperMetadataReadResult, PaperMetadataErrorResult> {
+    let error_paper_id = paper_id.clone();
+    tokio::task::spawn_blocking(move || {
+        let paths = metadata_paths_for_paper(&vault_path, &paper_id)?;
+        paper::read_paper_metadata_file(&paper_id, &paths.metadata)
+    })
+    .await
+    .map_err(|error| PaperMetadataErrorResult {
+        kind: "task_failed".to_string(),
+        message: format!("Task panicked: {error}"),
+        paper_id: error_paper_id,
+        path: String::new(),
+    })?
+}
+
+#[tauri::command]
+pub async fn extract_paper_metadata(
+    vault_path: PathBuf,
+    paper_id: String,
+) -> Result<PaperMetadata, PaperMetadataErrorResult> {
+    let error_paper_id = paper_id.clone();
+    tokio::task::spawn_blocking(move || {
+        let paths = metadata_paths_for_paper(&vault_path, &paper_id)?;
+        paper::extract_paper_metadata_file(
+            &paper_id,
+            &paths.paper_note,
+            &paths.source_pdf,
+            &paths.metadata,
+        )
+    })
+    .await
+    .map_err(|error| PaperMetadataErrorResult {
+        kind: "task_failed".to_string(),
+        message: format!("Task panicked: {error}"),
+        paper_id: error_paper_id,
+        path: String::new(),
+    })?
+}
+
+#[tauri::command]
+pub async fn refresh_paper_metadata(
+    vault_path: PathBuf,
+    paper_id: String,
+) -> Result<PaperMetadata, PaperMetadataErrorResult> {
+    let error_paper_id = paper_id.clone();
+    tokio::task::spawn_blocking(move || {
+        let paths = metadata_paths_for_paper(&vault_path, &paper_id)?;
+        paper::refresh_paper_metadata_file(
+            &paper_id,
+            &paths.paper_note,
+            &paths.source_pdf,
+            &paths.metadata,
+        )
+    })
+    .await
+    .map_err(|error| PaperMetadataErrorResult {
+        kind: "task_failed".to_string(),
+        message: format!("Task panicked: {error}"),
+        paper_id: error_paper_id,
+        path: String::new(),
+    })?
+}
+
+#[tauri::command]
+pub async fn apply_paper_metadata_candidate(
+    vault_path: PathBuf,
+    paper_id: String,
+    candidate_id: String,
+) -> Result<PaperMetadata, PaperMetadataErrorResult> {
+    let error_paper_id = paper_id.clone();
+    tokio::task::spawn_blocking(move || {
+        let paths = metadata_paths_for_paper(&vault_path, &paper_id)?;
+        paper::apply_paper_metadata_candidate_file(
+            &paper_id,
+            &paths.paper_note,
+            &paths.metadata,
+            &candidate_id,
+        )
+    })
+    .await
+    .map_err(|error| PaperMetadataErrorResult {
+        kind: "task_failed".to_string(),
+        message: format!("Task panicked: {error}"),
+        paper_id: error_paper_id,
+        path: String::new(),
+    })?
+}
+
+#[tauri::command]
+pub async fn save_paper_metadata(
+    vault_path: PathBuf,
+    paper_id: String,
+    values: paper::PaperMetadataValues,
+) -> Result<PaperMetadata, PaperMetadataErrorResult> {
+    let error_paper_id = paper_id.clone();
+    tokio::task::spawn_blocking(move || {
+        let paths = metadata_paths_for_paper(&vault_path, &paper_id)?;
+        paper::save_paper_metadata_file(&paper_id, &paths.paper_note, &paths.metadata, values)
+    })
+    .await
+    .map_err(|error| PaperMetadataErrorResult {
+        kind: "task_failed".to_string(),
+        message: format!("Task panicked: {error}"),
+        paper_id: error_paper_id,
+        path: String::new(),
+    })?
+}
+
+#[tauri::command]
 pub async fn parse_paper(
     vault_path: PathBuf,
     paper_id: String,
     settings: PaperParserSettings,
+    force: Option<bool>,
 ) -> Result<PaperParseResult, PaperParseError> {
     let error_paper_id = paper_id.clone();
     let error_provider = settings.provider.clone();
@@ -118,6 +231,7 @@ pub async fn parse_paper(
             &paths.source_pdf,
             &paths.blocks,
             settings,
+            force.unwrap_or(false),
         )
     })
     .await
@@ -234,6 +348,12 @@ struct PaperParsePaths {
     blocks: PathBuf,
 }
 
+struct PaperMetadataPaths {
+    paper_note: PathBuf,
+    source_pdf: PathBuf,
+    metadata: PathBuf,
+}
+
 fn parse_paths_for_paper(
     vault_path: &Path,
     paper_id: &str,
@@ -253,6 +373,23 @@ fn parse_paths_for_paper(
         paper_note,
         source_pdf,
         blocks,
+    })
+}
+
+fn metadata_paths_for_paper(
+    vault_path: &Path,
+    paper_id: &str,
+) -> Result<PaperMetadataPaths, PaperMetadataErrorResult> {
+    let expanded_vault_path = expand_tilde(vault_path.to_string_lossy().as_ref()).into_owned();
+    let boundary = VaultBoundary::from_request(Some(&expanded_vault_path))
+        .map_err(|error| PaperMetadataErrorResult::boundary(paper_id, error))?;
+    let bundle_dir = paper_bundle_dir_for_paper(&boundary, paper_id)
+        .map_err(|error| PaperMetadataErrorResult::boundary(paper_id, error))?;
+
+    Ok(PaperMetadataPaths {
+        paper_note: bundle_dir.join("paper.md"),
+        source_pdf: bundle_dir.join("source.pdf"),
+        metadata: bundle_dir.join("metadata.json"),
     })
 }
 
@@ -521,6 +658,7 @@ mod tests {
                 mineru_token_ref: None,
                 provider: paper::PaperParserProvider::DevFixture,
             },
+            None,
         )
         .await
         .unwrap();
@@ -549,6 +687,7 @@ mod tests {
                 mineru_token_ref: None,
                 provider: paper::PaperParserProvider::DevFixture,
             },
+            None,
         )
         .await
         .unwrap();
@@ -577,6 +716,7 @@ mod tests {
                 mineru_token_ref: None,
                 provider: paper::PaperParserProvider::None,
             },
+            None,
         )
         .await
         .expect_err("expected missing parser provider");
@@ -589,6 +729,7 @@ mod tests {
                 mineru_token_ref: None,
                 provider: paper::PaperParserProvider::Mineru,
             },
+            None,
         )
         .await
         .expect_err("expected missing MinerU config");

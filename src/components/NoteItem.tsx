@@ -156,6 +156,58 @@ function NoteSnippet({ snippet }: { snippet?: string | null }) {
   )
 }
 
+function stringProperty(entry: VaultEntry, key: string): string | null {
+  const value = entry.properties[key]
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed || null
+  }
+  if (typeof value === 'number') return String(value)
+  return null
+}
+
+function authorNames(entry: VaultEntry): string[] {
+  const value = entry.properties.authors
+  if (Array.isArray(value)) {
+    return value
+      .filter((author): author is string => typeof author === 'string')
+      .map(author => author.trim())
+      .filter(Boolean)
+  }
+  if (typeof value !== 'string') return []
+  return value
+    .split(/[\n;]+/u)
+    .flatMap(part => part.split(/\s+and\s+/iu))
+    .map(author => author.trim())
+    .filter(Boolean)
+}
+
+function shortAuthorLabel(authors: string[]): string | null {
+  const firstAuthor = authors[0]?.trim()
+  if (!firstAuthor) return null
+  const firstName = firstAuthor
+    .replace(/\s*\([^)]*\)\s*/gu, ' ')
+    .split(/\s+/u)
+    .filter(Boolean)
+    .at(-1)
+  if (!firstName) return null
+  return authors.length > 1 ? `${firstName} et al.` : firstName
+}
+
+function paperBibliographicSubtitle(entry: VaultEntry): string | null {
+  if (entry.isA !== 'Paper') return null
+
+  const author = shortAuthorLabel(authorNames(entry))
+  const year = stringProperty(entry, 'year')
+  const venue = stringProperty(entry, 'venue_short') ?? stringProperty(entry, 'venue')
+  const arxivId = stringProperty(entry, 'arxiv_id')
+  const doi = stringProperty(entry, 'doi')
+  const identifier = arxivId ? `arXiv ${arxivId}` : doi ? `DOI ${doi}` : null
+  const parts = [author, year, venue ?? identifier].filter((part): part is string => Boolean(part))
+
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
 function NotePropertySection({
   entry,
   displayProps,
@@ -199,6 +251,8 @@ function InteractiveNoteDetails({
   typeEntryMap: Record<string, VaultEntry>
   onClickNote: NoteItemProps['onClickNote']
 }) {
+  const snippet = paperBibliographicSubtitle(entry) ?? (entry.isA === 'Paper' ? null : entry.snippet)
+
   return (
     <>
       <NoteTitleRow
@@ -207,7 +261,7 @@ function InteractiveNoteDetails({
         isSelected={isSelected}
         noteStatus={noteStatus}
       />
-      <NoteSnippet snippet={entry.snippet} />
+      <NoteSnippet snippet={snippet} />
       <NotePropertySection
         entry={entry}
         displayProps={displayProps}

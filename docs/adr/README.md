@@ -219,3 +219,4 @@ proposed → active → superseded
 | [0158](0158-paper-uses-shared-note-surface-without-marginalia.md) | Paper uses shared Note surface without Marginalia | active |
 | [0159](0159-paper-reader-without-outline-column.md) | Paper Reader without a standalone outline column | active |
 | [0160](0160-ordinary-notes-for-research-and-editable-paper.md) | Ordinary notes for research and editable Paper Markdown | active |
+| [0161](0161-paper-metadata-sidecar-and-provenance.md) | Paper metadata sidecar and provenance | active |

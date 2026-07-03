@@ -32,7 +32,7 @@ Behavior:
 
 ## Frontend Flow
 
-The command palette exposes `Import Paper PDF`. The renderer opens the native PDF picker, invokes the Tauri command, reloads the vault, selects the `Paper` type section, and opens the created `paper.md`. If a parser provider is configured, the renderer also starts parsing after import and reloads the Paper entry when the parser has written the Markdown projection. PDF display continues through Tolaria's existing file preview path.
+The command palette exposes `Import Paper PDF`. The renderer opens the native PDF picker, invokes the Tauri command, extracts Paper metadata first, then starts parsing when a parser provider is configured, reloads the vault, selects the `Paper` type section, and opens the created `paper.md`. PDF display continues through Tolaria's existing file preview path. The Reader exposes an explicit `Parse Paper` action for repair/development use and a `Paper metadata` entry for reviewing, editing, or refreshing metadata.
 
 ## Paper Markdown Projection
 
@@ -47,7 +47,7 @@ Parsed paragraph text.
 
 Headings, paragraphs, figures, tables, equations, and captions render as normal Markdown. Figure blocks with extracted assets render as Markdown images that point at `papers/<paper-slug>/assets/...`; missing figure assets degrade to caption text. Table blocks prefer parser-provided Markdown tables and can normalize simple tabular text into Markdown table syntax. Equation blocks render as `$$` display math after stripping Tolaria's internal math sentinels and applying light LaTeX spacing cleanup. The anchor binds the visible Markdown section to a stable SourceBlock id, page, kind, and hash so citations, annotation counts, comment threads, and future repair tooling can attach to the note without writing user comments into the paper text.
 
-`source.pdf` remains immutable provenance. `blocks.jsonl` remains the machine index for lookup/search/citation validation and must stay consistent with the anchors written into `paper.md`. `annotations.jsonl` remains the user annotation sidecar. Long-form user synthesis is handled by ordinary Tolaria `Note` entries, connected to Paper through wikilinks, backlinks, and optional `@block[...]` citations.
+`source.pdf` remains immutable provenance. `blocks.jsonl` remains the machine index for lookup/search/citation validation and must stay consistent with the anchors written into `paper.md`. `annotations.jsonl` remains the user comment sidecar. `metadata.json` remains the machine-readable bibliographic metadata sidecar. Long-form user synthesis is handled by ordinary Tolaria `Note` entries, connected to Paper through wikilinks, backlinks, and optional `@block[...]` citations.
 
 ## SourceBlock Sidecar Contract
 
@@ -81,9 +81,17 @@ The common parse result is `PaperParseResult`: `paperId`, `provider`, `parser`, 
 
 Phase 4B implements the MinerU adapter behind that boundary. MinerU parsing uses a remote upload/poll/download flow: Tolaria requests a MinerU upload URL, uploads local `source.pdf` bytes, polls the batch result, downloads `content_list.json` or extracts it from the result ZIP, then normalizes entries into SourceBlocks. When MinerU returns a ZIP, Tolaria also extracts image files into `papers/<paper-slug>/assets/` and maps figure SourceBlocks to those files through `asset_path`, so `paper.md` can render real figures as Markdown images. Supported normalized kinds are `title`, `heading`, `paragraph`, `figure`, `table`, `equation`, and `caption`; page numbers and bboxes are retained when present, and each block receives a stable `sha256:` hash. The configured MinerU value can be the API token itself or an environment variable name such as `MINERU_API_TOKEN`; it is installation-local and is not written to the vault.
 
-Parse metadata supports `unparsed`, `parsing`, `parsed`, and `failed`. Failed MinerU parses update `parse_status: failed` and `parse_error` but do not overwrite a previous valid `blocks.jsonl`. Successful reparses may replace `blocks.jsonl`; the result includes a warning when existing blocks were replaced.
+Parse metadata supports `unparsed`, `parsing`, `parsed`, and `failed`. Failed MinerU parses update `parse_status: failed` and `parse_error` but do not overwrite a previous valid `blocks.jsonl`. Once a Paper is marked `parsed`, default parse calls refuse to run again; the Reader's explicit `Parse Paper` action asks for confirmation and then passes `force: true` so intentional reparses can replace parser-owned `paper.md` and `blocks.jsonl`.
 
-The Paper Reader missing-blocks state exposes "Parse Paper" or "Parse with MinerU" depending on the selected provider and explains that the PDF is available while parsed paper structure is still needed for citations and comments. After parsing succeeds, the Reader reloads SourceBlocks from the sidecar and keeps PDF preview behavior unchanged. If the last parse failed, the Reader shows a recoverable retry state with the provider error detail while preserving any old parsed content that still loads.
+## Paper Metadata
+
+Phase 4H adds `metadata.json` as the Paper metadata sidecar. The sidecar stores canonical bibliographic values, provider sources, candidates, confidence, resolver errors, and update timestamps. `paper.md` frontmatter mirrors only fields users should see and edit: `title`, `authors`, `year`, `venue`, `venue_short`, `venue_type`, `publication_date`, `publication_stage`, `doi`, `arxiv_id`, `metadata_status`, and `metadata_confidence`.
+
+Metadata extraction starts locally from PDF document metadata and parsed `paper.md` text. DOI and arXiv IDs are extracted with deterministic regexes and treated as high-confidence identifiers. OpenAlex is the primary remote resolver: exact DOI matches query OpenAlex works by DOI, while Papers without a DOI can use OpenAlex title search and keep lower-confidence matches as review candidates. Crossref-shaped and arXiv-shaped normalization remains available for compatible records, but provider failures stay recoverable and are stored in `metadata.json` instead of blocking Paper reading.
+
+The Paper shell keeps normal metadata state out of the header. Successful extraction is reflected through ordinary Paper frontmatter and Properties rather than persistent status chips. The header's `Paper metadata` entry opens a bounded, scrollable metadata dialog where users can review candidates, manually edit visible metadata, refresh provider-derived metadata, or keep the current values and mark them reviewed. Candidate apply and manual save both rewrite `metadata.json`, update mirrored frontmatter, clear the review state, and leave `source.pdf`, `blocks.jsonl`, and `annotations.jsonl` untouched.
+
+Paper Reader keeps `Parse Paper` in the header and keeps metadata repair inside the `Paper metadata` dialog. `Parse Paper` runs directly for unparsed or failed Papers; if parsed content already exists, it asks before forcing a reparse. Metadata refresh asks before replacing existing provider-derived fields and candidates. After parsing succeeds, the Reader reloads SourceBlocks from the sidecar and keeps PDF preview behavior unchanged.
 
 ## Block Citation Syntax
 

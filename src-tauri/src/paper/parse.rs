@@ -369,15 +369,24 @@ pub fn parse_paper_bundle(
     source_pdf_path: &Path,
     blocks_path: &Path,
     settings: PaperParserSettings,
+    force: bool,
 ) -> Result<PaperParseResult, PaperParseError> {
-    match settings.provider {
-        PaperParserProvider::None => Err(parse_error(
+    let provider = settings.provider.clone();
+    if provider == PaperParserProvider::None {
+        return Err(parse_error(
             paper_id,
             PaperParserProvider::None,
             paper_path,
             "missing_provider",
             "Choose a paper parser provider before parsing.",
-        )),
+        ));
+    }
+
+    if !force {
+        ensure_paper_note_can_parse(paper_id, provider.clone(), paper_path)?;
+    }
+
+    match provider {
         PaperParserProvider::Mineru => {
             let token = mineru_api_token(paper_id, paper_path, &settings)?;
             let transport = ReqwestMineruTransport::new().map_err(|error| {
@@ -407,7 +416,64 @@ pub fn parse_paper_bundle(
         PaperParserProvider::DevFixture => {
             parse_with_dev_fixture(paper_id, paper_path, source_pdf_path, blocks_path)
         }
+        PaperParserProvider::None => {
+            unreachable!("PaperParserProvider::None returned before parsing")
+        }
     }
+}
+
+fn frontmatter_scalar_value<'a>(content: &'a str, key: &str) -> Option<&'a str> {
+    let mut lines = content.lines();
+    if lines.next()? != "---" {
+        return None;
+    }
+
+    for line in lines {
+        let trimmed = line.trim();
+        if trimmed == "---" {
+            break;
+        }
+
+        let Some((candidate_key, candidate_value)) = trimmed.split_once(':') else {
+            continue;
+        };
+        if candidate_key.trim() == key {
+            return Some(
+                candidate_value
+                    .trim()
+                    .trim_matches(|value| value == '"' || value == '\''),
+            );
+        }
+    }
+
+    None
+}
+
+fn paper_note_is_already_parsed(content: &str) -> bool {
+    frontmatter_scalar_value(content, "parse_status")
+        .is_some_and(|value| value.eq_ignore_ascii_case("parsed"))
+}
+
+fn ensure_paper_note_can_parse(
+    paper_id: &str,
+    provider: PaperParserProvider,
+    paper_path: &Path,
+) -> Result<(), PaperParseError> {
+    let Ok(content) = fs::read_to_string(paper_path) else {
+        return Ok(());
+    };
+
+    if paper_note_is_already_parsed(&content) {
+        return Err(parse_error(
+            paper_id,
+            provider,
+            paper_path,
+            "already_parsed",
+            "Paper has already been parsed.",
+        ));
+    }
+
+    Ok(())
 }
 
 fn parse_with_dev_fixture(
@@ -1844,6 +1910,67 @@ mod tests {
         assert!(paper.contains("# Attention Is All You Need"));
         assert!(paper.contains("The Transformer allows for significantly more parallelization."));
         assert!(!paper.contains("## Summary"));
+    }
+
+    #[test]
+    fn parse_paper_bundle_refuses_already_parsed_paper() {
+        let temp = TempDir::new().unwrap();
+        let (paper_path, source_pdf_path, blocks_path) = write_paper_bundle(temp.path(), "paper-1");
+        fs::write(
+            &paper_path,
+            "---\ntype: Paper\npaper_id: paper-1\nparse_status: parsed\nsource_pdf: source.pdf\nblocks: blocks.jsonl\n---\n# Parsed Paper\n",
+        )
+        .unwrap();
+
+        let error = parse_paper_bundle(
+            "paper-1",
+            &paper_path,
+            &source_pdf_path,
+            &blocks_path,
+            PaperParserSettings {
+                provider: PaperParserProvider::DevFixture,
+                mineru_token_ref: None,
+            },
+            false,
+        )
+        .expect_err("parsed Paper should not be parsed again");
+
+        assert_eq!(error.kind, "already_parsed");
+        assert!(!blocks_path.exists());
+        assert!(fs::read_to_string(&paper_path)
+            .unwrap()
+            .contains("# Parsed Paper"));
+    }
+
+    #[test]
+    fn parse_paper_bundle_allows_forced_reparse() {
+        let temp = TempDir::new().unwrap();
+        let (paper_path, source_pdf_path, blocks_path) = write_paper_bundle(temp.path(), "paper-1");
+        fs::write(
+            &paper_path,
+            "---\ntype: Paper\npaper_id: paper-1\nparse_status: parsed\nsource_pdf: source.pdf\nblocks: blocks.jsonl\n---\n# Old Parsed Paper\n",
+        )
+        .unwrap();
+
+        let result = parse_paper_bundle(
+            "paper-1",
+            &paper_path,
+            &source_pdf_path,
+            &blocks_path,
+            PaperParserSettings {
+                provider: PaperParserProvider::DevFixture,
+                mineru_token_ref: None,
+            },
+            true,
+        )
+        .expect("forced reparse should replace parser-owned Paper projection");
+
+        assert_eq!(result.blocks.len(), 2);
+        assert!(blocks_path.exists());
+        let paper = fs::read_to_string(&paper_path).unwrap();
+        assert!(paper.contains("parse_status: parsed"));
+        assert!(paper.contains("# Attention Is All You Need"));
+        assert!(!paper.contains("# Old Parsed Paper"));
     }
 
     #[test]
