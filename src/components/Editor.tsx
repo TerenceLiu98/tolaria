@@ -507,6 +507,8 @@ function EditorLayout({
   onCopyGitUrl?: (entry: VaultEntry) => void
   onOpenExternalFile?: (path: string) => void
   onOpenPaperNote?: (path: string) => void | Promise<void>
+  onParsePaper?: (paperId: string) => void | Promise<void>
+  paperParserProvider?: PaperParserProvider
   onDeleteNote?: (path: string) => void
   onArchiveNote?: (path: string) => void
   onUnarchiveNote?: (path: string) => void

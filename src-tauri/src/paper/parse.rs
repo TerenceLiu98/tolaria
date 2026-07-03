@@ -24,6 +24,26 @@ const MINERU_DEFAULT_API_BASE: &str = "https://mineru.net/api/v4";
 const MINERU_MAX_POLL_ATTEMPTS: usize = 120;
 const MINERU_POLL_INTERVAL: Duration = Duration::from_secs(3);
 
+struct MineruParsePaths<'a> {
+    paper_id: &'a str,
+    paper_path: &'a Path,
+    source_pdf_path: &'a Path,
+    blocks_path: &'a Path,
+}
+
+struct MineruTransportConfig<'a> {
+    token: &'a str,
+    transport: &'a dyn MineruTransport,
+    max_poll_attempts: usize,
+    poll_interval: Duration,
+}
+
+struct MineruParseOutput {
+    blocks: Vec<SourceBlock>,
+    assets: Vec<PaperAsset>,
+    warnings: Vec<PaperParseWarning>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PaperParserProvider {
@@ -364,14 +384,18 @@ pub fn parse_paper_bundle(
                 )
             })?;
             parse_with_mineru_transport(
-                paper_id,
-                paper_path,
-                source_pdf_path,
-                blocks_path,
-                &token,
-                &transport,
-                MINERU_MAX_POLL_ATTEMPTS,
-                MINERU_POLL_INTERVAL,
+                MineruParsePaths {
+                    paper_id,
+                    paper_path,
+                    source_pdf_path,
+                    blocks_path,
+                },
+                MineruTransportConfig {
+                    token: &token,
+                    transport: &transport,
+                    max_poll_attempts: MINERU_MAX_POLL_ATTEMPTS,
+                    poll_interval: MINERU_POLL_INTERVAL,
+                },
             )
         }
         PaperParserProvider::DevFixture => {
@@ -476,34 +500,28 @@ fn dev_fixture_blocks(paper_id: &str) -> Vec<SourceBlock> {
 }
 
 fn parse_with_mineru_transport(
-    paper_id: &str,
-    paper_path: &Path,
-    source_pdf_path: &Path,
-    blocks_path: &Path,
-    token: &str,
-    transport: &dyn MineruTransport,
-    max_poll_attempts: usize,
-    poll_interval: Duration,
+    paths: MineruParsePaths<'_>,
+    config: MineruTransportConfig<'_>,
 ) -> Result<PaperParseResult, PaperParseError> {
     ensure_file_exists(
-        paper_id,
+        paths.paper_id,
         PaperParserProvider::Mineru,
-        paper_path,
+        paths.paper_path,
         "missing_paper_note",
         "Paper note is missing.",
     )?;
     ensure_file_exists(
-        paper_id,
+        paths.paper_id,
         PaperParserProvider::Mineru,
-        source_pdf_path,
+        paths.source_pdf_path,
         "missing_source_pdf",
         "source.pdf is missing.",
     )?;
 
     update_parse_frontmatter(
-        paper_id,
+        paths.paper_id,
         PaperParserProvider::Mineru,
-        paper_path,
+        paths.paper_path,
         ParseFrontmatterUpdate {
             error_message: None,
             parsed_at: None,
@@ -514,32 +532,40 @@ fn parse_with_mineru_transport(
     )?;
 
     match run_mineru_parse(
-        paper_id,
-        source_pdf_path,
-        token,
-        transport,
-        max_poll_attempts,
-        poll_interval,
+        paths.paper_id,
+        paths.source_pdf_path,
+        config.token,
+        config.transport,
+        config.max_poll_attempts,
+        config.poll_interval,
     ) {
-        Ok((blocks, assets, mut warnings)) => {
+        Ok(output) => {
+            let MineruParseOutput {
+                blocks,
+                assets,
+                mut warnings,
+            } = output;
             let parsed_at = Utc::now().to_rfc3339();
-            if blocks_path.exists() {
+            if paths.blocks_path.exists() {
                 warnings.push(PaperParseWarning {
                     kind: "replaced_existing_blocks".to_string(),
                     message: "Existing blocks.jsonl was replaced after a successful parse."
                         .to_string(),
                 });
             }
-            if let Err(error) =
-                write_blocks_jsonl(paper_id, PaperParserProvider::Mineru, blocks_path, &blocks)
-            {
-                mark_mineru_parse_failed(paper_id, paper_path, error.message.as_str());
+            if let Err(error) = write_blocks_jsonl(
+                paths.paper_id,
+                PaperParserProvider::Mineru,
+                paths.blocks_path,
+                &blocks,
+            ) {
+                mark_mineru_parse_failed(paths.paper_id, paths.paper_path, error.message.as_str());
                 return Err(error);
             }
             if let Err(error) = update_parse_frontmatter(
-                paper_id,
+                paths.paper_id,
                 PaperParserProvider::Mineru,
-                paper_path,
+                paths.paper_path,
                 ParseFrontmatterUpdate {
                     error_message: None,
                     parsed_at: Some(parsed_at.as_str()),
@@ -548,25 +574,25 @@ fn parse_with_mineru_transport(
                     status: "parsed",
                 },
             ) {
-                mark_mineru_parse_failed(paper_id, paper_path, error.message.as_str());
+                mark_mineru_parse_failed(paths.paper_id, paths.paper_path, error.message.as_str());
                 return Err(error);
             }
 
             Ok(PaperParseResult {
-                paper_id: paper_id.to_string(),
+                paper_id: paths.paper_id.to_string(),
                 provider: PaperParserProvider::Mineru,
                 parser: MINERU_PARSER.to_string(),
                 parser_version: MINERU_PARSER_VERSION.to_string(),
                 parsed_at,
-                paper_path: paper_path.to_path_buf(),
-                blocks_path: blocks_path.to_path_buf(),
+                paper_path: paths.paper_path.to_path_buf(),
+                blocks_path: paths.blocks_path.to_path_buf(),
                 blocks,
                 assets,
                 warnings,
             })
         }
         Err(error) => {
-            mark_mineru_parse_failed(paper_id, paper_path, error.message.as_str());
+            mark_mineru_parse_failed(paths.paper_id, paths.paper_path, error.message.as_str());
             Err(error)
         }
     }
@@ -594,7 +620,7 @@ fn run_mineru_parse(
     transport: &dyn MineruTransport,
     max_poll_attempts: usize,
     poll_interval: Duration,
-) -> Result<(Vec<SourceBlock>, Vec<PaperAsset>, Vec<PaperParseWarning>), PaperParseError> {
+) -> Result<MineruParseOutput, PaperParseError> {
     let source_bytes = fs::read(source_pdf_path).map_err(|error| {
         parse_error(
             paper_id,
@@ -642,14 +668,14 @@ fn run_mineru_parse(
             )
         })?;
 
-    Ok((
+    Ok(MineruParseOutput {
         blocks,
-        vec![PaperAsset {
+        assets: vec![PaperAsset {
             kind: "source_pdf".to_string(),
             path: "source.pdf".to_string(),
         }],
-        vec![],
-    ))
+        warnings: vec![],
+    })
 }
 
 fn build_mineru_upload_request(paper_id: &str, source_pdf_path: &Path) -> MineruUploadRequest {
@@ -1552,14 +1578,18 @@ mod tests {
         let transport = FakeMineruTransport::with_content_list(sample_mineru_content_list());
 
         let result = parse_with_mineru_transport(
-            "paper-1",
-            &paper_path,
-            &source_pdf_path,
-            &blocks_path,
-            "secret-token",
-            &transport,
-            1,
-            Duration::from_secs(0),
+            MineruParsePaths {
+                paper_id: "paper-1",
+                paper_path: &paper_path,
+                source_pdf_path: &source_pdf_path,
+                blocks_path: &blocks_path,
+            },
+            MineruTransportConfig {
+                token: "secret-token",
+                transport: &transport,
+                max_poll_attempts: 1,
+                poll_interval: Duration::from_secs(0),
+            },
         )
         .unwrap();
 
@@ -1591,14 +1621,18 @@ mod tests {
         });
 
         let error = parse_with_mineru_transport(
-            "paper-1",
-            &paper_path,
-            &source_pdf_path,
-            &blocks_path,
-            "secret-token",
-            &transport,
-            1,
-            Duration::from_secs(0),
+            MineruParsePaths {
+                paper_id: "paper-1",
+                paper_path: &paper_path,
+                source_pdf_path: &source_pdf_path,
+                blocks_path: &blocks_path,
+            },
+            MineruTransportConfig {
+                token: "secret-token",
+                transport: &transport,
+                max_poll_attempts: 1,
+                poll_interval: Duration::from_secs(0),
+            },
         )
         .expect_err("expected remote parse failure");
 
@@ -1649,14 +1683,18 @@ mod tests {
         let transport = FakeMineruTransport::with_content_list("{}".to_string());
 
         let error = parse_with_mineru_transport(
-            "paper-1",
-            &paper_path,
-            &source_pdf_path,
-            &blocks_path,
-            "secret-token",
-            &transport,
-            1,
-            Duration::from_secs(0),
+            MineruParsePaths {
+                paper_id: "paper-1",
+                paper_path: &paper_path,
+                source_pdf_path: &source_pdf_path,
+                blocks_path: &blocks_path,
+            },
+            MineruTransportConfig {
+                token: "secret-token",
+                transport: &transport,
+                max_poll_attempts: 1,
+                poll_interval: Duration::from_secs(0),
+            },
         )
         .expect_err("expected malformed provider output");
 

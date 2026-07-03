@@ -1157,8 +1157,9 @@ function PaperPdfPanel({
   onCopyFilePath,
   onOpenExternalFile,
   onRevealFile,
-}: Pick<PaperReaderShellProps, 'entry' | 'locale' | 'onCopyFilePath' | 'onOpenExternalFile' | 'onRevealFile'> & {
+}: Pick<PaperReaderShellProps, 'entry' | 'onCopyFilePath' | 'onOpenExternalFile' | 'onRevealFile'> & {
   focusRequest: PdfFocusRequest | null
+  locale: AppLocale
   metadata: NonNullable<ReturnType<typeof paperMetadataForReader>>
 }) {
   const pdfEntry = useMemo(() => sourcePdfEntryForPaper(entry, metadata), [entry, metadata])

@@ -558,6 +558,7 @@ export interface NoteListProps {
   onReplaceActiveTab: (entry: VaultEntry) => void
   onEnterNeighborhood?: (entry: VaultEntry) => void
   onCreateNote: (type?: string) => void
+  onImportPaperPdf?: () => void
   onBulkArchive?: (paths: string[]) => void
   onBulkDeletePermanently?: (paths: string[]) => void
   onUpdateTypeSort?: (path: string, key: string, value: string | number | boolean | string[] | null) => void
