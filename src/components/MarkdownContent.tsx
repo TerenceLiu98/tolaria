@@ -5,6 +5,7 @@ import rehypeHighlight from 'rehype-highlight'
 import { preprocessWikilinks, WIKILINK_SCHEME } from '../utils/chatWikilinks'
 import { supportsModernRegexFeatures } from '../utils/regexCapabilities'
 import { openExternalUrl } from '../utils/url'
+import { stripTolariaHiddenMarkdown } from '../utils/tolariaHiddenMarkdown'
 import {
   BLOCK_CITATION_SCHEME,
   blockCitationFromHref,
@@ -52,7 +53,8 @@ export const MarkdownContent = memo(function MarkdownContent({
   onWikilinkClick,
 }: MarkdownContentProps) {
   const processedContent = useMemo(() => {
-    const withBlockCitations = preprocessBlockCitations(content)
+    const displayContent = stripTolariaHiddenMarkdown(content)
+    const withBlockCitations = preprocessBlockCitations(displayContent)
     return onWikilinkClick ? preprocessWikilinks(withBlockCitations) : withBlockCitations
   }, [content, onWikilinkClick])
 

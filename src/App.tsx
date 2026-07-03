@@ -65,7 +65,6 @@ import { useAppWindowControls } from './hooks/useAppWindowControls'
 import { useAiWorkspacePublishedContext } from './hooks/useAiWorkspacePublishedContext'
 import { usePaperImport } from './paper/usePaperImport'
 import { useBlockCitationNavigation } from './paper/useBlockCitationNavigation'
-import { createOrOpenPaperMarginalia } from './paper/marginalia'
 import { paperMetadataForReader } from './paper/paperReaderModel'
 import { parsePaper } from './paper/parser'
 import { normalizePaperParserSettings } from './paper/parserSettings'
@@ -96,7 +95,6 @@ import type { NoteListMultiSelectionCommands } from './components/note-list/mult
 import { focusNoteIconPropertyEditor } from './components/noteIconPropertyEvents'
 import { trackEvent } from './lib/telemetry'
 import {
-  trackPaperMarginaliaOpened,
   trackPaperParseCompleted,
   trackPaperParseFailed,
   trackPaperParseRequested,
@@ -575,13 +573,37 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     if (!importedPaper) return
     handleSetSelection({ kind: 'sectionGroup', type: 'Paper' })
     await handleSelectNote(importedPaper)
+    const parserSettings = normalizePaperParserSettings(settings)
+    if (parserSettings.provider === 'none') return
+
+    trackPaperParseRequested(parserSettings.provider)
+    try {
+      const parseResult = await parsePaper(resolvedPath, result.paperId, settings)
+      markRecentVaultWrite(parseResult.blocksPath)
+      markRecentVaultWrite(parseResult.paperPath)
+      const parsedEntries = await reloadVaultEntries()
+      await reloadVaultFolders()
+      await refreshGitModifiedFiles()
+      const parsedPaper = parsedEntries.find((entry) => entry.path === parseResult.paperPath)
+      if (parsedPaper) await handleSelectNote(parsedPaper)
+      trackPaperParseCompleted(parseResult.provider, parseResult.blocks.length)
+      setToastMessage(translate(appLocale, 'paper.parse.success', { count: parseResult.blocks.length }))
+    } catch (error: unknown) {
+      const message = appErrorMessage(error)
+      trackPaperParseFailed(parserSettings.provider, appErrorReason(error))
+      setToastMessage(translate(appLocale, 'paper.parse.failure', { error: message }))
+    }
   }, [
+    appLocale,
     handleSelectNote,
     handleSetSelection,
     markRecentVaultWrite,
     refreshGitModifiedFiles,
     reloadVaultEntries,
     reloadVaultFolders,
+    resolvedPath,
+    settings,
+    setToastMessage,
   ])
   const importPaperPdf = usePaperImport({
     locale: appLocale,
@@ -589,28 +611,6 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     onToast: setToastMessage,
     vaultPath: resolvedPath,
   })
-  const openPaperNotePath = useCallback(async (path: string, vaultPathOverride?: string) => {
-    const vaultPath = vaultPathOverride ?? resolvedPath
-    const request = vaultPath ? { path, vaultPath } : { path }
-    markRecentVaultWrite(path)
-    const reloadedEntry = isTauri()
-      ? await invoke<VaultEntry | null>('reload_vault_entry', request)
-      : await mockInvoke<VaultEntry | null>('reload_vault_entry', request)
-    if (!reloadedEntry) return
-
-    const entries = await reloadVaultEntries()
-    await reloadVaultFolders()
-    await refreshGitModifiedFiles()
-    const freshEntry = entries.find((entry) => entry.path === path) ?? reloadedEntry
-    await handleSelectNote(freshEntry)
-  }, [
-    handleSelectNote,
-    markRecentVaultWrite,
-    refreshGitModifiedFiles,
-    reloadVaultEntries,
-    reloadVaultFolders,
-    resolvedPath,
-  ])
   const selectPaperSectionForCitation = useCallback(() => {
     handleSetSelection({ kind: 'sectionGroup', type: 'Paper' })
   }, [handleSetSelection])
@@ -1431,26 +1431,6 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   })
   const activeTabEntry = activeTab?.entry ?? null
   const activeTabPath = activeTabEntry?.path
-  const handleOpenActivePaperMarginalia = useCallback(() => {
-    if (!activeTab || activeTab.entry.isA !== 'Paper') return
-    const metadata = paperMetadataForReader(activeTab.content)
-    const paperTitle = metadata?.title ?? activeTab.entry.title
-    const paperVaultPath = vaultPathForEntry(activeTab.entry, resolvedPath)
-    void createOrOpenPaperMarginalia({
-      paperPath: activeTab.entry.path,
-      paperTitle,
-      vaultPath: paperVaultPath,
-    })
-      .then(async (result) => {
-        trackPaperMarginaliaOpened({ created: result.created })
-        await openPaperNotePath(result.path, paperVaultPath)
-      })
-      .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error)
-        console.warn('[paper] Failed to create/open marginalia note:', error)
-        setToastMessage(translate(appLocale, 'paper.reader.marginaliaError', { message }))
-      })
-  }, [activeTab, appLocale, openPaperNotePath, resolvedPath, setToastMessage])
   const handleSelectNoteForPdfExport = notes.handleSelectNote
   const handleExportNotePdfFromList = useCallback((entry: VaultEntry) => {
     if (!isMarkdownEntry(entry)) return
@@ -1546,10 +1526,6 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     reloadVaultEntries,
     settings,
   ])
-  const openPaperNotePathFromEditor = useCallback(
-    (path: string) => openPaperNotePath(path, activeEditorVaultPath),
-    [activeEditorVaultPath, openPaperNotePath],
-  )
   const handleParseActivePaperCommand = useCallback(() => {
     if (!activeTab || activeTab.entry.isA !== 'Paper') return
     const metadata = paperMetadataForReader(activeTab.content)
@@ -1636,7 +1612,6 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     onOpenVault: vaultSwitcher.handleOpenLocalFolder,
     onCreateEmptyVault: vaultSwitcher.handleCreateEmptyVault,
     onCreateType: dialogs.openCreateType,
-    onOpenPaperMarginalia: handleOpenActivePaperMarginalia,
     ...commandAiActions,
     onCheckForUpdates: handleCheckForUpdates,
     onRemoveActiveVault: removeActiveVaultCommand,
@@ -1835,7 +1810,6 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
               onCopyDeepLink={activeDeletedFile ? undefined : deepLinks.copyEntryDeepLink}
               onCopyGitUrl={activeDeletedFile || !activeTabEntry || !noteGitUrls.canCopyEntryGitUrl(activeTabEntry) ? undefined : noteGitUrls.copyEntryGitUrl}
               onOpenExternalFile={fileActions.openExternalFile}
-              onOpenPaperNote={activeDeletedFile ? undefined : openPaperNotePathFromEditor}
               onParsePaper={activeDeletedFile ? undefined : handleParsePaperFromReader}
               paperParserProvider={paperParserSettings.provider}
               onDeleteNote={activeDeletedFile ? undefined : deleteActions.handleDeleteNote}

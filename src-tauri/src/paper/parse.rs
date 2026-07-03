@@ -14,7 +14,7 @@ use zip::ZipArchive;
 
 use crate::frontmatter::{update_frontmatter_content, FrontmatterValue};
 
-use super::SourceBlock;
+use super::{paper_markdown_from_blocks, paper_note_with_markdown_body, SourceBlock};
 
 const DEV_FIXTURE_PARSER: &str = "dev-fixture";
 const DEV_FIXTURE_PARSER_VERSION: &str = "fixture-v1";
@@ -42,6 +42,12 @@ struct MineruParseOutput {
     blocks: Vec<SourceBlock>,
     assets: Vec<PaperAsset>,
     warnings: Vec<PaperParseWarning>,
+}
+
+struct MineruDownloadedOutput {
+    asset_paths: BTreeMap<String, String>,
+    assets: Vec<PaperAsset>,
+    content_list: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -433,6 +439,12 @@ fn parse_with_dev_fixture(
         blocks_path,
         &blocks,
     )?;
+    write_paper_markdown_note(
+        paper_id,
+        PaperParserProvider::DevFixture,
+        paper_path,
+        &blocks,
+    )?;
     update_parse_frontmatter(
         paper_id,
         PaperParserProvider::DevFixture,
@@ -474,6 +486,7 @@ fn dev_fixture_blocks(paper_id: &str) -> Vec<SourceBlock> {
             section: None,
             order: Some(1),
             source_asset: Some("source.pdf".to_string()),
+            asset_path: None,
             confidence: Some(1.0),
             parser: Some(DEV_FIXTURE_PARSER.to_string()),
             extra: BTreeMap::new(),
@@ -492,6 +505,7 @@ fn dev_fixture_blocks(paper_id: &str) -> Vec<SourceBlock> {
             section: Some("Introduction".to_string()),
             order: Some(2),
             source_asset: Some("source.pdf".to_string()),
+            asset_path: None,
             confidence: Some(1.0),
             parser: Some(DEV_FIXTURE_PARSER.to_string()),
             extra: BTreeMap::new(),
@@ -557,6 +571,15 @@ fn parse_with_mineru_transport(
                 paths.paper_id,
                 PaperParserProvider::Mineru,
                 paths.blocks_path,
+                &blocks,
+            ) {
+                mark_mineru_parse_failed(paths.paper_id, paths.paper_path, error.message.as_str());
+                return Err(error);
+            }
+            if let Err(error) = write_paper_markdown_note(
+                paths.paper_id,
+                PaperParserProvider::Mineru,
+                paths.paper_path,
                 &blocks,
             ) {
                 mark_mineru_parse_failed(paths.paper_id, paths.paper_path, error.message.as_str());
@@ -656,24 +679,27 @@ fn run_mineru_parse(
         max_poll_attempts,
         poll_interval,
     )?;
-    let content_list = download_mineru_content_list(paper_id, source_pdf_path, &result, transport)?;
+    let output = download_mineru_output(paper_id, source_pdf_path, &result, transport)?;
     let blocks =
-        normalize_mineru_content_list(paper_id, content_list.as_str()).map_err(|error| {
-            parse_error(
-                paper_id,
-                PaperParserProvider::Mineru,
-                source_pdf_path,
-                error.kind.as_str(),
-                error.message,
-            )
-        })?;
+        normalize_mineru_content_list(paper_id, output.content_list.as_str(), &output.asset_paths)
+            .map_err(|error| {
+                parse_error(
+                    paper_id,
+                    PaperParserProvider::Mineru,
+                    source_pdf_path,
+                    error.kind.as_str(),
+                    error.message,
+                )
+            })?;
 
     Ok(MineruParseOutput {
         blocks,
-        assets: vec![PaperAsset {
+        assets: std::iter::once(PaperAsset {
             kind: "source_pdf".to_string(),
             path: "source.pdf".to_string(),
-        }],
+        })
+        .chain(output.assets)
+        .collect(),
         warnings: vec![],
     })
 }
@@ -767,17 +793,17 @@ fn wait_for_mineru_result(
     ))
 }
 
-fn download_mineru_content_list(
+fn download_mineru_output(
     paper_id: &str,
     source_pdf_path: &Path,
     result: &MineruExtractResult,
     transport: &dyn MineruTransport,
-) -> Result<String, PaperParseError> {
+) -> Result<MineruDownloadedOutput, PaperParseError> {
     if let Some(content_list_url) = result.content_list_url.as_deref() {
         let bytes = transport
             .download_bytes(content_list_url)
             .map_err(|error| mineru_transport_parse_error(paper_id, source_pdf_path, error))?;
-        return String::from_utf8(bytes).map_err(|error| {
+        let content_list = String::from_utf8(bytes).map_err(|error| {
             parse_error(
                 paper_id,
                 PaperParserProvider::Mineru,
@@ -785,6 +811,11 @@ fn download_mineru_content_list(
                 "malformed_provider_output",
                 format!("MinerU content_list output was not UTF-8: {error}"),
             )
+        })?;
+        return Ok(MineruDownloadedOutput {
+            asset_paths: BTreeMap::new(),
+            assets: vec![],
+            content_list,
         });
     }
 
@@ -801,7 +832,7 @@ fn download_mineru_content_list(
         .download_bytes(zip_url)
         .map_err(|error| mineru_transport_parse_error(paper_id, source_pdf_path, error))?;
 
-    content_list_json_from_zip(&bytes).map_err(|error| {
+    mineru_output_from_zip(source_pdf_path, &bytes).map_err(|error| {
         parse_error(
             paper_id,
             PaperParserProvider::Mineru,
@@ -812,12 +843,21 @@ fn download_mineru_content_list(
     })
 }
 
-fn content_list_json_from_zip(bytes: &[u8]) -> Result<String, MineruTransportError> {
+fn mineru_output_from_zip(
+    source_pdf_path: &Path,
+    bytes: &[u8],
+) -> Result<MineruDownloadedOutput, MineruTransportError> {
     let mut archive =
         ZipArchive::new(Cursor::new(bytes)).map_err(|error| MineruTransportError {
             kind: "malformed_provider_output".to_string(),
             message: format!("MinerU ZIP output could not be opened: {error}"),
         })?;
+
+    let paper_dir = source_pdf_path.parent().unwrap_or_else(|| Path::new("."));
+    let assets_dir = paper_dir.join("assets");
+    let mut asset_paths = BTreeMap::new();
+    let mut assets = Vec::new();
+    let mut content_list = None;
 
     for index in 0..archive.len() {
         let mut file = archive
@@ -827,23 +867,87 @@ fn content_list_json_from_zip(bytes: &[u8]) -> Result<String, MineruTransportErr
                 message: format!("MinerU ZIP entry could not be read: {error}"),
             })?;
         let name = file.name().replace('\\', "/");
-        if !name.ends_with("_content_list.json") && !name.ends_with("content_list.json") {
+        if name.ends_with("_content_list.json") || name.ends_with("content_list.json") {
+            let mut content = String::new();
+            file.read_to_string(&mut content)
+                .map_err(|error| MineruTransportError {
+                    kind: "malformed_provider_output".to_string(),
+                    message: format!("MinerU content list ZIP entry was not UTF-8 JSON: {error}"),
+                })?;
+            content_list = Some(content);
             continue;
         }
 
-        let mut content = String::new();
-        file.read_to_string(&mut content)
+        if file.is_dir() || !is_mineru_image_asset(name.as_str()) {
+            continue;
+        }
+        let Some(file_name) = safe_asset_file_name(name.as_str()) else {
+            continue;
+        };
+        fs::create_dir_all(&assets_dir).map_err(|error| MineruTransportError {
+            kind: "write_failed".to_string(),
+            message: format!("Failed to create Paper assets directory: {error}"),
+        })?;
+        let relative_path = format!("assets/{file_name}");
+        let output_path = paper_dir.join(&relative_path);
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes)
             .map_err(|error| MineruTransportError {
                 kind: "malformed_provider_output".to_string(),
-                message: format!("MinerU content list ZIP entry was not UTF-8 JSON: {error}"),
+                message: format!("MinerU image ZIP entry could not be read: {error}"),
             })?;
-        return Ok(content);
+        fs::write(&output_path, bytes).map_err(|error| MineruTransportError {
+            kind: "write_failed".to_string(),
+            message: format!("Failed to write Paper figure asset {relative_path}: {error}"),
+        })?;
+        asset_paths.insert(name.clone(), relative_path.clone());
+        asset_paths.insert(file_name.clone(), relative_path.clone());
+        assets.push(PaperAsset {
+            kind: "figure_image".to_string(),
+            path: relative_path,
+        });
     }
 
-    Err(MineruTransportError {
-        kind: "malformed_provider_output".to_string(),
-        message: "MinerU ZIP output did not contain a content_list JSON file.".to_string(),
+    let Some(content_list) = content_list else {
+        return Err(MineruTransportError {
+            kind: "malformed_provider_output".to_string(),
+            message: "MinerU ZIP output did not contain a content_list JSON file.".to_string(),
+        });
+    };
+
+    Ok(MineruDownloadedOutput {
+        asset_paths,
+        assets,
+        content_list,
     })
+}
+
+fn is_mineru_image_asset(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    lower.ends_with(".png")
+        || lower.ends_with(".jpg")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".webp")
+        || lower.ends_with(".gif")
+}
+
+fn safe_asset_file_name(path: &str) -> Option<String> {
+    let file_name = path.rsplit('/').next()?.trim();
+    if file_name.is_empty() || file_name == "." || file_name == ".." {
+        return None;
+    }
+    Some(
+        file_name
+            .chars()
+            .map(|ch| {
+                if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
+                    ch
+                } else {
+                    '-'
+                }
+            })
+            .collect(),
+    )
 }
 
 fn mineru_transport_parse_error(
@@ -863,6 +967,7 @@ fn mineru_transport_parse_error(
 fn normalize_mineru_content_list(
     paper_id: &str,
     content: &str,
+    asset_paths: &BTreeMap<String, String>,
 ) -> Result<Vec<SourceBlock>, MineruTransportError> {
     let value = serde_json::from_str::<Value>(content).map_err(|error| MineruTransportError {
         kind: "malformed_provider_output".to_string(),
@@ -888,6 +993,10 @@ fn normalize_mineru_content_list(
         let kind = normalize_mineru_kind(raw_type.as_deref(), object);
         let text = mineru_block_text(&kind, object);
         let caption = mineru_caption(object);
+        let raw_asset_path = mineru_asset_path(object);
+        let asset_path = raw_asset_path
+            .as_deref()
+            .and_then(|path| resolve_mineru_asset_path(path, asset_paths));
         if text.is_none() && caption.is_none() && kind != "figure" {
             continue;
         }
@@ -905,6 +1014,12 @@ fn normalize_mineru_content_list(
         if let Some(raw_type) = raw_type {
             extra.insert("mineru_type".to_string(), Value::String(raw_type));
         }
+        if let Some(raw_asset_path) = raw_asset_path.as_deref() {
+            extra.insert(
+                "mineru_asset_path".to_string(),
+                Value::String(raw_asset_path.to_string()),
+            );
+        }
 
         blocks.push(SourceBlock {
             id: format!("b{order:04}"),
@@ -917,7 +1032,10 @@ fn normalize_mineru_content_list(
             bbox,
             section,
             order: Some(order),
-            source_asset: Some("source.pdf".to_string()),
+            source_asset: asset_path
+                .clone()
+                .or_else(|| Some("source.pdf".to_string())),
+            asset_path,
             confidence: number_field(object, &["confidence", "score"]),
             parser: Some(MINERU_PARSER.to_string()),
             extra,
@@ -978,6 +1096,40 @@ fn mineru_block_text(kind: &str, object: &serde_json::Map<String, Value>) -> Opt
         _ => &["text", "content", "markdown"],
     };
     string_field(object, keys)
+}
+
+fn mineru_asset_path(object: &serde_json::Map<String, Value>) -> Option<String> {
+    string_field(
+        object,
+        &[
+            "img_path",
+            "image_path",
+            "imagePath",
+            "asset_path",
+            "assetPath",
+            "path",
+        ],
+    )
+}
+
+fn resolve_mineru_asset_path(
+    raw_path: &str,
+    asset_paths: &BTreeMap<String, String>,
+) -> Option<String> {
+    let normalized = raw_path.trim().replace('\\', "/");
+    if normalized.is_empty() {
+        return None;
+    }
+    asset_paths
+        .get(normalized.as_str())
+        .cloned()
+        .or_else(|| {
+            normalized
+                .rsplit('/')
+                .next()
+                .and_then(|file_name| asset_paths.get(file_name).cloned())
+        })
+        .or_else(|| normalized.starts_with("assets/").then_some(normalized))
 }
 
 fn mineru_caption(object: &serde_json::Map<String, Value>) -> Option<String> {
@@ -1121,6 +1273,45 @@ fn write_blocks_jsonl(
             blocks_path,
             "write_failed",
             format!("Failed to replace blocks.jsonl: {error}"),
+        )
+    })
+}
+
+fn write_paper_markdown_note(
+    paper_id: &str,
+    provider: PaperParserProvider,
+    paper_path: &Path,
+    blocks: &[SourceBlock],
+) -> Result<(), PaperParseError> {
+    let existing = fs::read_to_string(paper_path).map_err(|error| {
+        parse_error(
+            paper_id,
+            provider.clone(),
+            paper_path,
+            "read_failed",
+            format!("Failed to read Paper note before writing parsed Markdown: {error}"),
+        )
+    })?;
+    let markdown_body = paper_markdown_from_blocks(blocks);
+    let updated = paper_note_with_markdown_body(&existing, markdown_body.as_str());
+    let temp_path = paper_path.with_extension("md.tmp");
+    fs::write(&temp_path, updated).map_err(|error| {
+        parse_error(
+            paper_id,
+            provider.clone(),
+            paper_path,
+            "write_failed",
+            format!("Failed to write temporary Paper Markdown note: {error}"),
+        )
+    })?;
+    fs::rename(&temp_path, paper_path).map_err(|error| {
+        let _ = fs::remove_file(&temp_path);
+        parse_error(
+            paper_id,
+            provider,
+            paper_path,
+            "write_failed",
+            format!("Failed to replace Paper Markdown note: {error}"),
         )
     })
 }
@@ -1323,7 +1514,9 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::cell::RefCell;
+    use std::io::Write;
     use tempfile::TempDir;
+    use zip::write::SimpleFileOptions;
 
     #[derive(Clone)]
     struct FakeMineruTransport {
@@ -1358,6 +1551,21 @@ mod tests {
                 captured_request: RefCell::new(None),
                 uploaded_bytes: RefCell::new(Vec::new()),
             }
+        }
+
+        fn with_zip_output(bytes: Vec<u8>) -> Self {
+            let mut transport = Self::with_content_list(String::new());
+            transport.download_result = Ok(bytes);
+            transport.extract_result = Ok(MineruExtractBatch {
+                extract_results: vec![MineruExtractResult {
+                    content_list_url: None,
+                    err_msg: None,
+                    file_name: Some("source.pdf".to_string()),
+                    full_zip_url: Some("https://mineru.example/result.zip".to_string()),
+                    state: "done".to_string(),
+                }],
+            });
+            transport
         }
     }
 
@@ -1394,12 +1602,27 @@ mod tests {
             {"type":"title","text":"Deep Learning for Functional Data","page_idx":0,"bbox":[10,20,300,60]},
             {"type":"text","text_level":1,"text":"Introduction","page_idx":0},
             {"type":"text","text":"Functional observations are random curves.","page_idx":0},
-            {"type":"image","image_caption":["Figure 1. Model overview"],"page_idx":1,"bbox":[20,30,120,180]},
+            {"type":"image","img_path":"images/figure-1.png","image_caption":["Figure 1. Model overview"],"page_idx":1,"bbox":[20,30,120,180]},
             {"type":"table","table_caption":["Table 1. Accuracy"],"table_body":"| Method | Score |","page_idx":2},
             {"type":"interline_equation","latex":"y = f(x)","page_idx":2},
             {"type":"caption","text":"Additional caption","page":4}
         ])
         .to_string()
+    }
+
+    fn sample_mineru_zip_output() -> Vec<u8> {
+        let cursor = Cursor::new(Vec::new());
+        let mut writer = zip::ZipWriter::new(cursor);
+        let options = SimpleFileOptions::default();
+        writer
+            .start_file("source_content_list.json", options)
+            .unwrap();
+        writer
+            .write_all(sample_mineru_content_list().as_bytes())
+            .unwrap();
+        writer.start_file("images/figure-1.png", options).unwrap();
+        writer.write_all(b"png bytes").unwrap();
+        writer.finish().unwrap().into_inner()
     }
 
     fn write_paper_bundle(root: &Path, paper_id: &str) -> (PathBuf, PathBuf, PathBuf) {
@@ -1544,9 +1767,12 @@ mod tests {
 
     #[test]
     fn normalizes_sample_mineru_content_list_to_source_blocks() {
-        let blocks =
-            normalize_mineru_content_list("paper-1", sample_mineru_content_list().as_str())
-                .unwrap();
+        let blocks = normalize_mineru_content_list(
+            "paper-1",
+            sample_mineru_content_list().as_str(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
 
         assert_eq!(blocks.len(), 7);
         assert_eq!(blocks[0].kind, "title");
@@ -1560,15 +1786,64 @@ mod tests {
             blocks[3].caption.as_deref(),
             Some("Figure 1. Model overview")
         );
+        assert_eq!(blocks[3].asset_path, None);
         assert_eq!(blocks[4].kind, "table");
         assert_eq!(blocks[5].kind, "equation");
         assert_eq!(blocks[6].kind, "caption");
         assert_eq!(
             blocks[0].hash,
-            normalize_mineru_content_list("paper-1", sample_mineru_content_list().as_str())
-                .unwrap()[0]
+            normalize_mineru_content_list(
+                "paper-1",
+                sample_mineru_content_list().as_str(),
+                &BTreeMap::new()
+            )
+            .unwrap()[0]
                 .hash
         );
+    }
+
+    #[test]
+    fn normalizes_mineru_figure_assets_to_bundle_relative_paths() {
+        let asset_paths = BTreeMap::from([(
+            "images/figure-1.png".to_string(),
+            "assets/figure-1.png".to_string(),
+        )]);
+        let blocks = normalize_mineru_content_list(
+            "paper-1",
+            sample_mineru_content_list().as_str(),
+            &asset_paths,
+        )
+        .unwrap();
+
+        assert_eq!(blocks[3].kind, "figure");
+        assert_eq!(blocks[3].asset_path.as_deref(), Some("assets/figure-1.png"));
+        assert_eq!(
+            blocks[3].source_asset.as_deref(),
+            Some("assets/figure-1.png")
+        );
+    }
+
+    #[test]
+    fn dev_fixture_parse_writes_paper_markdown_with_block_anchors() {
+        let temp = TempDir::new().unwrap();
+        let (paper_path, source_pdf_path, blocks_path) = write_paper_bundle(temp.path(), "paper-1");
+
+        let result = parse_with_dev_fixture("paper-1", &paper_path, &source_pdf_path, &blocks_path)
+            .expect("fixture parse should succeed");
+
+        assert_eq!(result.blocks.len(), 2);
+        let paper = fs::read_to_string(&paper_path).unwrap();
+        let blocks_jsonl = fs::read_to_string(&blocks_path).unwrap();
+        for block in &result.blocks {
+            assert!(paper.contains(&format!("id=\"{}\"", block.id)));
+            assert!(paper.contains(&format!("page=\"{}\"", block.page)));
+            assert!(paper.contains(&format!("kind=\"{}\"", block.kind)));
+            assert!(paper.contains(&format!("hash=\"{}\"", block.hash)));
+            assert!(blocks_jsonl.contains(&format!("\"id\":\"{}\"", block.id)));
+        }
+        assert!(paper.contains("# Attention Is All You Need"));
+        assert!(paper.contains("The Transformer allows for significantly more parallelization."));
+        assert!(!paper.contains("## Summary"));
     }
 
     #[test]
@@ -1605,7 +1880,57 @@ mod tests {
         assert!(paper.contains("parse_status: parsed"));
         assert!(paper.contains("parser_provider: mineru"));
         assert!(paper.contains("parser_version: mineru-api-v4"));
+        assert!(paper.contains("<!-- tolaria:block id=\"b0001\" page=\"1\" kind=\"title\""));
+        assert!(paper.contains("# Deep Learning for Functional Data"));
+        assert!(paper.contains("<!-- tolaria:block id=\"b0003\" page=\"1\" kind=\"paragraph\""));
+        assert!(paper.contains("Functional observations are random curves."));
         assert!(!paper.contains("secret-token"));
+    }
+
+    #[test]
+    fn mineru_zip_parse_extracts_figure_assets_and_writes_markdown_images() {
+        let temp = TempDir::new().unwrap();
+        let (paper_path, source_pdf_path, blocks_path) = write_paper_bundle(temp.path(), "paper-1");
+        let transport = FakeMineruTransport::with_zip_output(sample_mineru_zip_output());
+
+        let result = parse_with_mineru_transport(
+            MineruParsePaths {
+                paper_id: "paper-1",
+                paper_path: &paper_path,
+                source_pdf_path: &source_pdf_path,
+                blocks_path: &blocks_path,
+            },
+            MineruTransportConfig {
+                token: "secret-token",
+                transport: &transport,
+                max_poll_attempts: 1,
+                poll_interval: Duration::from_secs(0),
+            },
+        )
+        .unwrap();
+
+        let figure = result
+            .blocks
+            .iter()
+            .find(|block| block.kind == "figure")
+            .expect("expected figure block");
+        assert_eq!(figure.asset_path.as_deref(), Some("assets/figure-1.png"));
+        assert!(result
+            .assets
+            .iter()
+            .any(|asset| asset.path == "assets/figure-1.png"));
+        assert!(paper_path
+            .parent()
+            .unwrap()
+            .join("assets/figure-1.png")
+            .is_file());
+
+        let paper = fs::read_to_string(&paper_path).unwrap();
+        assert!(paper.contains("![Figure 1. Model overview](assets/figure-1.png)"));
+        assert!(paper.contains("*Figure 1. Model overview*"));
+
+        let blocks_jsonl = fs::read_to_string(&blocks_path).unwrap();
+        assert!(blocks_jsonl.contains("\"asset_path\":\"assets/figure-1.png\""));
     }
 
     #[test]
@@ -1641,6 +1966,8 @@ mod tests {
         let paper = fs::read_to_string(&paper_path).unwrap();
         assert!(paper.contains("parse_status: failed"));
         assert!(paper.contains("parse_error: quota exceeded"));
+        assert!(paper.contains("# Fixture Paper"));
+        assert!(!paper.contains("<!-- tolaria:block"));
     }
 
     #[test]

@@ -11,6 +11,7 @@ import { resolveIcon } from '../utils/iconRegistry'
 import { getDisplayDate } from '../utils/noteListHelpers'
 import { formatTimestampForDateDisplay } from '../utils/dateDisplay'
 import { filePreviewKind, type FilePreviewKind } from '../utils/filePreview'
+import { stripTolariaHiddenMarkdown } from '../utils/tolariaHiddenMarkdown'
 import { NoteTitleIcon } from './NoteTitleIcon'
 import { PropertyChips } from './note-item/PropertyChips'
 import { ChangeNoteContent } from './note-item/ChangeNoteContent'
@@ -141,7 +142,8 @@ function NoteTypeIndicator({
 }
 
 function NoteSnippet({ snippet }: { snippet?: string | null }) {
-  if (!snippet) return null
+  const displaySnippet = snippet ? stripTolariaHiddenMarkdown(snippet).trim() : ''
+  if (!displaySnippet) return null
 
   return (
     <div
@@ -149,7 +151,7 @@ function NoteSnippet({ snippet }: { snippet?: string | null }) {
       data-testid="note-snippet"
       style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
     >
-      {snippet}
+      {displaySnippet}
     </div>
   )
 }

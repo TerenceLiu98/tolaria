@@ -136,7 +136,6 @@ interface AppCommandsConfig {
   onRestoreDeletedNote?: () => void
   canRestoreDeletedNote?: boolean
   onImportPaperPdf?: () => void
-  onOpenPaperMarginalia?: () => void
   onParsePaper?: () => void
 }
 
@@ -265,7 +264,6 @@ type CommandRegistryNoteActions = Pick<
   | 'noteListColumnsLabel'
   | 'onExportNoteAsPdf'
   | 'onImportPaperPdf'
-  | 'onOpenPaperMarginalia'
   | 'onParsePaper'
 >
 
@@ -597,7 +595,6 @@ function createCommandRegistryNoteConfig(
     noteListColumnsLabel: config.noteListColumnsLabel,
     onExportNoteAsPdf: config.onExportNoteAsPdf,
     onImportPaperPdf: config.onImportPaperPdf,
-    onOpenPaperMarginalia: config.onOpenPaperMarginalia,
     onParsePaper: config.onParsePaper,
   }
 }

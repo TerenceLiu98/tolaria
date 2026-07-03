@@ -61,6 +61,9 @@ describe('paper parser command helper', () => {
     }))
     expect(MOCK_CONTENT[paperPath]).toContain('parse_status: parsed')
     expect(MOCK_CONTENT[paperPath]).toContain('parser_provider: dev-fixture')
+    expect(MOCK_CONTENT[paperPath]).toContain('<!-- tolaria:block id="b0001" page="1" kind="title" hash="sha256:fixture-title" -->')
+    expect(MOCK_CONTENT[paperPath]).toContain('# Attention Is All You Need')
+    expect(MOCK_CONTENT[paperPath]).not.toContain('## Summary')
   })
 
   it('returns structured missing-provider and missing-config errors', async () => {
@@ -110,5 +113,6 @@ describe('paper parser command helper', () => {
     expect(MOCK_CONTENT[paperPath]).toContain('parse_status: parsed')
     expect(MOCK_CONTENT[paperPath]).toContain('parser_provider: mineru')
     expect(MOCK_CONTENT[paperPath]).toContain('parser_version: mineru-api-v4')
+    expect(MOCK_CONTENT[paperPath]).toContain('<!-- tolaria:block id="b0001" page="1" kind="title" hash="sha256:mineru-title" -->')
   })
 })

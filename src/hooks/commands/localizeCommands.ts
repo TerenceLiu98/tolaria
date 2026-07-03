@@ -30,7 +30,6 @@ const STATIC_LABEL_KEYS: Partial<Record<string, TranslationKey>> = {
   'create-type': 'command.note.newType',
   'import-paper-pdf': 'command.note.importPaperPdf',
   'parse-current-paper': 'command.note.parseCurrentPaper',
-  'open-paper-marginalia': 'command.note.openPaperMarginalia',
   'save-note': 'command.note.saveNote',
   'paste-plain-text': 'command.note.pastePlainText',
   'find-in-note': 'command.note.findInNote',

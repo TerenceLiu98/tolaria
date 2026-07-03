@@ -8,7 +8,7 @@ Primary thesis: Tolaria is the local knowledge-base operating system; Sapientia 
 
 ## 1. Executive Summary
 
-This PRD defines a Tolaria-based research product that adds Sapientia's paper-reading, block citation, marginalia, research memory, and grounded AI capabilities to Tolaria's local-first Markdown vault.
+This PRD defines a Tolaria-based research product that adds Sapientia's paper-reading, block citation, sidecar annotations, research memory, and grounded AI capabilities to Tolaria's local-first Markdown vault.
 
 The product should not port Sapientia's current web backend architecture into Tolaria. Instead, it should translate Sapientia's domain model into Tolaria-native concepts:
 
@@ -22,7 +22,7 @@ The product should not port Sapientia's current web backend architecture into To
 
 One-sentence product definition:
 
-> A local-first, Git-first research vault where PDFs, paper blocks, marginalia, notes, citations, paper graphs, and AI-generated research memory all live as portable files that humans and agents can inspect, edit, cite, and version.
+> A local-first, Git-first research vault where PDFs, paper blocks, annotations, notes, citations, paper graphs, and AI-generated research memory all live as portable files that humans and agents can inspect, edit, cite, and version.
 
 ## 2. Background
 
@@ -54,7 +54,7 @@ Most AI paper tools answer questions on top of uploaded PDFs. This product is bu
 
 ```text
 The researcher reads.
-The researcher writes marginalia.
+The researcher writes notes and comments.
 The vault records exact evidence.
 AI is summoned only when useful.
 AI answers are grounded in paper blocks and user notes.
@@ -74,10 +74,10 @@ The durable unit is the vault, not an account, database, workspace row, or cloud
 3. Preserve Tolaria's files-first, Git-first, offline-first principles.
 4. Represent paper parsing outputs as portable sidecar files.
 5. Let research notes cite exact paper blocks with durable Markdown syntax.
-6. Add a Paper Reader Mode that supports reading, marginalia, citation, and grounded Ask.
+6. Add a Paper Reader Mode that supports reading, sidecar comments, citation, and grounded Ask.
 7. Compile highlights, notes, citations, and saved Ask traces into research memory artifacts.
 8. Expose paper-specific tools to Tolaria AI agents through MCP.
-9. Keep AI evidence-aware: distinguish source claims, user marginalia, agent synthesis, and user decisions.
+9. Keep AI evidence-aware: distinguish source claims, user annotations/notes, agent synthesis, and user decisions.
 10. Provide a migration path from current Sapientia data into a Tolaria research vault.
 
 ### 4.2 Engineering Goals
@@ -114,7 +114,7 @@ The initial product should not attempt to:
 Needs:
 
 - Read papers locally.
-- Write marginalia and research notes.
+- Write comments and research notes.
 - Find exact evidence later.
 - Use AI occasionally without losing control.
 - Keep research data portable and versioned.
@@ -178,7 +178,7 @@ AI should not interrupt reading or automatically rewrite memory without explicit
 
 Any AI answer that states what a paper claims must cite source blocks.
 
-### 7.5 User Marginalia Is Not Paper Truth
+### 7.5 User Notes Are Not Paper Truth
 
 User notes, questions, and interpretations must remain distinct from paper content.
 
@@ -213,7 +213,6 @@ research-vault/
       memory.md
       assets/
       notes/
-        marginalia.md
         critique.md
   concepts/
     attention.md
@@ -598,7 +597,7 @@ Layouts:
 | Mode | Layout | Purpose |
 | --- | --- | --- |
 | Read | PDF or parsed blocks + Inspector | Focused reading |
-| Marginalia | Reader + linked note | Read and write |
+| Notes | Existing note surface | Long-form synthesis through ordinary ResearchNotes |
 | Ask | Reader + Ask panel | Grounded question answering |
 | Compare | Two paper readers or paper + note | Later milestone |
 
@@ -647,7 +646,6 @@ Commands:
 - Parse Current Paper
 - Repair Paper Sidecars
 - Copy Block Citation
-- Create Marginalia Note
 - Open Paper Memory
 - Compile Research Memory
 - Ask About Current Block
@@ -699,7 +697,7 @@ Acceptance criteria:
 
 ### 11.2 Paper Parsing
 
-Users can parse a paper into block sidecars.
+Users can parse a paper into a readable Markdown Paper note plus block sidecars.
 
 Parser providers:
 
@@ -710,6 +708,8 @@ Parser providers:
 Requirements:
 
 - Parser output normalizes into `blocks.jsonl`.
+- Parser output also rewrites the parser-owned `paper.md` body as readable Markdown.
+- Each parsed Markdown block includes a hidden stable `tolaria:block` anchor with block id, page, kind, and hash.
 - Parser status is visible in UI.
 - Parse failures are recoverable.
 - Re-parse preserves stable block IDs where possible.
@@ -717,7 +717,9 @@ Requirements:
 
 Acceptance criteria:
 
-- After parsing, block outline appears.
+- After parsing, `paper.md` reads as a continuous Paper note.
+- `paper.md` anchors and `blocks.jsonl` SourceBlock ids remain consistent.
+- The block outline appears from the machine index.
 - A block can be selected.
 - Copy Block Citation returns `@block[paper_id#block_id]`.
 - Re-parsing does not break unchanged citations.
@@ -760,20 +762,20 @@ Acceptance criteria:
 - Annotation file is human-inspectable JSONL.
 - Git diff shows annotation additions.
 
-### 11.5 Marginalia Notes
+### 11.5 Research Notes
 
-Users can create paper-local notes while reading.
+Users can create ordinary ResearchNotes and cite Paper blocks while reading.
 
 Requirements:
 
-- "Create Marginalia Note" creates `papers/<paper-slug>/notes/marginalia.md` or a unique equivalent.
-- Note frontmatter links to the Paper.
-- Reader and note can be shown side by side.
-- Selected block can be inserted as citation into the note.
+- ResearchNotes are normal Markdown notes created through Tolaria's existing note workflow.
+- Notes can link to the Paper with existing wikilink/path conventions.
+- Selected block citations use canonical `@block[paper_id#block_id]` syntax.
+- Paper Reader does not own a special note template or append action.
 
 Acceptance criteria:
 
-- User can read and write without leaving Paper Reader Mode.
+- User can cite Paper evidence from ordinary notes without mixing notes into parser-owned `paper.md`.
 - New note appears in Research Notes.
 - Note links back to Paper.
 
@@ -891,7 +893,7 @@ Every generated answer should distinguish:
 | Authority | Meaning |
 | --- | --- |
 | `source_claim` | The paper says this |
-| `user_marginalia` | The user wrote or marked this |
+| `user_annotation` | The user wrote or marked this |
 | `agent_synthesis` | The model inferred this |
 | `tool_execution` | A tool or command produced this |
 | `user_decision` | The user accepted/corrected this |
@@ -1031,6 +1033,7 @@ interface PaperParseResult {
 Output writer:
 
 - Writes `blocks.jsonl`.
+- Writes the parser-owned Markdown projection into `paper.md` body with hidden block anchors.
 - Writes extracted assets under `assets/` if needed.
 - Writes parse metadata into `paper.md` system fields or a future `_parse` sidecar.
 - Preserves previous block IDs when matching confidence is high.
@@ -1104,7 +1107,7 @@ Example:
   "question": "What is the core architectural contribution?",
   "context": {
     "blocks": ["b0008", "b0023"],
-    "notes": ["notes/marginalia.md"]
+    "notes": ["notes/critique.md"]
   },
   "answer_markdown": "The paper introduces...",
   "citations": ["@block[vaswani-2017-attention#b0008]"]
@@ -1214,23 +1217,72 @@ Exit criteria:
 - Citation persists across save/reopen.
 - Broken citations are visible.
 
-### Phase 3: Paper Reader and Marginalia
+### Phase 3: Paper Reader and Annotations
 
 Deliverables:
 
 - Paper Reader Mode.
 - PDF/block pane toggle.
-- Reader + note layout.
 - Annotation palette.
 - `annotations.jsonl` persistence.
-- Create Marginalia Note command.
 
 Exit criteria:
 
-- User can read, highlight, annotate, and write notes side by side.
+- User can read, highlight, annotate, and cite blocks from ordinary notes.
 - Annotations persist and are visible after reload.
 
-### Phase 4: Grounded Ask
+### Phase 4D: Rendered Paper Note View
+
+Deliverables:
+
+- Continuous rendered Paper view from anchored `paper.md`.
+- Stable hidden block anchors for selection and citation.
+- Comment gutter with annotation counts.
+- Block-level comment thread backed by `annotations.jsonl`.
+- Copy citation actions from the comment thread.
+
+Exit criteria:
+
+- Paper reads like a rendered note rather than a debug block list.
+- `blocks.jsonl` remains the machine index, not the primary reading surface.
+- Users can add, edit, and delete block-level comments without changing `paper.md`.
+- Long-form synthesis uses ordinary ResearchNotes created through Tolaria's normal note workflow.
+
+### Phase 4E: Note Editor Comment Seam and Paper Markdown Read/Comment Mode
+
+Deliverables:
+
+- Generic comment provider interface for anchor-backed comment threads.
+- Reusable comment gutter, thread, and composer UI.
+- Paper adapter that maps `annotations.jsonl` records to comment threads by parsed block anchor.
+- Paper Reader layout with a single Reading View surface that switches between Markdown and PDF modes.
+- No standalone Paper Outline column; parsed `paper.md` should behave like a normal Tolaria note surface.
+
+Exit criteria:
+
+- Paper Markdown mode reads like a Tolaria note surface while comments remain sidecar-backed.
+- Comment UI is generic enough to support future normal-note comments.
+- `paper.md` is not mutated by comment create, edit, or delete actions.
+- Existing citation and annotation workflows still work.
+
+### Phase 4F: Shared NoteSurface for Paper and no Marginalia workflow
+
+Deliverables:
+
+- Paper Markdown mode mounts `paper.md` through the shared Note surface used by ordinary notes.
+- Paper source content is read-only/commentable by default.
+- Paper comments continue to persist through `annotations.jsonl`.
+- Marginalia-specific mode, pane, commands, templates, and append actions are removed.
+- Users can still create ordinary `ResearchNote` notes when they want long-form synthesis.
+
+Exit criteria:
+
+- Paper Reading View looks and behaves like a normal Tolaria note surface.
+- Reading View has only Markdown and PDF modes.
+- Comment create/edit/delete actions do not mutate `paper.md`.
+- Ordinary note editing/rendering is unchanged.
+
+### Phase 5: Grounded Ask
 
 Deliverables:
 
@@ -1246,7 +1298,7 @@ Exit criteria:
 - User can save an Ask trace.
 - Insufficient evidence is handled explicitly.
 
-### Phase 5: Research Memory Compiler
+### Phase 6: Research Memory Compiler
 
 Deliverables:
 
@@ -1262,7 +1314,7 @@ Exit criteria:
 - Paper facts have citations.
 - User observations are separate.
 
-### Phase 6: Sapientia Importer
+### Phase 7: Sapientia Importer
 
 Deliverables:
 
@@ -1283,7 +1335,7 @@ Exit criteria:
 - User imports first paper.
 - User parses first paper.
 - User creates first block citation.
-- User creates first marginalia note.
+- User creates first ResearchNote with a block citation.
 
 ### 17.2 Engagement
 
@@ -1473,18 +1525,18 @@ v1 should include:
 2. User runs "Import Paper PDF".
 3. App creates `papers/attention-is-all-you-need/source.pdf` and `paper.md`.
 4. User clicks "Parse Paper".
-5. App writes `blocks.jsonl`.
+5. App writes anchored parsed Markdown into `paper.md` and normalized blocks into `blocks.jsonl`.
 6. User opens Paper Reader Mode.
 7. User highlights a paragraph as Important.
 8. App appends to `annotations.jsonl`.
-9. User creates a marginalia note.
+9. User creates or opens an ordinary ResearchNote.
 10. User inserts `@block[vaswani-2017-attention#b0023]`.
 11. User asks "What is the key architectural contribution?"
 12. AI answers with block citations.
 13. User saves the answer as an Ask trace.
 14. User compiles research memory.
 15. App writes `memory.md`.
-16. Git shows changes to `paper.md`, `blocks.jsonl`, `annotations.jsonl`, `notes/marginalia.md`, `ask-traces.jsonl`, and `memory.md`.
+16. Git shows changes to `paper.md`, `blocks.jsonl`, `annotations.jsonl`, the user's ResearchNote, `ask-traces.jsonl`, and `memory.md`.
 
 ## 27. Appendix: Terminology
 
@@ -1495,7 +1547,7 @@ v1 should include:
 | SourceBlock | Stable unit extracted from paper |
 | Block Citation | Markdown token pointing to SourceBlock |
 | Sidecar | File stored beside source PDF containing derived or user-created data |
-| Marginalia | User reading notes, highlights, and comments |
+| Annotation | User-created sidecar mark such as comment, highlight, question, underline, or bookmark |
 | ResearchMemory | Compiled memory artifact from notes and traces |
 | Grounded Ask | AI question answering constrained by explicit evidence |
 | MCP | Model Context Protocol bridge exposing vault tools to agents |

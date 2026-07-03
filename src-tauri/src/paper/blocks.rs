@@ -24,6 +24,8 @@ pub struct SourceBlock {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_asset: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asset_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confidence: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parser: Option<String>,

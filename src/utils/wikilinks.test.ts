@@ -636,6 +636,11 @@ describe('extractSnippet', () => {
     expect(snippet).not.toContain('[[')
   })
 
+  it('strips hidden Paper block anchors from snippets', () => {
+    const content = '# Paper\n\n<!-- tolaria:block id="b0001" page="1" kind="paragraph" hash="sha256:a" -->\nReadable paper text.'
+    expect(extractSnippet(content)).toBe('Readable paper text.')
+  })
+
   it('uses display text from aliased wikilinks', () => {
     const content = '# Title\n\nDiscussed in [[meetings/standup|standup]] today.'
     expect(extractSnippet(content)).toBe('Discussed in standup today.')

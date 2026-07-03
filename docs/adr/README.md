@@ -211,6 +211,10 @@ proposed → active → superseded
 | [0150](0150-paper-vault-entity-model.md) | Paper vault entity model | active |
 | [0151](0151-paper-sidecar-files.md) | Paper sidecar files | active |
 | [0152](0152-block-citation-markdown-syntax.md) | Block citation Markdown syntax | active |
-| [0153](0153-paper-local-marginalia-research-notes.md) | Paper-local marginalia ResearchNotes | active |
+| [0153](0153-paper-local-marginalia-research-notes.md) | Paper-local marginalia ResearchNotes | superseded |
 | [0154](0154-paper-parser-provider-boundary.md) | Paper parser provider boundary | active |
 | [0155](0155-mineru-parser-provider-integration.md) | MinerU parser provider integration | active |
+| [0156](0156-paper-markdown-projection.md) | Paper Markdown projection | active |
+| [0157](0157-note-editor-comment-seam-for-paper.md) | Note Editor comment seam for Paper | active |
+| [0158](0158-paper-uses-shared-note-surface-without-marginalia.md) | Paper uses shared Note surface without Marginalia | active |
+| [0159](0159-paper-reader-without-outline-column.md) | Paper Reader without a standalone outline column | active |

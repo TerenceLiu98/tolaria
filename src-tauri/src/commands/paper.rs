@@ -8,6 +8,7 @@ use crate::paper::{
     self, ImportPaperPdfResult, PaperAnnotation, PaperAnnotationsError, PaperAnnotationsReadResult,
     PaperBlockLookupResult, PaperBlockSearchResult, PaperBlocksError, PaperBlocksReadResult,
     PaperParseError, PaperParseResult, PaperParserProvider, PaperParserSettings,
+    PaperPdfOutlineReadResult,
 };
 
 #[tauri::command]
@@ -83,6 +84,22 @@ pub async fn search_paper_blocks(
         path: String::new(),
         line_errors: vec![],
     })?
+}
+
+#[tauri::command]
+pub async fn read_paper_pdf_outline(
+    vault_path: PathBuf,
+    paper_id: String,
+) -> Result<PaperPdfOutlineReadResult, String> {
+    tokio::task::spawn_blocking(move || {
+        let source_pdf_path = source_pdf_path_for_paper(&vault_path, &paper_id)?;
+        Ok(paper::read_paper_pdf_outline_file(
+            &paper_id,
+            &source_pdf_path,
+        ))
+    })
+    .await
+    .map_err(|error| format!("Task panicked: {error}"))?
 }
 
 #[tauri::command]
@@ -202,6 +219,13 @@ fn blocks_path_for_paper(vault_path: &Path, paper_id: &str) -> Result<PathBuf, P
     paper_bundle_dir_for_paper(&boundary, paper_id)
         .map(|bundle_dir| bundle_dir.join("blocks.jsonl"))
         .map_err(|error| PaperBlocksError::boundary(paper_id, error))
+}
+
+fn source_pdf_path_for_paper(vault_path: &Path, paper_id: &str) -> Result<PathBuf, String> {
+    let expanded_vault_path = expand_tilde(vault_path.to_string_lossy().as_ref()).into_owned();
+    let boundary = VaultBoundary::from_request(Some(&expanded_vault_path))
+        .map_err(|error| error.to_string())?;
+    paper_bundle_dir_for_paper(&boundary, paper_id).map(|bundle_dir| bundle_dir.join("source.pdf"))
 }
 
 struct PaperParsePaths {
@@ -398,6 +422,36 @@ mod tests {
             .expect_err("expected traversal to be rejected");
 
         assert_eq!(error.kind, "active_vault_boundary");
+    }
+
+    #[tokio::test]
+    async fn read_paper_pdf_outline_uses_active_vault_boundary() {
+        let vault = TempDir::new().unwrap();
+
+        let error = read_paper_pdf_outline(vault.path().to_path_buf(), "../outside".to_string())
+            .await
+            .expect_err("expected traversal to be rejected");
+
+        assert!(error.contains("Path must stay inside the active vault"));
+    }
+
+    #[tokio::test]
+    async fn read_paper_pdf_outline_reports_missing_source_pdf() {
+        let vault = TempDir::new().unwrap();
+        let paper_dir = vault.path().join("papers/paper-1");
+        fs::create_dir_all(&paper_dir).unwrap();
+        fs::write(
+            paper_dir.join("paper.md"),
+            "---\ntype: Paper\npaper_id: paper-1\nsource_pdf: source.pdf\n---\n# Paper\n",
+        )
+        .unwrap();
+
+        let result = read_paper_pdf_outline(vault.path().to_path_buf(), "paper-1".to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(result.state, paper::PaperPdfOutlineState::Missing);
+        assert!(result.items.is_empty());
     }
 
     #[tokio::test]

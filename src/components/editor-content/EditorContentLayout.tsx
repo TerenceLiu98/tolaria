@@ -10,7 +10,7 @@ import { BreadcrumbBar } from '../BreadcrumbBar'
 import { ArchivedNoteBanner } from '../ArchivedNoteBanner'
 import { ConflictNoteBanner } from '../ConflictNoteBanner'
 import { RawEditorView } from '../RawEditorView'
-import { SingleEditorView } from '../SingleEditorView'
+import { NoteSurface } from '../NoteSurface'
 import { PaperReaderShell } from '../../paper/PaperReaderShell'
 import { shouldOpenPaperReader } from '../../paper/paperReaderModel'
 import type { useEditorContentModel } from './useEditorContentModel'
@@ -361,7 +361,6 @@ function EditorCanvas({
   onEditorChange,
   onCopyFilePath,
   onOpenExternalFile,
-  onOpenPaperNote,
   onParsePaper,
   paperParserProvider,
   onRevealFile,
@@ -388,7 +387,6 @@ function EditorCanvas({
   | 'locale'
   | 'onCopyFilePath'
   | 'onOpenExternalFile'
-  | 'onOpenPaperNote'
   | 'onParsePaper'
   | 'paperParserProvider'
   | 'onRevealFile'
@@ -406,11 +404,13 @@ function EditorCanvas({
           key={activeTab.entry.path}
           entry={activeTab.entry}
           content={activeTab.content}
+          editor={editor}
+          entries={entries}
           vaultPath={vaultPath}
           locale={locale}
+          onNavigateWikilink={onNavigateWikilink}
           onCopyFilePath={onCopyFilePath}
           onOpenExternalFile={onOpenExternalFile}
-          onOpenPaperNote={onOpenPaperNote}
           onParsePaper={onParsePaper}
           paperParserProvider={paperParserProvider}
           onRevealFile={onRevealFile}
@@ -449,7 +449,7 @@ function EditorCanvas({
       style={cssVars as React.CSSProperties}
     >
       <div className="editor-content-wrapper" data-note-pdf-export-root="true">
-        <SingleEditorView
+        <NoteSurface
           editor={editor}
           entries={entries}
           onNavigateWikilink={onNavigateWikilink}

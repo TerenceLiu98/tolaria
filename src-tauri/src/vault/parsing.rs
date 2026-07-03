@@ -98,7 +98,16 @@ fn strip_frontmatter(content: TextSlice<'_>) -> &str {
 /// Check if a line is useful for snippet extraction (not blank, heading, code fence, or rule).
 fn is_snippet_line(line: TextSlice<'_>) -> bool {
     let t = line.as_str().trim();
-    !t.is_empty() && !t.starts_with('#') && !t.starts_with("```") && !t.starts_with("---")
+    !t.is_empty()
+        && !t.starts_with('#')
+        && !t.starts_with("```")
+        && !t.starts_with("---")
+        && !is_tolaria_hidden_markdown_line(TextSlice(t))
+}
+
+fn is_tolaria_hidden_markdown_line(line: TextSlice<'_>) -> bool {
+    let trimmed = line.as_str().trim();
+    trimmed.starts_with("<!--") && trimmed.ends_with("-->") && trimmed.contains("tolaria:block")
 }
 
 /// Extract sub-heading text (## , ### , etc.) stripped of the `#` prefix.

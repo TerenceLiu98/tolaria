@@ -16,7 +16,7 @@ type NotePdfExportFailureReason = 'export_unavailable' | 'export_error'
 type NotePdfExportSource = 'breadcrumb' | 'app_command' | 'note_list_context_menu'
 type PaperImportSource = 'command_palette'
 type PaperReaderBlocksState = 'missing' | 'empty' | 'ready' | 'loading' | 'error' | 'unavailable'
-type PaperReaderMode = 'read' | 'marginalia'
+type PaperReaderMode = 'markdown' | 'pdf'
 type PaperParserProvider = 'none' | 'dev-fixture' | 'mineru'
 type PaperAnnotationActionKind = 'highlight' | 'underline' | 'question' | 'comment' | 'bookmark'
 type PaperAnnotationActionColor = 'questioning' | 'important' | 'original' | 'pending' | 'conclusion'
@@ -119,18 +119,6 @@ export function trackPaperParseFailed(provider: PaperParserProvider, reason: str
 
 export function trackPaperBlockCitationCopied(): void {
   trackEvent('paper_block_citation_copied')
-}
-
-export function trackPaperMarginaliaOpened(params: { created: AnalyticsBoolean }): void {
-  trackEvent('paper_marginalia_opened', {
-    created: numericFlag(params.created),
-  })
-}
-
-export function trackPaperMarginaliaCitationAdded(params: { created: AnalyticsBoolean }): void {
-  trackEvent('paper_marginalia_citation_added', {
-    created: numericFlag(params.created),
-  })
 }
 
 export function trackPaperAnnotationSaved(params: {

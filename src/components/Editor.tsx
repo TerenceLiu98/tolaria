@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, memo, useState, type ReactNode } from 'react'
+import { useRef, useEffect, useCallback, memo, useMemo, useState, type ReactNode } from 'react'
 import { useEditorTabSwap } from '../hooks/useEditorTabSwap'
 import { useCreateBlockNote } from '@blocknote/react'
 import '@blocknote/mantine/style.css'
@@ -10,6 +10,8 @@ import { translate, type AppLocale } from '../lib/i18n'
 import { RUNTIME_STYLE_NONCE } from '../lib/runtimeStyleNonce'
 import type { VaultEntry, GitCommit, NoteWidthMode, NoteStatus, WorkspaceIdentity } from '../types'
 import type { PaperParserProvider } from '../paper/parserSettings'
+import { stripPaperBlockAnchors } from '../paper/paperMarkdown'
+import { shouldOpenPaperReader } from '../paper/paperReaderModel'
 import type { NoteListItem } from '../utils/ai-context'
 import type { FrontmatterValue } from './Inspector'
 import type { FrontmatterOpOptions } from '../hooks/frontmatterOps'
@@ -110,7 +112,6 @@ interface EditorProps {
   onCopyDeepLink?: (entry: VaultEntry) => void
   onCopyGitUrl?: (entry: VaultEntry) => void
   onOpenExternalFile?: (path: string) => void
-  onOpenPaperNote?: (path: string) => void | Promise<void>
   onParsePaper?: (paperId: string) => void | Promise<void>
   paperParserProvider?: PaperParserProvider
   onDeleteNote?: (path: string) => void
@@ -299,6 +300,9 @@ function useEditorSetup({
     tabs,
     pendingRawExitContent,
   })
+  const tabsForNoteSurface = useMemo(() => tabsForEditorSwap.map((tab) => shouldOpenPaperReader(tab.entry)
+    ? { ...tab, content: stripPaperBlockAnchors(tab.content) }
+    : tab), [tabsForEditorSwap])
 
   const {
     editorContentPath,
@@ -306,7 +310,7 @@ function useEditorSetup({
     flushPendingEditorChange,
     editorMountedRef,
   } = useEditorTabSwap({
-    tabs: tabsForEditorSwap,
+    tabs: tabsForNoteSurface,
     activeTabPath: richEditorActiveTabPath,
     editor,
     onContentChange,
@@ -427,7 +431,6 @@ function EditorLayout({
   onCopyGitUrl,
   onExportPdf,
   onOpenExternalFile,
-  onOpenPaperNote,
   onParsePaper,
   paperParserProvider,
   onDeleteNote,
@@ -506,7 +509,6 @@ function EditorLayout({
   onCopyDeepLink?: (entry: VaultEntry) => void
   onCopyGitUrl?: (entry: VaultEntry) => void
   onOpenExternalFile?: (path: string) => void
-  onOpenPaperNote?: (path: string) => void | Promise<void>
   onParsePaper?: (paperId: string) => void | Promise<void>
   paperParserProvider?: PaperParserProvider
   onDeleteNote?: (path: string) => void
@@ -603,7 +605,6 @@ function EditorLayout({
               onRevealFile={onRevealFile}
               onCopyFilePath={onCopyFilePath}
               onOpenExternalFile={onOpenExternalFile}
-              onOpenPaperNote={onOpenPaperNote}
               onParsePaper={onParsePaper}
               paperParserProvider={paperParserProvider}
               onCopyDeepLink={onCopyDeepLink}

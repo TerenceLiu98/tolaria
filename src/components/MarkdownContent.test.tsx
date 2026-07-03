@@ -60,6 +60,17 @@ describe('MarkdownContent', () => {
     expect(h2.tagName).toBe('H2')
   })
 
+  it('hides Tolaria block anchors in rendered Markdown previews', () => {
+    render(
+      <MarkdownContent
+        content={'<!-- tolaria:block id="b0001" page="1" kind="paragraph" hash="sha256:a" -->\nReadable paper text.'}
+      />,
+    )
+
+    expect(screen.getByText('Readable paper text.')).toBeInTheDocument()
+    expect(screen.queryByText(/tolaria:block/u)).not.toBeInTheDocument()
+  })
+
   it('renders links', () => {
     render(<MarkdownContent content="[Click here](https://example.com)" />)
     const link = screen.getByText('Click here') as HTMLAnchorElement

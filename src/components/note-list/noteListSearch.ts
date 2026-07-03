@@ -1,6 +1,7 @@
 import type { VaultEntry } from '../../types'
 import type { DateDisplayFormat } from '../../utils/dateDisplay'
 import type { RelationshipGroup } from '../../utils/noteListHelpers'
+import { stripTolariaHiddenMarkdown } from '../../utils/tolariaHiddenMarkdown'
 import { resolvePropertyChipLabels } from '../note-item/propertyChipValues'
 
 interface NoteListSearchContext {
@@ -16,7 +17,7 @@ function normalizeQuery(query: string): string {
 }
 
 function searchableString(value: unknown): string {
-  return typeof value === 'string' ? value : ''
+  return typeof value === 'string' ? stripTolariaHiddenMarkdown(value) : ''
 }
 
 function resolveDisplayProps(

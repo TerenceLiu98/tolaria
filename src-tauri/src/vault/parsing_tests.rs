@@ -161,6 +161,13 @@ fn test_extract_snippet_strips_links() {
 }
 
 #[test]
+fn test_extract_snippet_strips_tolaria_block_anchors() {
+    let content = "# Paper\n\n<!-- tolaria:block id=\"b0001\" page=\"1\" kind=\"paragraph\" hash=\"sha256:a\" -->\nReadable paper text.";
+    let snippet = extract_snippet(content);
+    assert_eq!(snippet, "Readable paper text.");
+}
+
+#[test]
 fn test_extract_snippet_wikilink_alias() {
     let content = "# Title\n\nDiscussed in [[meetings/standup|standup]] today.";
     let snippet = extract_snippet(content);

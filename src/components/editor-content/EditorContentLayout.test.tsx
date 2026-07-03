@@ -40,8 +40,8 @@ vi.mock('../SheetEditor', () => ({
   ),
 }))
 
-vi.mock('../SingleEditorView', () => ({
-  SingleEditorView: () => <div data-testid="single-editor-view" />,
+vi.mock('../NoteSurface', () => ({
+  NoteSurface: () => <div data-testid="note-surface" />,
 }))
 
 vi.mock('../../paper/PaperReaderShell', () => ({
@@ -113,7 +113,7 @@ describe('EditorContentLayout', () => {
 
     expect(container.querySelector('.title-section')).toBeNull()
     expect(screen.queryByTestId('title-field-input')).not.toBeInTheDocument()
-    expect(screen.getByTestId('single-editor-view')).toBeInTheDocument()
+    expect(screen.getByTestId('note-surface')).toBeInTheDocument()
   })
 
   it('does not show stale editor chrome while switching tabs', () => {
@@ -127,7 +127,7 @@ describe('EditorContentLayout', () => {
     )
 
     expect(container.querySelector('.animate-pulse')).toBeNull()
-    expect(screen.queryByTestId('single-editor-view')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('note-surface')).not.toBeInTheDocument()
     expect(screen.queryByTestId('title-field-input')).not.toBeInTheDocument()
   })
 
@@ -148,7 +148,7 @@ describe('EditorContentLayout', () => {
       />,
     )
 
-    expect(screen.queryByTestId('single-editor-view')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('note-surface')).not.toBeInTheDocument()
     expect(container.querySelector('.animate-pulse')).toBeNull()
     expect(screen.getByTestId('breadcrumb-bar')).toHaveAttribute('data-content', '# New Note')
   })
@@ -213,7 +213,7 @@ describe('EditorContentLayout', () => {
     expect(sheetEditor).toHaveAttribute('data-path', '/vault/project/budget.md')
     expect(sheetEditor).toHaveAttribute('data-content', 'Metric,January\nRevenue,1200')
     expect(sheetEditor).toHaveAttribute('data-has-flush-ref', 'true')
-    expect(screen.queryByTestId('single-editor-view')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('note-surface')).not.toBeInTheDocument()
     expect(sheetEditor.closest('.editor-content-wrapper')).toBeNull()
     const findScope = sheetEditor.closest('[data-editor-find-scope="true"]')
     expect(findScope).toHaveClass(
@@ -246,7 +246,7 @@ describe('EditorContentLayout', () => {
     })} />)
 
     expect(screen.getByTestId('paper-reader-shell')).toHaveAttribute('data-path', '/vault/papers/attention/paper.md')
-    expect(screen.queryByTestId('single-editor-view')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('note-surface')).not.toBeInTheDocument()
     expect(screen.getByTestId('paper-reader-shell').closest('.editor-content-wrapper')).toBeNull()
   })
 })

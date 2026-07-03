@@ -45,7 +45,6 @@ export interface EditorContentProps {
   onRevealFile?: (path: string) => void
   onCopyFilePath?: (path: string) => void
   onOpenExternalFile?: (path: string) => void
-  onOpenPaperNote?: (path: string) => void | Promise<void>
   onParsePaper?: (paperId: string) => void | Promise<void>
   paperParserProvider?: PaperParserProvider
   onCopyDeepLink?: (entry: VaultEntry) => void

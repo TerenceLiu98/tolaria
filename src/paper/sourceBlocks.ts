@@ -12,6 +12,7 @@ export interface SourceBlock {
   section?: string
   order?: number
   source_asset?: string
+  asset_path?: string
   confidence?: number
   parser?: string
   [key: string]: unknown

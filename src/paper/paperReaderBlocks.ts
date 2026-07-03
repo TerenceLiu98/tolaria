@@ -13,9 +13,18 @@ export type RenderedSourceBlockKind =
 export interface PaperOutlineItem {
   blockId: string
   depth: number
+  id: string
   label: string
   page: number | null
   section: string | null
+  source: 'blocks' | 'pdf'
+}
+
+export interface PaperPdfOutlineItem {
+  depth: number
+  id: string
+  page: number | null
+  title: string
 }
 
 export interface PaperSidecarHealth {
@@ -63,27 +72,52 @@ function outlineLabel(block: SourceBlock): string {
 
 export function paperOutlineItems(blocks: readonly SourceBlock[]): PaperOutlineItem[] {
   const items: PaperOutlineItem[] = []
-  const pageAnchors = new Set<number>()
 
   for (const block of blocks) {
     const kind = renderedSourceBlockKind(block)
-    const page = Number.isInteger(block.page) && block.page > 0 ? block.page : null
-    const isPageAnchor = page !== null && !pageAnchors.has(page)
-    const isStructuralBlock = kind === 'title' || kind === 'heading'
-    if (!isStructuralBlock && !isPageAnchor) continue
+    if (kind !== 'heading') continue
 
-    if (page !== null) pageAnchors.add(page)
-    const label = isStructuralBlock ? outlineLabel(block) : `Page ${page}`
     items.push({
       blockId: block.id,
-      depth: kind === 'title' ? 0 : isStructuralBlock ? 1 : 2,
-      label,
-      page,
+      depth: 1,
+      id: block.id,
+      label: outlineLabel(block),
+      page: Number.isInteger(block.page) && block.page > 0 ? block.page : null,
       section: sourceBlockSectionLabel(block),
+      source: 'blocks',
     })
   }
 
   return items
+}
+
+export function paperOutlineItemsFromPdf(
+  pdfOutline: readonly PaperPdfOutlineItem[],
+  blocks: readonly SourceBlock[],
+): PaperOutlineItem[] {
+  const items: PaperOutlineItem[] = []
+
+  for (const item of pdfOutline) {
+    const title = item.title.replace(/\s+/gu, ' ').trim()
+    if (title.length === 0) continue
+    const block = blockForOutlinePage(blocks, item.page)
+    items.push({
+      blockId: block?.id ?? '',
+      depth: Math.max(1, item.depth),
+      id: item.id,
+      label: title,
+      page: item.page,
+      section: null,
+      source: 'pdf',
+    })
+  }
+
+  return items
+}
+
+function blockForOutlinePage(blocks: readonly SourceBlock[], page: number | null): SourceBlock | null {
+  if (!Number.isInteger(page) || page === null || page <= 0) return null
+  return blocks.find((block) => Number.isInteger(block.page) && block.page >= page) ?? null
 }
 
 export function searchPaperBlocks(blocks: readonly SourceBlock[], query: string): SourceBlock[] {

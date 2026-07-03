@@ -165,23 +165,14 @@ describe('useCommandRegistry', () => {
     expect(findCommand(result.current, 'list-paper')).toBeDefined()
   })
 
-  it('includes a Paper marginalia command for the active Paper entry', () => {
-    const onOpenPaperMarginalia = vi.fn()
+  it('does not include a Paper marginalia command', () => {
     const config = makeConfig({
       activeTabPath: '/vault/papers/attention/paper.md',
       entries: [paperEntry()],
-      onOpenPaperMarginalia,
     })
     const { result } = renderHook(() => useCommandRegistry(config))
-    const cmd = findCommand(result.current, 'open-paper-marginalia')
 
-    expect(cmd).toBeDefined()
-    expect(cmd!.group).toBe('Note')
-    expect(cmd!.label).toBe('Create/Open Marginalia Note')
-    expect(cmd!.enabled).toBe(true)
-
-    cmd!.execute()
-    expect(onOpenPaperMarginalia).toHaveBeenCalledOnce()
+    expect(findCommand(result.current, 'open-paper-marginalia')).toBeUndefined()
   })
 
   it('includes a Parse Current Paper command for the active Paper entry', () => {
@@ -201,19 +192,6 @@ describe('useCommandRegistry', () => {
 
     cmd!.execute()
     expect(onParsePaper).toHaveBeenCalledOnce()
-  })
-
-  it('disables the Paper marginalia command for non-Paper entries', () => {
-    const onOpenPaperMarginalia = vi.fn()
-    const config = makeConfig({
-      entries: [{ ...paperEntry(), isA: 'Note', path: '/vault/test.md' }],
-      onOpenPaperMarginalia,
-    })
-    const { result } = renderHook(() => useCommandRegistry(config))
-    const cmd = findCommand(result.current, 'open-paper-marginalia')
-
-    expect(cmd).toBeDefined()
-    expect(cmd!.enabled).toBe(false)
   })
 
   it('commit-push is enabled when modifiedCount > 0', () => {

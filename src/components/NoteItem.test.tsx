@@ -202,6 +202,18 @@ describe('NoteItem', () => {
     expect(screen.queryByTestId('change-status-icon')).not.toBeInTheDocument()
   })
 
+  it('hides Paper block anchors from note list snippets', () => {
+    const entry = makeEntry({
+      title: 'Paper note',
+      snippet: '<!-- tolaria:block id="b0001" page="1" kind="paragraph" hash="sha256:a" -->\nReadable snippet',
+    })
+
+    render(<NoteItem entry={entry} isSelected={false} typeEntryMap={{}} onClickNote={vi.fn()} />)
+
+    expect(screen.getByTestId('note-snippet')).toHaveTextContent('Readable snippet')
+    expect(screen.queryByText(/tolaria:block/u)).not.toBeInTheDocument()
+  })
+
   it('adds more breathing room between note sections', () => {
     const entry = makeEntry({
       title: 'Spaced note',

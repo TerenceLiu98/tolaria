@@ -537,6 +537,7 @@ macro_rules! app_invoke_handler {
             commands::read_paper_blocks,
             commands::read_paper_block,
             commands::search_paper_blocks,
+            commands::read_paper_pdf_outline,
             commands::read_paper_annotations,
             commands::save_paper_annotation,
             commands::delete_paper_annotation,

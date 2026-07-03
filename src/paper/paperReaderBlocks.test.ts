@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  paperOutlineItemsFromPdf,
   paperOutlineItems,
   paperSidecarHealth,
   renderedSourceBlockKind,
@@ -30,7 +31,7 @@ describe('paper reader block helpers', () => {
     expect(renderedSourceBlockKind(block({ id: 'b6', kind: 'text' }))).toBe('paragraph')
   })
 
-  it('builds outline items from titles, headings, and first block on each page', () => {
+  it('builds outline items only from heading blocks', () => {
     const items = paperOutlineItems([
       block({ id: 'b1', kind: 'title', text: 'Paper Title', page: 1 }),
       block({ id: 'b2', kind: 'paragraph', text: 'Abstract prose', page: 1 }),
@@ -38,10 +39,45 @@ describe('paper reader block helpers', () => {
       block({ id: 'b4', kind: 'heading', text: 'Method', page: 2 }),
     ])
 
+    expect(items).toEqual([{
+      blockId: 'b4',
+      depth: 1,
+      id: 'b4',
+      label: 'Method',
+      page: 2,
+      section: null,
+      source: 'blocks',
+    }])
+  })
+
+  it('maps PDF outline items to the nearest parsed block on that page', () => {
+    const items = paperOutlineItemsFromPdf([
+      { depth: 1, id: 'toc-1', page: 1, title: 'Abstract' },
+      { depth: 2, id: 'toc-2', page: 3, title: '  Experiments  ' },
+    ], [
+      block({ id: 'b1', kind: 'paragraph', text: 'Abstract text', page: 1 }),
+      block({ id: 'b2', kind: 'heading', text: 'Experiments', page: 3 }),
+    ])
+
     expect(items).toEqual([
-      { blockId: 'b1', depth: 0, label: 'Paper Title', page: 1, section: null },
-      { blockId: 'b3', depth: 2, label: 'Page 2', page: 2, section: null },
-      { blockId: 'b4', depth: 1, label: 'Method', page: 2, section: null },
+      {
+        blockId: 'b1',
+        depth: 1,
+        id: 'toc-1',
+        label: 'Abstract',
+        page: 1,
+        section: null,
+        source: 'pdf',
+      },
+      {
+        blockId: 'b2',
+        depth: 2,
+        id: 'toc-2',
+        label: 'Experiments',
+        page: 3,
+        section: null,
+        source: 'pdf',
+      },
     ])
   })
 

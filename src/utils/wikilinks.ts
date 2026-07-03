@@ -1,5 +1,6 @@
 // Wikilink placeholder tokens for markdown round-trip
 import { advanceMarkdownFence, type MarkdownFence, type MarkdownFenceScanOptions } from './markdownFences'
+import { stripTolariaHiddenMarkdown } from './tolariaHiddenMarkdown'
 
 const WL_START = '\u2039WIKILINK:'
 const WL_END = '\u203A'
@@ -523,7 +524,7 @@ function extractSubheadingText(line: MarkdownLine): MarkdownSource | null {
 /** Extract a snippet: first ~160 chars of body content, stripped of markdown.
  *  Mirrors the Rust extract_snippet() logic for frontend use. */
 export function extractSnippet(content: MarkdownSource): MarkdownSource {
-  const [, body] = splitFrontmatter(content)
+  const [, body] = splitFrontmatter(stripTolariaHiddenMarkdown(content))
   const withoutH1 = removeH1Line(body)
   const clean = withoutH1.split('\n').filter(isSnippetLine).map(stripListMarker).join(' ')
   const stripped = stripMarkdownChars(clean).trim()

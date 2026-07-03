@@ -32,7 +32,22 @@ Behavior:
 
 ## Frontend Flow
 
-The command palette exposes `Import Paper PDF`. The renderer opens the native PDF picker, invokes the Tauri command, reloads the vault, selects the `Paper` type section, and opens the created `paper.md`. PDF display continues through Tolaria's existing file preview path.
+The command palette exposes `Import Paper PDF`. The renderer opens the native PDF picker, invokes the Tauri command, reloads the vault, selects the `Paper` type section, and opens the created `paper.md`. If a parser provider is configured, the renderer also starts parsing after import and reloads the Paper entry when the parser has written the Markdown projection. PDF display continues through Tolaria's existing file preview path.
+
+## Paper Markdown Projection
+
+Paper-as-Note is the primary reading model. `paper.md` is not just metadata plus a PDF pointer; after a successful parse its Markdown body is the human-readable projection of the paper content. The parser owns that projected body and replaces it on successful reparse while preserving frontmatter. The stored Markdown keeps hidden `tolaria:block` comments for block identity, but shared display paths strip those comments before rendering, snippets, or previews so users read the paper rather than the machine anchors. Raw/source mode still shows the anchors because that mode is the filesystem truth.
+
+Each parsed block is written as readable Markdown preceded by a hidden block anchor:
+
+```markdown
+<!-- tolaria:block id="b0001" page="1" kind="paragraph" hash="sha256:..." -->
+Parsed paragraph text.
+```
+
+Headings, paragraphs, figures, tables, equations, and captions render as normal Markdown. Figure blocks with extracted assets render as Markdown images that point at `papers/<paper-slug>/assets/...`; missing figure assets degrade to caption text. Table blocks prefer parser-provided Markdown tables and can normalize simple tabular text into Markdown table syntax. Equation blocks render as `$$` display math after stripping Tolaria's internal math sentinels and applying light LaTeX spacing cleanup. The anchor binds the visible Markdown section to a stable SourceBlock id, page, kind, and hash so citations, annotation counts, comment threads, and future repair tooling can attach to the note without writing user comments into the paper text.
+
+`source.pdf` remains immutable provenance. `blocks.jsonl` remains the machine index for lookup/search/citation validation and must stay consistent with the anchors written into `paper.md`. `annotations.jsonl` remains the user annotation sidecar. Long-form user synthesis is handled by ordinary Tolaria `ResearchNote` notes, not by a Paper-specific marginalia workflow.
 
 ## SourceBlock Sidecar Contract
 
@@ -44,7 +59,7 @@ Phase 2A introduces the stable `blocks.jsonl` substrate without parser integrati
 - `page`: 1-indexed PDF page.
 - `hash`: stable content or structure hash.
 
-Optional fields include `text`, `caption`, `bbox`, `section`, `order`, `source_asset`, `confidence`, and `parser`. Unknown fields are accepted and preserved by the Rust reader so future parser metadata can be added without breaking older app versions.
+Optional fields include `text`, `caption`, `bbox`, `section`, `order`, `source_asset`, `asset_path`, `confidence`, and `parser`. `source_asset` records provenance, usually `source.pdf`; `asset_path` is a bundle-relative renderable asset such as `assets/figure-0001.png`. Unknown fields are accepted and preserved by the Rust reader so future parser metadata can be added without breaking older app versions.
 
 Reader commands:
 
@@ -62,13 +77,13 @@ Phase 4A introduces the parser-provider boundary that can produce `blocks.jsonl`
 - `dev-fixture`: writes a deterministic sample `blocks.jsonl` for local testing and development vaults.
 - `mineru`: resolves a configured API token directly or from an environment variable name, sends `source.pdf` to MinerU through the remote parser flow, and normalizes the returned content list into canonical SourceBlocks.
 
-The common parse result is `PaperParseResult`: `paperId`, `provider`, `parser`, `parserVersion`, `parsedAt`, `paperPath`, `blocksPath`, `blocks`, `assets`, and `warnings`. `parse_paper(vaultPath, paperId, settings)` resolves `papers/<paper-slug>/paper.md`, `source.pdf`, and `blocks.jsonl` through the active-vault boundary. Successful parsing writes normalized SourceBlock JSONL, updates `paper.md` parse metadata (`parse_status`, `parser_provider`, `parser_version`, `parsed_at`), reloads the app index, and never mutates `source.pdf`.
+The common parse result is `PaperParseResult`: `paperId`, `provider`, `parser`, `parserVersion`, `parsedAt`, `paperPath`, `blocksPath`, `blocks`, `assets`, and `warnings`. `parse_paper(vaultPath, paperId, settings)` resolves `papers/<paper-slug>/paper.md`, `source.pdf`, and `blocks.jsonl` through the active-vault boundary. Successful parsing writes normalized SourceBlock JSONL, rewrites the parser-owned `paper.md` body as anchored Markdown, updates `paper.md` parse metadata (`parse_status`, `parser_provider`, `parser_version`, `parsed_at`), reloads the app index, and never mutates `source.pdf`.
 
-Phase 4B implements the MinerU adapter behind that boundary. MinerU parsing uses a remote upload/poll/download flow: Tolaria requests a MinerU upload URL, uploads local `source.pdf` bytes, polls the batch result, downloads `content_list.json` or extracts it from the result ZIP, then normalizes entries into SourceBlocks. Supported normalized kinds are `title`, `heading`, `paragraph`, `figure`, `table`, `equation`, and `caption`; page numbers and bboxes are retained when present, and each block receives a stable `sha256:` hash. The configured MinerU value can be the API token itself or an environment variable name such as `MINERU_API_TOKEN`; it is installation-local and is not written to the vault.
+Phase 4B implements the MinerU adapter behind that boundary. MinerU parsing uses a remote upload/poll/download flow: Tolaria requests a MinerU upload URL, uploads local `source.pdf` bytes, polls the batch result, downloads `content_list.json` or extracts it from the result ZIP, then normalizes entries into SourceBlocks. When MinerU returns a ZIP, Tolaria also extracts image files into `papers/<paper-slug>/assets/` and maps figure SourceBlocks to those files through `asset_path`, so `paper.md` can render real figures as Markdown images. Supported normalized kinds are `title`, `heading`, `paragraph`, `figure`, `table`, `equation`, and `caption`; page numbers and bboxes are retained when present, and each block receives a stable `sha256:` hash. The configured MinerU value can be the API token itself or an environment variable name such as `MINERU_API_TOKEN`; it is installation-local and is not written to the vault.
 
 Parse metadata supports `unparsed`, `parsing`, `parsed`, and `failed`. Failed MinerU parses update `parse_status: failed` and `parse_error` but do not overwrite a previous valid `blocks.jsonl`. Successful reparses may replace `blocks.jsonl`; the result includes a warning when existing blocks were replaced.
 
-The Paper Reader missing-blocks state exposes "Parse Paper" or "Parse with MinerU" depending on the selected provider and explains that the PDF is available while the paper outline required for citations needs parsing first. After parsing succeeds, the Reader reloads SourceBlocks from the sidecar and keeps PDF preview behavior unchanged. If the last parse failed, the Reader shows a recoverable retry state with the provider error detail while preserving any old outline that still loads.
+The Paper Reader missing-blocks state exposes "Parse Paper" or "Parse with MinerU" depending on the selected provider and explains that the PDF is available while parsed paper structure is still needed for citations and comments. After parsing succeeds, the Reader reloads SourceBlocks from the sidecar and keeps PDF preview behavior unchanged. If the last parse failed, the Reader shows a recoverable retry state with the provider error detail while preserving any old parsed content that still loads.
 
 ## Block Citation Syntax
 
@@ -93,13 +108,18 @@ The reader shell displays:
 
 - Paper metadata parsed from `paper.md`.
 - PDF readiness and the existing `FilePreview` view for the resolved source PDF path.
-- Parsed paper-structure state: loading, not parsed, empty, parsed, or error. The backing artifact is still `blocks.jsonl`, but the normal Reader UI presents it as the paper outline instead of exposing the sidecar filename.
+- Parsed paper-structure state: loading, not parsed, empty, parsed, or error. The backing artifact is still `blocks.jsonl`, but the normal Reader UI describes it as parsed paper structure instead of exposing the sidecar filename.
 - Block count and current selected block id.
-- A collapsible Paper outline loaded through the Phase 2A `read_paper_blocks` command.
 
-Phase 4C turns parsed SourceBlocks into the first readable paper view. Titles and headings render as headings, paragraphs render as prose, and figures, tables, equations, and captions get distinct visual treatment while retaining page and section metadata. The outline is derived from titles, headings, and first blocks on each page; clicking an outline item scrolls/focuses that block. The Reader also provides in-paper search across block text, captions, sections, kinds, and ids, with search results focusing the matching block.
+Phase 4C turns parsed SourceBlocks into the first readable paper view. Titles and headings render as headings, paragraphs render as prose, and figures, tables, equations, and captions get distinct visual treatment while retaining page and section metadata. Later Paper-as-Note work removed the standalone outline/search column so the Paper surface behaves more like an ordinary Tolaria note instead of a separate PDF tool.
 
-Block interaction remains intentionally local to the Reader. Selecting a block highlights it, exposes the annotation composer, keeps citation and marginalia actions available, and records a PDF focus request when the block has a page number. The current PDF preview seam does not yet support reliable direct page navigation, so the Reader surfaces the requested block/page as UI state and leaves coordinate overlays for a later phase. Citation navigation consumes the pending `{ paperId, blockId }` request from `src/paper/blockCitationNavigation.ts`, opens the Paper entity, and scrolls/focuses the requested SourceBlock when the sidecar has that id. The copy action uses the canonical Phase 2B formatter to write `@block[paper_id#block_id]` to the clipboard.
+Block interaction remains intentionally local to the Reader. Selecting a block opens the block's comment thread, keeps citation actions available, and records a PDF focus request when the block has a page number. The current PDF preview seam does not yet support reliable direct page navigation, so the Reader surfaces the requested block/page as UI state and leaves coordinate overlays for a later phase. Citation navigation consumes the pending `{ paperId, blockId }` request from `src/paper/blockCitationNavigation.ts`, opens the Paper entity, and focuses the requested SourceBlock when the sidecar has that id. The copy action uses the canonical Phase 2B formatter to write `@block[paper_id#block_id]` to the clipboard.
+
+Phase 4D makes the parsed Paper note the primary reading surface. The Reader prefers anchored sections from `paper.md` and uses `blocks.jsonl` as the supporting index for citation, annotation, repair, and block-focus lookup. SourceBlocks still provide stable anchors, but the central readable prose comes from the Markdown projection whenever anchors are present. A compact gutter shows the count of attached annotations and opens the block comment thread. The thread shows existing comments, questions, highlights, and other block-level annotations, supports edit/delete through the existing annotation helpers, and exposes copy-citation actions. User comments remain `annotations.jsonl` records and are not written into `paper.md` or merged into parsed paper text.
+
+Phase 4E extracts the comment surface into a generic Note Editor seam while keeping Paper as the only consumer. `src/comments/commentProvider.ts` defines the provider contract, `src/components/comments/CommentUI.tsx` owns the reusable gutter/thread/composer UI, and `src/paper/paperCommentProvider.ts` maps Paper annotations into generic comment threads by block anchor.
+
+Phase 4F mounts Paper Markdown through the shared Note surface. `PaperReaderShell` is now a thin Paper wrapper: it owns metadata, parse status, Markdown/PDF mode, source PDF actions, selected block state, and Paper-specific annotation wiring. The Markdown Reading View uses the same `NoteSurface`/`SingleEditorView` path as ordinary notes with editing disabled and the Paper comment provider attached. Reading View switches only between Markdown and PDF. Marginalia-specific modes, panes, commands, templates, append-to-marginalia actions, and the standalone Paper structure column are removed.
 
 The Phase 2C reader does not write `source.pdf`, `paper.md`, or sidecars. Missing and empty parsed-structure artifacts render recoverable states; malformed sidecars render structured line errors from the existing sidecar reader. PDF page-coordinate overlays, parser integration, AI Ask, memory compilation, and graph UI remain out of scope for that phase.
 
@@ -125,34 +145,8 @@ Reader commands:
 
 `save_paper_annotation` creates or updates by id and rewrites `annotations.jsonl` after validating the existing sidecar. `delete_paper_annotation` uses the simplest durable v1 behavior: rewrite the file without the deleted record. `reset_paper_annotations` rewrites only `annotations.jsonl` to an empty sidecar so missing or malformed annotation states can recover without touching `paper.md`, `blocks.jsonl`, or `source.pdf`. All commands stay inside the active-vault boundary and never modify `source.pdf`.
 
-The Paper Reader shows annotation counts on annotated SourceBlocks. Selecting a block exposes a compact annotation composer with all five kinds and all five semantic colors. Existing block-level annotations can edit kind, color, and note text inline; saving rewrites the sidecar record with `updated_at`, and deleting an annotation removes it from the sidecar and refreshes the row markers. Missing and empty annotation sidecars are valid zero-annotation states. Malformed annotation sidecars render recoverable errors with an explicit reset action instead of hiding Paper content.
+The Paper Reader shows annotation counts in the rendered block gutter. Selecting a block or clicking its gutter marker opens a compact thread with a block-level composer for all five kinds and all five semantic colors. Existing block-level annotations can edit kind, color, and note text inline; saving rewrites the sidecar record with `updated_at`, and deleting an annotation removes it from the sidecar and refreshes the gutter markers. Missing and empty annotation sidecars are valid zero-annotation states. Malformed annotation sidecars render recoverable errors with an explicit reset action instead of hiding Paper content.
 
-## Marginalia ResearchNote Workflow
+## Research Notes
 
-Phase 3B connects Paper reading to note writing without adding split-pane editing or a Paper database. The default paper-local note path is:
-
-```text
-papers/<paper-slug>/notes/marginalia.md
-```
-
-The Paper Reader action "Create/Open Marginalia Note" creates that file through the existing note-content command boundary, or opens it when it already exists. The default template is a normal Tolaria Markdown note with `type: ResearchNote` and a vault-relative wikilink back to the Paper:
-
-```yaml
----
-type: ResearchNote
-paper:
-  - "[[papers/<paper-slug>/paper]]"
----
-```
-
-The note body starts with `# Marginalia: <Paper title>` and the sections `Key Claims`, `Questions`, and `Notes`. The Reader also exposes "Add Selected Block to Marginalia"; when a SourceBlock is selected, the action creates the default marginalia note with the canonical `@block[paper_id#block_id]` citation or appends that citation to the existing note. The first implementation appends safely rather than attempting cross-surface cursor insertion.
-
-If a future explicit "Create New Paper Note" action is added, the fallback naming convention is `marginalia-2.md`, `marginalia-3.md`, and so on under the same `papers/<paper-slug>/notes/` directory. The default action must continue to open existing `marginalia.md` rather than duplicating it.
-
-## Paper Reader Marginalia Mode
-
-Phase 3C adds a Paper Reader mode switch without mounting a second full editor instance. Read mode preserves the Phase 2C/3A reader surface: SourceBlock outline plus source PDF preview. Marginalia mode replaces the PDF pane with a paper-local marginalia preview pane while keeping the block outline available for reading and selection.
-
-The marginalia pane reads `papers/<paper-slug>/notes/marginalia.md` through the existing note-content command boundary and reports ready, missing, loading, or error states without creating the file during preview. The pane can create the default marginalia note, open it in the normal editor path, and append the selected block citation; after append it refreshes the displayed note content in place. This intentionally avoids cross-surface cursor insertion and avoids mounting two rich editors until the main editor architecture explicitly supports that safely.
-
-The split layout stacks on narrow widths and uses a two-pane grid on wide screens. Selected SourceBlock state is shared across Read and Marginalia modes so a block chosen while reading remains selected when adding a citation to the marginalia note.
+Paper no longer owns a special Marginalia workflow. Users can create ordinary `ResearchNote` notes anywhere in the vault and use durable `@block[paper_id#block_id]` citations to refer back to Paper blocks. This keeps long-form synthesis inside Tolaria's normal note model while leaving Paper comments and highlights in `annotations.jsonl`.

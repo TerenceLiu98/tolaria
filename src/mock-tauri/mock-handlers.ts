@@ -22,11 +22,13 @@ import {
   sampleSourceBlocksJsonl,
   searchSourceBlocks,
 } from '../paper/sourceBlocks'
+import { paperMarkdownFromSourceBlocks } from '../paper/paperMarkdown'
 import {
   parsePaperAnnotationsJsonl,
   validatePaperAnnotation,
   type PaperAnnotation,
 } from '../paper/paperAnnotations'
+import type { PaperPdfOutlineItem } from '../paper/paperReaderBlocks'
 
 function syncWindowContent(): void {
   if (typeof window !== 'undefined') {
@@ -361,6 +363,16 @@ function mockPaperAnnotationsPath(args: { vaultPath?: string; vault_path?: strin
   }
 }
 
+function mockPaperPdfOutlinePath(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const vaultPath = args.vaultPath ?? args.vault_path ?? mockLastVaultPath ?? DEFAULT_MOCK_VAULT_PATH
+  const paperId = args.paperId ?? args.paper_id ?? ''
+  return {
+    paperId,
+    path: `${vaultPath}/papers/${paperId}/source.pdf`,
+    fixturePath: `${vaultPath}/papers/${paperId}/source.pdf.outline.json`,
+  }
+}
+
 function structuredMockBlocksError({
   lineErrors,
   paperId,
@@ -482,6 +494,22 @@ function updateMockPaperParseMetadata(path: string, provider: string, parsedAt: 
   writeMockContent({ path, content: nextContent })
 }
 
+function updateMockPaperMarkdownBody(path: string, markdownBody: string): void {
+  const content = Reflect.get(MOCK_CONTENT, path)
+  if (typeof content !== 'string') return
+  const normalized = content.replace(/\r\n/g, '\n')
+  const bodyStart = normalized.startsWith('---\n')
+    ? (() => {
+        const closeIndex = normalized.slice(4).search(/\n---(?:\n|$)/u)
+        return closeIndex < 0 ? -1 : 4 + closeIndex + 4
+      })()
+    : -1
+  const nextContent = bodyStart >= 0
+    ? `${normalized.slice(0, bodyStart)}${markdownBody.endsWith('\n') ? markdownBody : `${markdownBody}\n`}`
+    : markdownBody
+  writeMockContent({ path, content: nextContent })
+}
+
 function mockParseError({
   kind,
   message,
@@ -544,10 +572,11 @@ function handleParsePaper(args: {
   writeMockContent({ path: blocksPath, content })
   mockSavedSinceCommit.add(blocksPath)
   const parserVersion = provider === 'mineru' ? 'mineru-api-v4' : 'fixture-v1'
+  const parsed = parseSourceBlocksJsonl(content)
+  updateMockPaperMarkdownBody(paperPath, paperMarkdownFromSourceBlocks(parsed.blocks))
   updateMockPaperParseMetadata(paperPath, provider, parsedAt, parserVersion)
   mockSavedSinceCommit.add(paperPath)
   syncWindowContent()
-  const parsed = parseSourceBlocksJsonl(content)
   return {
     assets: [],
     blocks: parsed.blocks,
@@ -572,6 +601,29 @@ function readMockPaperAnnotations(args: { vaultPath?: string; vault_path?: strin
   const parsed = parsePaperAnnotationsJsonl(content, paperId)
   if (parsed.errors.length > 0) throw structuredMockAnnotationsError({ lineErrors: parsed.errors, paperId, path })
   return { paperId, path, state: parsed.state, annotations: parsed.annotations }
+}
+
+function handleReadPaperPdfOutline(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const { fixturePath, paperId, path } = mockPaperPdfOutlinePath(args)
+  const fixture = MOCK_CONTENT[fixturePath]
+  if (typeof fixture !== 'string') {
+    return {
+      items: [],
+      message: 'PDF outline extraction is not available in the browser mock.',
+      paperId,
+      path,
+      state: 'unavailable' as const,
+    }
+  }
+
+  const parsed = JSON.parse(fixture) as PaperPdfOutlineItem[]
+  return {
+    items: parsed,
+    message: null,
+    paperId,
+    path,
+    state: parsed.length > 0 ? 'ready' as const : 'empty' as const,
+  }
 }
 
 function writeMockPaperAnnotations({
@@ -902,6 +954,7 @@ export const mockHandlers: Record<string, (args: any) => any> = {
   read_paper_blocks: handleReadPaperBlocks,
   read_paper_block: handleReadPaperBlock,
   search_paper_blocks: handleSearchPaperBlocks,
+  read_paper_pdf_outline: handleReadPaperPdfOutline,
   read_paper_annotations: handleReadPaperAnnotations,
   save_paper_annotation: handleSavePaperAnnotation,
   delete_paper_annotation: handleDeletePaperAnnotation,
