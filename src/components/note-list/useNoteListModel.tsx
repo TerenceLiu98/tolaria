@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from 'react'
+import { useEffect, useMemo, useCallback, useState } from 'react'
 import type {
   VaultEntry,
   SidebarSelection,
@@ -36,6 +36,7 @@ import { useNoteListContextMenu } from './NoteListContextMenu'
 import { addNoteListSearchToggleListener, dispatchNoteListSearchAvailability } from '../../utils/noteListSearchEvents'
 import { useDateDisplayFormat } from '../../hooks/useAppPreferences'
 import { isPaperTypeName } from '../../paper/constants'
+import { buildPaperCatalog, filterPaperCatalog, sortPaperCatalog, type PaperCatalogFilters } from '../../paper/catalog'
 
 type EntitySelection = Extract<SidebarSelection, { kind: 'entity' }>
 const LIKELY_NEXT_PRELOAD_LIMIT = 6
@@ -296,8 +297,35 @@ function useNoteListContent({
     displayPropsOverride,
     dateDisplayFormat,
   })
-  useVisibleNotesSync({ visibleNotesRef, isEntityView, entityEntry, searched, searchedGroups })
-  useLikelyNextPreload(searched, selectedNotePath)
+  const isPaperCatalogView = selection.kind === 'sectionGroup' && isPaperTypeName(selection.type)
+  const [paperCatalogFilters, setPaperCatalogFilters] = useState<PaperCatalogFilters>({})
+  const paperCatalogEntries = useMemo(
+    () => isPaperCatalogView ? buildPaperCatalog(sortedEntries) : [],
+    [isPaperCatalogView, sortedEntries],
+  )
+  const filteredPaperCatalogEntries = useMemo(
+    () => sortPaperCatalog(filterPaperCatalog(paperCatalogEntries, paperCatalogFilters), 'year', 'desc'),
+    [paperCatalogEntries, paperCatalogFilters],
+  )
+  const filteredPaperCatalogPaths = useMemo(
+    () => new Set(filteredPaperCatalogEntries.map(entry => entry.path)),
+    [filteredPaperCatalogEntries],
+  )
+  const catalogSearched = useMemo(
+    () => isPaperCatalogView ? searched.filter(entry => filteredPaperCatalogPaths.has(entry.path)) : searched,
+    [filteredPaperCatalogPaths, isPaperCatalogView, searched],
+  )
+  const paperCatalogControls = isPaperCatalogView
+    ? {
+        entries: paperCatalogEntries,
+        filteredCount: catalogSearched.length,
+        filters: paperCatalogFilters,
+        onFiltersChange: setPaperCatalogFilters,
+      }
+    : null
+
+  useVisibleNotesSync({ visibleNotesRef, isEntityView, entityEntry, searched: catalogSearched, searchedGroups })
+  useLikelyNextPreload(catalogSearched, selectedNotePath)
 
   return {
     customProperties,
@@ -314,7 +342,7 @@ function useNoteListContent({
     search,
     searchInputRef,
     searchVisible,
-    searched,
+    searched: catalogSearched,
     searchedGroups,
     closeSearch,
     setSearch,
@@ -322,6 +350,7 @@ function useNoteListContent({
     toggleSearch,
     typeDocument,
     typeEntryMap,
+    paperCatalogControls,
   }
 }
 
@@ -659,6 +688,7 @@ function buildNoteListLayoutModel(params: {
     isInboxView: params.selection.kind === 'filter' && params.selection.filter === 'inbox',
     modifiedFilesError: params.modifiedFilesError,
     searched: params.content.searched,
+    paperCatalogControls: params.content.paperCatalogControls,
     query: params.content.query,
     showFilterPills: params.selection.kind === 'sectionGroup' || params.selection.kind === 'folder',
     noteListFilter: params.noteListFilter,

@@ -119,6 +119,51 @@ describe('paperMarkdown', () => {
     expect(markdown).toContain('*Figure 1. Model overview*')
   })
 
+  it('formats table SourceBlocks with bundle image assets as Markdown images', () => {
+    const markdown = paperMarkdownFromSourceBlocks([{
+      asset_path: 'assets/table-0001.jpg',
+      caption: 'Table 1. Accuracy',
+      hash: 'sha256:table',
+      id: 'b0005',
+      kind: 'table',
+      page: 5,
+      paper_id: 'attention',
+      text: '| Method | Score |',
+    }])
+
+    expect(markdown).toContain('![Table 1. Accuracy](assets/table-0001.jpg)')
+    expect(markdown).toContain('*Table 1. Accuracy*')
+    expect(markdown).toContain('| Method | Score |')
+  })
+
+  it('formats image-only table SourceBlocks with a clean fallback alt label', () => {
+    const markdown = paperMarkdownFromSourceBlocks([{
+      asset_path: 'assets/table-only.jpg',
+      hash: 'sha256:table-only',
+      id: 'b0006',
+      kind: 'table',
+      page: 6,
+      paper_id: 'attention',
+    }])
+
+    expect(markdown).toContain('![Table](assets/table-only.jpg)')
+    expect(markdown).not.toContain('\n\ntable')
+  })
+
+  it('formats MinerU chart SourceBlocks with bundle image assets as Markdown images', () => {
+    const markdown = paperMarkdownFromSourceBlocks([{
+      asset_path: 'assets/chart-0001.jpg',
+      hash: 'sha256:chart',
+      id: 'b0007',
+      kind: 'chart',
+      page: 7,
+      paper_id: 'attention',
+    }])
+
+    expect(markdown).toContain('![Figure](assets/chart-0001.jpg)')
+    expect(markdown).not.toContain('\n\nchart')
+  })
+
   it('strips hidden block anchors for the shared Note surface', () => {
     expect(stripPaperBlockAnchors(paperMarkdown)).toBe(`---
 type: Paper

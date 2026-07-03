@@ -17,11 +17,49 @@ beforeEach(async () => {
   await seedVault(firstVault, {
     'note/shared.md': noteFixture('Shared Note', 'Shared content from the first vault.'),
     'note/alpha.md': noteFixture('Alpha Project', 'Project planning in the first vault.'),
+    'papers/kan-autoencoders/paper.md': paperFixture({
+      paperId: 'kan-autoencoders',
+      title: 'Kolmogorov-Arnold Network Autoencoders',
+      authors: ['Mohammadamin Moradi', 'Shirin Panahi'],
+      year: 2026,
+      venue: 'AAAI',
+      body: '# Kolmogorov-Arnold Network Autoencoders\n\n@block[kan-autoencoders#b0002]\n',
+    }),
+    'papers/kan-autoencoders/blocks.jsonl': blocksFixture('kan-autoencoders', [
+      { id: 'b0001', kind: 'title', page: 1, text: 'Kolmogorov-Arnold Network Autoencoders' },
+      { id: 'b0002', kind: 'paragraph', page: 2, text: 'KAN autoencoders sparsify latent representations for reconstruction.' },
+      { id: 'b0003', kind: 'heading', page: 3, text: 'Experiments' },
+    ]),
+    'papers/kan-autoencoders/metadata.json': JSON.stringify({
+      paperId: 'kan-autoencoders',
+      status: 'ready',
+      confidence: 0.91,
+      title: 'Kolmogorov-Arnold Network Autoencoders',
+      authors: ['Mohammadamin Moradi', 'Shirin Panahi'],
+      year: 2026,
+      venue: 'AAAI',
+      venueType: 'conference',
+      sources: [],
+      candidates: [],
+      errors: [],
+    }),
+    'papers/kan-autoencoders/source.pdf': 'fixture pdf',
   })
   await seedVault(secondVault, {
     'AGENTS.md': '# Second Vault Rules\n',
     'note/shared.md': noteFixture('Shared Note', 'Shared content from the second vault.'),
     'note/beta.md': noteFixture('Beta Project', 'Project planning in the second vault.'),
+    'papers/kan-autoencoders/paper.md': paperFixture({
+      paperId: 'kan-autoencoders',
+      title: 'Kolmogorov-Arnold Network Autoencoders Draft',
+      authors: ['Draft Author'],
+      year: 2025,
+      venue: 'arXiv',
+      body: '# Kolmogorov-Arnold Network Autoencoders Draft\n',
+    }),
+    'papers/kan-autoencoders/blocks.jsonl': blocksFixture('kan-autoencoders', [
+      { id: 'b0001', kind: 'title', page: 1, text: 'Kolmogorov-Arnold Network Autoencoders Draft' },
+    ]),
   })
 })
 
@@ -91,6 +129,86 @@ describe('createMcpToolService', () => {
     )
   })
 
+  it('searches Paper metadata across active vaults with compact provenance', async () => {
+    const service = makeService()
+
+    const listed = await service.listPapers({ vaultPath: firstVault })
+    const results = await service.searchPapers({ query: 'autoencoders' })
+
+    assert.equal(listed.length, 1)
+    assert.equal(listed[0].wikilink, '[[Kolmogorov-Arnold Network Autoencoders]]')
+    assert.equal(listed[0].metadata, undefined)
+    assert.equal(results.length, 2)
+    assert.deepEqual(
+      results.map(({ paperId, title, vaultLabel, wikilink }) => ({ paperId, title, vaultLabel, wikilink })),
+      [
+        {
+          paperId: 'kan-autoencoders',
+          title: 'Kolmogorov-Arnold Network Autoencoders',
+          vaultLabel: 'First Vault',
+          wikilink: '[[Kolmogorov-Arnold Network Autoencoders]]',
+        },
+        {
+          paperId: 'kan-autoencoders',
+          title: 'Kolmogorov-Arnold Network Autoencoders Draft',
+          vaultLabel: 'Second Vault',
+          wikilink: '[[Kolmogorov-Arnold Network Autoencoders Draft]]',
+        },
+      ],
+    )
+    assert.equal(results[0].metadata, undefined)
+  })
+
+  it('requires vaultPath when a Paper id is ambiguous across active vaults', async () => {
+    const service = makeService()
+
+    await assert.rejects(
+      () => service.readPaperMetadata({ paperId: 'kan-autoencoders' }),
+      /Paper identifier is ambiguous across active vaults/,
+    )
+
+    const result = await service.readPaperMetadata({ paperId: 'kan-autoencoders', vaultPath: firstVault })
+
+    assert.equal(result.paperId, 'kan-autoencoders')
+    assert.equal(result.vaultPath, firstVault)
+    assert.equal(result.metadata.status, 'ready')
+  })
+
+  it('reads Paper outlines and exact blocks with block citations', async () => {
+    const service = makeService()
+
+    const outline = await service.readPaperOutline({ paperId: 'kan-autoencoders', vaultPath: firstVault })
+    const blocks = await service.readPaperBlocks({
+      paperId: 'kan-autoencoders',
+      blockIds: ['b0002'],
+      vaultPath: firstVault,
+    })
+    const citation = await service.getBlockCitation({
+      paperId: 'kan-autoencoders',
+      blockId: 'b0002',
+      vaultPath: firstVault,
+    })
+
+    assert.deepEqual(outline.outline.map(item => item.blockId), ['b0001', 'b0003'])
+    assert.equal(blocks.blocks.length, 1)
+    assert.equal(blocks.blocks[0].blockCitation, '@block[kan-autoencoders#b0002]')
+    assert.match(blocks.blocks[0].text, /sparsify latent/)
+    assert.equal(citation.blockCitation, '@block[kan-autoencoders#b0002]')
+    assert.equal(citation.page, 2)
+  })
+
+  it('searches Paper blocks without dumping full papers', async () => {
+    const service = makeService()
+
+    const result = await service.searchPaperBlocks({ query: 'latent', vaultPath: firstVault })
+
+    assert.equal(result.results.length, 1)
+    assert.equal(result.results[0].paperId, 'kan-autoencoders')
+    assert.equal(result.results[0].blockId, 'b0002')
+    assert.match(result.results[0].snippet, /latent representations/)
+    assert.equal(result.results[0].text.includes('\n'), false)
+  })
+
   it('lists active vaults with agent-instruction metadata', async () => {
     const service = makeService()
 
@@ -153,4 +271,32 @@ async function seedVault(vaultPath, files) {
 
 function noteFixture(title, body) {
   return `---\ntitle: ${JSON.stringify(title)}\ntype: Note\n---\n\n# ${title}\n\n${body}\n`
+}
+
+function paperFixture({ paperId, title, authors, year, venue, body }) {
+  return [
+    '---',
+    'type: Paper',
+    `title: ${JSON.stringify(title)}`,
+    `paper_id: ${JSON.stringify(paperId)}`,
+    'source_pdf: source.pdf',
+    'blocks: blocks.jsonl',
+    'annotations: annotations.jsonl',
+    'parse_status: parsed',
+    'metadata_status: ready',
+    `authors: [${authors.map(author => JSON.stringify(author)).join(', ')}]`,
+    `year: ${year}`,
+    `venue: ${JSON.stringify(venue)}`,
+    '---',
+    '',
+    body,
+  ].join('\n')
+}
+
+function blocksFixture(paperId, blocks) {
+  return blocks.map(block => JSON.stringify({
+    paper_id: paperId,
+    hash: `sha256:${block.id}`,
+    ...block,
+  })).join('\n') + '\n'
 }

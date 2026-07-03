@@ -245,6 +245,53 @@ describe('NoteList rendering', () => {
     expect(onCreateNote).not.toHaveBeenCalled()
   })
 
+  it('shows Paper catalog controls and filters Paper rows by bibliographic metadata', () => {
+    const entries = [
+      makeTypeDefinition('Paper'),
+      makeEntry({
+        path: '/vault/papers/attention/paper.md',
+        title: 'Attention Is All You Need',
+        isA: 'Paper',
+        snippet: 'Transformer body text should not be needed for catalog search.',
+        properties: {
+          paper_id: 'attention',
+          authors: ['Ashish Vaswani'],
+          year: 2017,
+          venue_short: 'NeurIPS',
+          venue_type: 'conference',
+          metadata_status: 'ready',
+          parse_status: 'parsed',
+          source_pdf: 'source.pdf',
+        },
+      }),
+      makeEntry({
+        path: '/vault/papers/cobol/paper.md',
+        title: 'The Education of a Computer',
+        isA: 'Paper',
+        snippet: 'A generic body snippet.',
+        properties: {
+          paper_id: 'cobol',
+          authors: ['Grace Hopper'],
+          year: 1952,
+          venue_short: 'CACM',
+          venue_type: 'journal',
+          metadata_status: 'needs_review',
+          parse_status: 'parsed',
+          source_pdf: 'source.pdf',
+        },
+      }),
+    ]
+
+    renderNoteList({ entries, selection: { kind: 'sectionGroup', type: 'Paper' } })
+
+    expect(screen.getByTestId('paper-catalog-controls')).toHaveTextContent('2 of 2 papers')
+    fireEvent.change(screen.getByTestId('paper-catalog-search'), { target: { value: 'hopper' } })
+
+    expect(screen.getByTestId('paper-catalog-controls')).toHaveTextContent('1 of 2 papers')
+    expect(screen.getByText('The Education of a Computer')).toBeInTheDocument()
+    expect(screen.queryByText('Attention Is All You Need')).not.toBeInTheDocument()
+  })
+
   it('creates an untyped note from all notes', () => {
     const { onCreateNote } = renderNoteList()
     fireEvent.click(screen.getByTitle('Create new note'))

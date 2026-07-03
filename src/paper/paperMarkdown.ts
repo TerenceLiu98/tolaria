@@ -36,7 +36,7 @@ function normalizedBlockKind(block: SourceBlock): string {
   const kind = block.kind.trim().toLowerCase()
   if (kind === 'title') return 'title'
   if (kind === 'heading' || kind === 'header') return 'heading'
-  if (kind === 'figure' || kind === 'image') return 'figure'
+  if (kind === 'figure' || kind === 'image' || kind === 'chart' || kind === 'diagram') return 'figure'
   if (kind === 'table') return 'table'
   if (kind === 'equation' || kind === 'formula' || kind === 'interline_equation' || kind === 'inline_equation') {
     return 'equation'
@@ -52,6 +52,18 @@ function blockText(block: SourceBlock): string {
       ? block.caption.trim()
       : block.kind
   return text
+}
+
+function meaningfulAssetAlt(text: string, fallbackKind: string): string {
+  const trimmed = text.trim()
+  if (
+    trimmed.length === 0
+    || trimmed.toLowerCase() === fallbackKind
+    || trimmed === 'paragraph'
+    || trimmed === 'chart'
+    || trimmed === 'diagram'
+  ) return ''
+  return trimmed
 }
 
 function decodeMathTokenPayload(encoded: string): string {
@@ -168,15 +180,30 @@ function sourceBlockMarkdown(block: SourceBlock): string {
   if (kind === 'figure') {
     const caption = typeof block.caption === 'string' ? block.caption.trim() : ''
     if (typeof block.asset_path === 'string' && block.asset_path.trim().length > 0) {
-      const alt = caption || text || 'Figure'
+      const alt = caption || meaningfulAssetAlt(text, 'figure') || 'Figure'
       const image = `![${alt.replace(/\[/gu, '\\[').replace(/\]/gu, '\\]')}](${block.asset_path.trim()})`
       return caption ? `${image}\n\n*${caption}*` : image
     }
     return caption.length > 0 && caption !== text ? `${text}\n\n*${caption}*` : text
   }
-  if (kind === 'table' && typeof block.caption === 'string') {
-    const caption = block.caption.trim()
+  if (kind === 'table') {
+    const caption = typeof block.caption === 'string' ? block.caption.trim() : ''
+    if (typeof block.asset_path === 'string' && block.asset_path.trim().length > 0) {
+      const alt = caption || (text !== 'table' ? text : '') || 'Table'
+      const image = `![${alt.replace(/\[/gu, '\\[').replace(/\]/gu, '\\]')}](${block.asset_path.trim()})`
+      const parts = [image]
+      if (caption.length > 0) parts.push(`*${caption}*`)
+      if (text.length > 0 && text !== 'table' && (caption.length === 0 || !text.includes(caption))) {
+        parts.push(text)
+      }
+      return parts.join('\n\n')
+    }
     return caption.length > 0 && caption !== text ? `${text}\n\n*${caption}*` : text
+  }
+  if (typeof block.asset_path === 'string' && block.asset_path.trim().length > 0) {
+    const alt = meaningfulAssetAlt(text, block.kind) || 'Figure'
+    const image = `![${alt.replace(/\[/gu, '\\[').replace(/\]/gu, '\\]')}](${block.asset_path.trim()})`
+    return image
   }
   return text
 }

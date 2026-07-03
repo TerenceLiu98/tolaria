@@ -6,6 +6,7 @@ import {
   normalizeMetadataConfidence,
   paperMetadataStatusLabel,
   readPaperMetadata,
+  refreshPaperMetadata,
 } from './metadata'
 
 const vaultPath = '/vault'
@@ -65,6 +66,30 @@ describe('paper metadata helpers', () => {
     expect(applied.status).toBe('ready')
     expect(applied.candidates).toHaveLength(0)
     expect(MOCK_CONTENT[paperPath]).toContain('metadata_status: "ready"')
+  })
+
+  it('refreshes metadata from user-edited paper frontmatter', async () => {
+    MOCK_CONTENT[paperPath] = [
+      '---',
+      'type: Paper',
+      `paper_id: ${paperId}`,
+      'source_pdf: source.pdf',
+      'title: "Corrected KAN Paper"',
+      'authors:',
+      '  - "Correct Author"',
+      'doi: "10.9999/corrected"',
+      '---',
+      '# Old Parsed Title',
+      'Abstract',
+      'Body still mentions DOI: 10.1111/stale',
+    ].join('\n')
+
+    const metadata = await refreshPaperMetadata(vaultPath, paperId)
+
+    expect(metadata.title).toBe('Corrected KAN Paper')
+    expect(metadata.authors).toEqual(['Correct Author'])
+    expect(metadata.doi).toBe('10.9999/corrected')
+    expect(MOCK_CONTENT[metadataPath]).toContain('"doi": "10.9999/corrected"')
   })
 
   it('formats status labels and clamps confidence', () => {

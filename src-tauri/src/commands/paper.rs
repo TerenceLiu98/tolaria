@@ -7,8 +7,9 @@ use crate::commands::expand_tilde;
 use crate::paper::{
     self, ImportPaperPdfResult, PaperAnnotation, PaperAnnotationsError, PaperAnnotationsReadResult,
     PaperBlockLookupResult, PaperBlockSearchResult, PaperBlocksError, PaperBlocksReadResult,
-    PaperMetadata, PaperMetadataErrorResult, PaperMetadataReadResult, PaperParseError,
-    PaperParseResult, PaperParserProvider, PaperParserSettings, PaperPdfOutlineReadResult,
+    PaperCatalogEntry, PaperMetadata, PaperMetadataErrorResult, PaperMetadataReadResult,
+    PaperParseError, PaperParseResult, PaperParserProvider, PaperParserSettings,
+    PaperPdfOutlineReadResult,
 };
 
 #[tauri::command]
@@ -212,6 +213,66 @@ pub async fn save_paper_metadata(
         paper_id: error_paper_id,
         path: String::new(),
     })?
+}
+
+#[tauri::command]
+pub async fn list_paper_catalog(vault_path: PathBuf) -> Result<Vec<PaperCatalogEntry>, String> {
+    tokio::task::spawn_blocking(move || {
+        let expanded_vault_path = expand_tilde(vault_path.to_string_lossy().as_ref()).into_owned();
+        let boundary = VaultBoundary::from_request(Some(&expanded_vault_path))?;
+        paper::list_paper_catalog_file(boundary.requested_root())
+    })
+    .await
+    .map_err(|error| format!("Task panicked: {error}"))?
+}
+
+#[tauri::command]
+pub async fn search_paper_catalog(
+    vault_path: PathBuf,
+    query: String,
+) -> Result<Vec<PaperCatalogEntry>, String> {
+    tokio::task::spawn_blocking(move || {
+        let expanded_vault_path = expand_tilde(vault_path.to_string_lossy().as_ref()).into_owned();
+        let boundary = VaultBoundary::from_request(Some(&expanded_vault_path))?;
+        paper::search_paper_catalog_file(boundary.requested_root(), &query)
+    })
+    .await
+    .map_err(|error| format!("Task panicked: {error}"))?
+}
+
+#[tauri::command]
+pub async fn find_paper_duplicates(vault_path: PathBuf) -> Result<Vec<PaperCatalogEntry>, String> {
+    tokio::task::spawn_blocking(move || {
+        let expanded_vault_path = expand_tilde(vault_path.to_string_lossy().as_ref()).into_owned();
+        let boundary = VaultBoundary::from_request(Some(&expanded_vault_path))?;
+        paper::find_paper_duplicates_file(boundary.requested_root())
+    })
+    .await
+    .map_err(|error| format!("Task panicked: {error}"))?
+}
+
+#[tauri::command]
+pub async fn refresh_paper_catalog(vault_path: PathBuf) -> Result<Vec<PaperCatalogEntry>, String> {
+    list_paper_catalog(vault_path).await
+}
+
+#[tauri::command]
+pub async fn mark_paper_duplicate_decision(
+    vault_path: PathBuf,
+    decision_id: String,
+    dismissed: bool,
+) -> Result<Vec<PaperCatalogEntry>, String> {
+    tokio::task::spawn_blocking(move || {
+        let expanded_vault_path = expand_tilde(vault_path.to_string_lossy().as_ref()).into_owned();
+        let boundary = VaultBoundary::from_request(Some(&expanded_vault_path))?;
+        paper::mark_paper_duplicate_decision_file(
+            boundary.requested_root(),
+            &decision_id,
+            dismissed,
+        )
+    })
+    .await
+    .map_err(|error| format!("Task panicked: {error}"))?
 }
 
 #[tauri::command]

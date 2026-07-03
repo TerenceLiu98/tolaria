@@ -223,7 +223,53 @@ pub fn refresh_paper_metadata_file(
     source_pdf_path: &Path,
     metadata_path: &Path,
 ) -> Result<PaperMetadata, PaperMetadataErrorResult> {
-    extract_paper_metadata_file(paper_id, paper_path, source_pdf_path, metadata_path)
+    let paper_content = fs::read_to_string(paper_path)
+        .map_err(|error| metadata_error(paper_id, paper_path, "read_failed", error))?;
+    let pdf_metadata = extract_pdf_document_metadata(source_pdf_path);
+    let markdown_metadata = extract_markdown_metadata(&paper_content);
+    let frontmatter_metadata = extract_frontmatter_metadata(&paper_content);
+    let mut sources = Vec::new();
+    let mut errors = Vec::new();
+    let mut local_query = PaperMetadataValues::default();
+
+    match pdf_metadata {
+        Ok(source) => {
+            local_query = merge_values(local_query, source.metadata.clone());
+            sources.push(source);
+        }
+        Err(error) => errors.push(error),
+    }
+
+    local_query = merge_values(local_query, markdown_metadata.clone());
+    sources.push(PaperMetadataSource {
+        provider: "parsed_markdown".to_string(),
+        identifier: None,
+        confidence: markdown_metadata_confidence(&markdown_metadata),
+        matched_by: "paper_md_heuristic".to_string(),
+        metadata: markdown_metadata,
+    });
+
+    if metadata_has_user_visible_values(&frontmatter_metadata) {
+        local_query = merge_values(local_query, frontmatter_metadata.clone());
+        sources.push(PaperMetadataSource {
+            provider: "paper_frontmatter".to_string(),
+            identifier: None,
+            confidence: frontmatter_metadata_confidence(&frontmatter_metadata),
+            matched_by: "user_visible_properties".to_string(),
+            metadata: frontmatter_metadata.clone(),
+        });
+    }
+
+    let provider_query = refresh_provider_query(&local_query, &frontmatter_metadata);
+    match resolve_openalex_metadata(&provider_query) {
+        Ok(openalex_sources) => sources.extend(openalex_sources),
+        Err(error) => errors.push(error),
+    }
+
+    let metadata = merge_refresh_metadata_sources(paper_id, sources, errors);
+    write_paper_metadata_file(metadata_path, &metadata)?;
+    sync_paper_metadata_frontmatter(paper_path, &metadata)?;
+    Ok(metadata)
 }
 
 pub fn apply_paper_metadata_candidate_file(
@@ -415,8 +461,8 @@ pub fn normalize_openalex_work(value: &Value) -> Option<PaperMetadataValues> {
             .get("publication_year")
             .and_then(Value::as_i64)
             .and_then(|year| i32::try_from(year).ok()),
+        venue_short: openalex_venue_short(venue.as_deref()),
         venue,
-        venue_short: None,
         venue_type: source_type
             .map(classify_openalex_source_type)
             .or_else(|| work_type.map(classify_openalex_work_type))
@@ -425,7 +471,7 @@ pub fn normalize_openalex_work(value: &Value) -> Option<PaperMetadataValues> {
             .get("publication_date")
             .and_then(Value::as_str)
             .map(clean_string),
-        publication_stage: Some(PaperPublicationStage::Published),
+        publication_stage: Some(classify_openalex_publication_stage(source_type, work_type)),
         doi,
         arxiv_id: extract_openalex_arxiv_id(value),
         abstract_text: openalex_abstract(value),
@@ -514,8 +560,9 @@ fn openalex_doi_url(doi: &str) -> String {
 fn openalex_title_search_url(title: &str) -> String {
     let mut url = reqwest::Url::parse(&format!("{OPENALEX_API_BASE}/works"))
         .expect("OpenAlex base URL must be valid");
+    let quoted_title = format!("\"{title}\"");
     url.query_pairs_mut()
-        .append_pair("search", title)
+        .append_pair("search.semantic", &quoted_title)
         .append_pair("per-page", "3")
         .append_pair("select", OPENALEX_WORK_SELECT_FIELDS);
     if let Ok(api_key) = std::env::var("OPENALEX_API_KEY") {
@@ -894,6 +941,65 @@ fn extract_markdown_metadata(content: &str) -> PaperMetadataValues {
     }
 }
 
+fn extract_frontmatter_metadata(content: &str) -> PaperMetadataValues {
+    let Some(block) = frontmatter_yaml_block(content) else {
+        return PaperMetadataValues::default();
+    };
+    let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(block) else {
+        return extract_frontmatter_metadata_from_lines(block);
+    };
+    let Some(mapping) = value.as_mapping() else {
+        return extract_frontmatter_metadata_from_lines(block);
+    };
+
+    PaperMetadataValues {
+        title: yaml_string(mapping, "title"),
+        authors: yaml_string_vec(mapping, "authors"),
+        year: yaml_i32(mapping, "year"),
+        venue: yaml_string(mapping, "venue"),
+        venue_short: yaml_string(mapping, "venue_short"),
+        venue_type: yaml_string(mapping, "venue_type").and_then(|value| parse_venue_type(&value)),
+        publication_date: yaml_string(mapping, "publication_date"),
+        publication_stage: yaml_string(mapping, "publication_stage")
+            .and_then(|value| parse_publication_stage(&value)),
+        doi: yaml_string(mapping, "doi").map(|value| normalize_doi(&value)),
+        arxiv_id: yaml_string(mapping, "arxiv_id")
+            .or_else(|| yaml_string(mapping, "arxiv"))
+            .map(|value| {
+                extract_arxiv_id(&value)
+                    .unwrap_or_else(|| value.trim().trim_start_matches("arXiv:").to_string())
+            }),
+        abstract_text: yaml_string(mapping, "abstract"),
+    }
+}
+
+fn extract_frontmatter_metadata_from_lines(block: &str) -> PaperMetadataValues {
+    PaperMetadataValues {
+        title: frontmatter_line_scalar(block, "title"),
+        authors: frontmatter_line_list(block, "authors").unwrap_or_else(|| {
+            frontmatter_line_scalar(block, "authors")
+                .map(|value| split_authors(&value))
+                .unwrap_or_default()
+        }),
+        year: frontmatter_line_scalar(block, "year").and_then(|value| value.parse::<i32>().ok()),
+        venue: frontmatter_line_scalar(block, "venue"),
+        venue_short: frontmatter_line_scalar(block, "venue_short"),
+        venue_type: frontmatter_line_scalar(block, "venue_type")
+            .and_then(|value| parse_venue_type(&value)),
+        publication_date: frontmatter_line_scalar(block, "publication_date"),
+        publication_stage: frontmatter_line_scalar(block, "publication_stage")
+            .and_then(|value| parse_publication_stage(&value)),
+        doi: frontmatter_line_scalar(block, "doi").map(|value| normalize_doi(&value)),
+        arxiv_id: frontmatter_line_scalar(block, "arxiv_id")
+            .or_else(|| frontmatter_line_scalar(block, "arxiv"))
+            .map(|value| {
+                extract_arxiv_id(&value)
+                    .unwrap_or_else(|| value.trim().trim_start_matches("arXiv:").to_string())
+            }),
+        abstract_text: frontmatter_line_scalar(block, "abstract"),
+    }
+}
+
 fn markdown_metadata_confidence(values: &PaperMetadataValues) -> f64 {
     let mut confidence: f64 = 0.25;
     if values.title.is_some() {
@@ -906,6 +1012,159 @@ fn markdown_metadata_confidence(values: &PaperMetadataValues) -> f64 {
         confidence += 0.2;
     }
     confidence.min(0.85)
+}
+
+fn frontmatter_metadata_confidence(values: &PaperMetadataValues) -> f64 {
+    let mut confidence: f64 = 0.0;
+    if values.title.is_some() {
+        confidence += 0.38;
+    }
+    if !values.authors.is_empty() {
+        confidence += 0.18;
+    }
+    if values.year.is_some() {
+        confidence += 0.07;
+    }
+    if values.venue.is_some() || values.venue_short.is_some() || values.venue_type.is_some() {
+        confidence += 0.07;
+    }
+    if values.doi.is_some() || values.arxiv_id.is_some() {
+        confidence += 0.25;
+    }
+    if values.publication_date.is_some() || values.publication_stage.is_some() {
+        confidence += 0.03;
+    }
+    confidence.min(0.96)
+}
+
+fn metadata_has_user_visible_values(values: &PaperMetadataValues) -> bool {
+    values.title.is_some()
+        || !values.authors.is_empty()
+        || values.year.is_some()
+        || values.venue.is_some()
+        || values.venue_short.is_some()
+        || values.venue_type.is_some()
+        || values.publication_date.is_some()
+        || values.publication_stage.is_some()
+        || values.doi.is_some()
+        || values.arxiv_id.is_some()
+        || values.abstract_text.is_some()
+}
+
+fn frontmatter_yaml_block(content: &str) -> Option<&str> {
+    let line_ending = if content.starts_with("---\r\n") {
+        "\r\n"
+    } else if content.starts_with("---\n") {
+        "\n"
+    } else {
+        return None;
+    };
+    let after_open = &content[3 + line_ending.len()..];
+    let close = after_open.find(&format!("{line_ending}---"))?;
+    Some(&after_open[..close])
+}
+
+fn yaml_key(key: &str) -> serde_yaml::Value {
+    serde_yaml::Value::String(key.to_string())
+}
+
+fn yaml_string(mapping: &serde_yaml::Mapping, key: &str) -> Option<String> {
+    match mapping.get(yaml_key(key))? {
+        serde_yaml::Value::String(value) => Some(clean_string(value)),
+        serde_yaml::Value::Number(value) => Some(value.to_string()),
+        serde_yaml::Value::Bool(value) => Some(value.to_string()),
+        _ => None,
+    }
+    .filter(|value| !value.is_empty())
+}
+
+fn yaml_string_vec(mapping: &serde_yaml::Mapping, key: &str) -> Vec<String> {
+    match mapping.get(yaml_key(key)) {
+        Some(serde_yaml::Value::Sequence(items)) => items
+            .iter()
+            .filter_map(|item| match item {
+                serde_yaml::Value::String(value) => Some(clean_string(value)),
+                serde_yaml::Value::Number(value) => Some(value.to_string()),
+                _ => None,
+            })
+            .filter(|value| !value.is_empty())
+            .collect(),
+        Some(serde_yaml::Value::String(value)) => split_authors(value),
+        _ => Vec::new(),
+    }
+}
+
+fn yaml_i32(mapping: &serde_yaml::Mapping, key: &str) -> Option<i32> {
+    match mapping.get(yaml_key(key))? {
+        serde_yaml::Value::Number(value) => {
+            value.as_i64().and_then(|value| i32::try_from(value).ok())
+        }
+        serde_yaml::Value::String(value) => value.trim().parse::<i32>().ok(),
+        _ => None,
+    }
+}
+
+fn frontmatter_line_scalar(block: &str, key: &str) -> Option<String> {
+    let prefix = format!("{key}:");
+    block.lines().find_map(|line| {
+        let trimmed = line.trim();
+        let value = trimmed.strip_prefix(&prefix)?.trim();
+        (!value.is_empty() && !value.starts_with('['))
+            .then(|| unquote_frontmatter_value(value))
+            .filter(|value| !value.is_empty())
+    })
+}
+
+fn frontmatter_line_list(block: &str, key: &str) -> Option<Vec<String>> {
+    let mut lines = block.lines().peekable();
+    let header = format!("{key}:");
+    while let Some(line) = lines.next() {
+        if line.trim() != header {
+            continue;
+        }
+        let values = lines
+            .map_while(|line| {
+                let trimmed = line.trim();
+                trimmed
+                    .strip_prefix("- ")
+                    .map(unquote_frontmatter_value)
+                    .filter(|value| !value.is_empty())
+            })
+            .collect::<Vec<_>>();
+        return Some(values);
+    }
+    None
+}
+
+fn unquote_frontmatter_value(value: &str) -> String {
+    value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim()
+        .to_string()
+}
+
+fn parse_venue_type(value: &str) -> Option<PaperVenueType> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "journal" => Some(PaperVenueType::Journal),
+        "conference" => Some(PaperVenueType::Conference),
+        "workshop" => Some(PaperVenueType::Workshop),
+        "preprint" => Some(PaperVenueType::Preprint),
+        "book" => Some(PaperVenueType::Book),
+        "unknown" => Some(PaperVenueType::Unknown),
+        _ => None,
+    }
+}
+
+fn parse_publication_stage(value: &str) -> Option<PaperPublicationStage> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "preprint" => Some(PaperPublicationStage::Preprint),
+        "published" => Some(PaperPublicationStage::Published),
+        "accepted" => Some(PaperPublicationStage::Accepted),
+        "unknown" => Some(PaperPublicationStage::Unknown),
+        _ => None,
+    }
 }
 
 fn strip_yaml_and_anchors(content: &str) -> String {
@@ -1013,10 +1272,7 @@ fn merge_metadata_sources(
     let mut candidates = Vec::new();
 
     for source in &sources {
-        if source.metadata.doi.is_some()
-            || source.metadata.arxiv_id.is_some()
-            || source.confidence >= 0.78
-        {
+        if source_is_trusted_for_merge(source) {
             chosen = merge_values(chosen, source.metadata.clone());
             confidence = confidence.max(source.confidence);
         } else if source.metadata.title.is_some() {
@@ -1027,8 +1283,10 @@ fn merge_metadata_sources(
                 reason: "Local title/author heuristic needs review".to_string(),
                 metadata: source.metadata.clone(),
             });
-            chosen = merge_values(chosen, source.metadata.clone());
-            confidence = confidence.max(source.confidence.min(0.7));
+            if !metadata_has_user_visible_values(&chosen) {
+                chosen = merge_values(chosen, source.metadata.clone());
+                confidence = confidence.max(source.confidence.min(0.7));
+            }
         }
     }
 
@@ -1054,6 +1312,58 @@ fn merge_metadata_sources(
         candidates,
         errors,
     }
+}
+
+fn source_is_trusted_for_merge(source: &PaperMetadataSource) -> bool {
+    if source.confidence >= 0.78 {
+        return true;
+    }
+    source.matched_by != "title_search"
+        && (source.metadata.doi.is_some() || source.metadata.arxiv_id.is_some())
+}
+
+fn merge_refresh_metadata_sources(
+    paper_id: &str,
+    sources: Vec<PaperMetadataSource>,
+    errors: Vec<PaperMetadataError>,
+) -> PaperMetadata {
+    let protected_values = sources
+        .iter()
+        .filter(|source| source.provider == "paper_frontmatter")
+        .fold(PaperMetadataValues::default(), |values, source| {
+            merge_values(values, source.metadata.clone())
+        });
+    let protected_confidence = frontmatter_metadata_confidence(&protected_values);
+    let mut metadata = merge_metadata_sources(paper_id, sources, errors);
+    if metadata_has_user_visible_values(&protected_values) {
+        metadata.values = merge_values(metadata.values, protected_values);
+        metadata.confidence = metadata.confidence.max(protected_confidence);
+        if metadata.status == PaperMetadataStatus::Missing
+            || metadata.status == PaperMetadataStatus::Failed
+        {
+            metadata.status = PaperMetadataStatus::Ready;
+        }
+    }
+    metadata
+}
+
+fn refresh_provider_query(
+    fallback_query: &PaperMetadataValues,
+    frontmatter_values: &PaperMetadataValues,
+) -> PaperMetadataValues {
+    if let Some(title) = frontmatter_values
+        .title
+        .as_ref()
+        .filter(|title| !title.trim().is_empty())
+    {
+        return PaperMetadataValues {
+            title: Some(title.clone()),
+            authors: frontmatter_values.authors.clone(),
+            year: frontmatter_values.year,
+            ..PaperMetadataValues::default()
+        };
+    };
+    fallback_query.clone()
 }
 
 fn merge_values(mut base: PaperMetadataValues, next: PaperMetadataValues) -> PaperMetadataValues {
@@ -1118,6 +1428,12 @@ fn openalex_author_name(value: &Value) -> Option<String> {
         .map(clean_string)
 }
 
+fn openalex_venue_short(venue: Option<&str>) -> Option<String> {
+    venue
+        .is_some_and(|venue| venue.to_ascii_lowercase().contains("arxiv"))
+        .then(|| "arXiv".to_string())
+}
+
 fn crossref_date(message: &Value) -> Option<String> {
     for key in ["published-print", "published-online", "issued"] {
         let Some(parts) = message
@@ -1167,6 +1483,17 @@ fn classify_openalex_work_type(value: &str) -> PaperVenueType {
         "article" => PaperVenueType::Journal,
         "book" | "book-chapter" => PaperVenueType::Book,
         _ => PaperVenueType::Unknown,
+    }
+}
+
+fn classify_openalex_publication_stage(
+    source_type: Option<&str>,
+    work_type: Option<&str>,
+) -> PaperPublicationStage {
+    if source_type == Some("repository") || work_type == Some("preprint") {
+        PaperPublicationStage::Preprint
+    } else {
+        PaperPublicationStage::Published
     }
 }
 
@@ -1250,7 +1577,9 @@ mod tests {
 
         assert_eq!(title_request.matched_by, "title_search");
         assert!(title_request.url.contains("api.openalex.org/works"));
-        assert!(title_request.url.contains("search=Kolmogorov-Arnold"));
+        assert!(title_request
+            .url
+            .contains("search.semantic=%22Kolmogorov-Arnold"));
         assert!(title_request.url.contains("per-page=3"));
     }
 
@@ -1293,6 +1622,151 @@ mod tests {
         assert_eq!(
             normalized.abstract_text.as_deref(),
             Some("Transformers use attention.")
+        );
+    }
+
+    #[test]
+    fn reads_colon_title_from_frontmatter_for_refresh_query() {
+        let content = "---\n\
+            type: Paper\n\
+            paper_id: fuximt\n\
+            title: FuxiMT: Sparsifying Large Language Models for Chinese-Centric Multilingual Machine Translation\n\
+            ---\n\
+            # Wrong Parsed Title\n";
+        let metadata = extract_frontmatter_metadata(content);
+        let query = refresh_provider_query(&PaperMetadataValues::default(), &metadata);
+        let request = openalex_request_for_metadata(&query).unwrap();
+
+        assert_eq!(
+            query.title.as_deref(),
+            Some("FuxiMT: Sparsifying Large Language Models for Chinese-Centric Multilingual Machine Translation")
+        );
+        assert_eq!(request.matched_by, "title_search");
+        assert!(request.url.contains("search.semantic=%22FuxiMT"));
+    }
+
+    #[test]
+    fn normalizes_openalex_fuximt_work_metadata() {
+        let work = serde_json::json!({
+            "id": "https://openalex.org/W4417298641",
+            "display_name": "FuxiMT: Sparsifying Large Language Models for Chinese-Centric Multilingual Machine Translation",
+            "doi": "https://doi.org/10.48550/arxiv.2505.14256",
+            "publication_year": 2025,
+            "publication_date": "2025-05-20",
+            "type": "preprint",
+            "primary_location": {
+                "landing_page_url": "http://arxiv.org/abs/2505.14256",
+                "source": {
+                    "display_name": "arXiv (Cornell University)",
+                    "type": "repository"
+                }
+            },
+            "authorships": [
+                {"author": {"display_name": "Yong Yang"}},
+                {"author": {"display_name": "Jiahao Guo"}}
+            ],
+            "ids": {
+                "openalex": "https://openalex.org/W4417298641",
+                "doi": "https://doi.org/10.48550/arxiv.2505.14256"
+            }
+        });
+        let normalized = normalize_openalex_work(&work).unwrap();
+
+        assert_eq!(
+            normalized.title.as_deref(),
+            Some("FuxiMT: Sparsifying Large Language Models for Chinese-Centric Multilingual Machine Translation")
+        );
+        assert_eq!(normalized.doi.as_deref(), Some("10.48550/arxiv.2505.14256"));
+        assert_eq!(normalized.arxiv_id.as_deref(), Some("2505.14256"));
+        assert_eq!(normalized.venue_short.as_deref(), Some("arXiv"));
+        assert_eq!(normalized.venue_type, Some(PaperVenueType::Preprint));
+        assert_eq!(
+            normalized.publication_stage,
+            Some(PaperPublicationStage::Preprint)
+        );
+    }
+
+    #[test]
+    fn fuximt_title_search_does_not_merge_lower_confidence_wrong_result() {
+        let correct = normalize_openalex_work(&serde_json::json!({
+            "id": "https://openalex.org/W4417298641",
+            "display_name": "FuxiMT: Sparsifying Large Language Models for Chinese-Centric Multilingual Machine Translation",
+            "doi": "https://doi.org/10.48550/arxiv.2505.14256",
+            "publication_year": 2025,
+            "publication_date": "2025-05-20",
+            "type": "preprint",
+            "primary_location": {
+                "landing_page_url": "http://arxiv.org/abs/2505.14256",
+                "source": {
+                    "display_name": "arXiv (Cornell University)",
+                    "type": "repository"
+                }
+            },
+            "authorships": [
+                {"author": {"display_name": "Yong Yang"}},
+                {"author": {"display_name": "Jiahao Guo"}}
+            ],
+            "ids": {
+                "openalex": "https://openalex.org/W4417298641",
+                "doi": "https://doi.org/10.48550/arxiv.2505.14256"
+            }
+        }))
+        .unwrap();
+        let wrong = normalize_openalex_work(&serde_json::json!({
+            "id": "https://openalex.org/W7131290187",
+            "display_name": "Prompt-induced cultural mediation and its limits: a micro-level analysis of LLM translation of Chinese tourism texts",
+            "doi": "https://doi.org/10.1080/23311983.2026.2631304",
+            "publication_year": 2026,
+            "publication_date": "2026-02-23",
+            "type": "article",
+            "primary_location": {
+                "source": {
+                    "display_name": "Cogent Arts and Humanities",
+                    "type": "journal"
+                }
+            },
+            "authorships": [
+                {"author": {"display_name": "Shiyue Chen"}},
+                {"author": {"display_name": "Tianli Zhou"}}
+            ]
+        }))
+        .unwrap();
+
+        let metadata = merge_metadata_sources(
+            "fuximt",
+            vec![
+                PaperMetadataSource {
+                    provider: "openalex".to_string(),
+                    identifier: Some("https://openalex.org/W4417298641".to_string()),
+                    confidence: 0.9,
+                    matched_by: "title_search".to_string(),
+                    metadata: correct,
+                },
+                PaperMetadataSource {
+                    provider: "openalex".to_string(),
+                    identifier: Some("https://openalex.org/W7131290187".to_string()),
+                    confidence: 0.72,
+                    matched_by: "title_search".to_string(),
+                    metadata: wrong,
+                },
+            ],
+            vec![],
+        );
+
+        assert_eq!(
+            metadata.values.title.as_deref(),
+            Some("FuxiMT: Sparsifying Large Language Models for Chinese-Centric Multilingual Machine Translation")
+        );
+        assert_eq!(
+            metadata.values.doi.as_deref(),
+            Some("10.48550/arxiv.2505.14256")
+        );
+        assert_eq!(metadata.values.year, Some(2025));
+        assert_eq!(metadata.values.venue_short.as_deref(), Some("arXiv"));
+        assert_eq!(metadata.candidates.len(), 1);
+        assert_eq!(
+            metadata.candidates[0].metadata.title.as_deref(),
+            Some("Prompt-induced cultural mediation and its limits: a micro-level analysis of LLM translation of Chinese tourism texts")
         );
     }
 
@@ -1404,6 +1878,114 @@ mod tests {
         assert!(paper.contains("title: Corrected Title"));
         assert!(paper.contains("metadata_status: ready"));
         assert!(paper.contains("venue: NeurIPS"));
+    }
+
+    #[test]
+    fn refresh_uses_current_frontmatter_before_pdf_or_body_metadata() {
+        let dir = TempDir::new().unwrap();
+        let paper_path = dir.path().join("paper.md");
+        let pdf_path = dir.path().join("source.pdf");
+        let metadata_path = dir.path().join("metadata.json");
+        fs::write(
+            &paper_path,
+            "---\n\
+             type: Paper\n\
+             paper_id: kan\n\
+             source_pdf: source.pdf\n\
+             title: Corrected KAN Paper\n\
+             doi: 10.9999/corrected\n\
+             authors:\n\
+               - Correct Author\n\
+             ---\n\
+             # Old Parsed Title\n\
+             Abstract\n\
+             Body still mentions DOI: 10.1111/stale\n",
+        )
+        .unwrap();
+        fs::write(
+            &pdf_path,
+            b"%PDF-1.7 /Title(Old PDF Title) /Author(Stale Author) DOI 10.2222/stale",
+        )
+        .unwrap();
+
+        let metadata =
+            refresh_paper_metadata_file("kan", &paper_path, &pdf_path, &metadata_path).unwrap();
+
+        assert_eq!(
+            metadata.values.title.as_deref(),
+            Some("Corrected KAN Paper")
+        );
+        assert_eq!(metadata.values.doi.as_deref(), Some("10.9999/corrected"));
+        assert_eq!(metadata.values.authors, vec!["Correct Author".to_string()]);
+        assert!(metadata.sources.iter().any(|source| {
+            source.provider == "paper_frontmatter"
+                && source.matched_by == "user_visible_properties"
+                && source.metadata.doi.as_deref() == Some("10.9999/corrected")
+        }));
+    }
+
+    #[test]
+    fn refresh_title_query_uses_saved_frontmatter_title_directly() {
+        let fallback = PaperMetadataValues {
+            title: Some("Wrong PDF Title".to_string()),
+            doi: Some("10.1111/stale".to_string()),
+            ..PaperMetadataValues::default()
+        };
+        let frontmatter = PaperMetadataValues {
+            title: Some("Corrected Paper Title".to_string()),
+            doi: Some("10.1111/stale".to_string()),
+            ..PaperMetadataValues::default()
+        };
+
+        let query = refresh_provider_query(&fallback, &frontmatter);
+        let request = openalex_request_for_metadata(&query).unwrap();
+
+        assert_eq!(query.title.as_deref(), Some("Corrected Paper Title"));
+        assert_eq!(query.doi, None);
+        assert_eq!(request.matched_by, "title_search");
+        assert!(request.url.contains("search.semantic=%22Corrected"));
+    }
+
+    #[test]
+    fn refresh_merge_preserves_user_frontmatter_over_provider_metadata() {
+        let metadata = merge_refresh_metadata_sources(
+            "kan",
+            vec![
+                PaperMetadataSource {
+                    provider: "paper_frontmatter".to_string(),
+                    identifier: None,
+                    confidence: 0.8,
+                    matched_by: "user_visible_properties".to_string(),
+                    metadata: PaperMetadataValues {
+                        title: Some("Corrected KAN Paper".to_string()),
+                        authors: vec!["Correct Author".to_string()],
+                        ..PaperMetadataValues::default()
+                    },
+                },
+                PaperMetadataSource {
+                    provider: "openalex".to_string(),
+                    identifier: Some("https://openalex.org/Wrong".to_string()),
+                    confidence: 0.98,
+                    matched_by: "doi".to_string(),
+                    metadata: PaperMetadataValues {
+                        title: Some("Wrong OpenAlex Title".to_string()),
+                        authors: vec!["Wrong Author".to_string()],
+                        venue: Some("Wrong Venue".to_string()),
+                        year: Some(2024),
+                        ..PaperMetadataValues::default()
+                    },
+                },
+            ],
+            vec![],
+        );
+
+        assert_eq!(
+            metadata.values.title.as_deref(),
+            Some("Corrected KAN Paper")
+        );
+        assert_eq!(metadata.values.authors, vec!["Correct Author".to_string()]);
+        assert_eq!(metadata.values.venue.as_deref(), Some("Wrong Venue"));
+        assert_eq!(metadata.values.year, Some(2024));
     }
 
     #[test]

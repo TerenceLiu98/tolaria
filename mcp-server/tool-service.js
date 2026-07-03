@@ -4,6 +4,16 @@ import {
   getNote,
   searchNotes as searchVaultNotes,
 } from './vault.js'
+import {
+  getBlockCitation as getVaultBlockCitation,
+  getPaperCitation as getVaultPaperCitation,
+  listPaperCatalog as listVaultPaperCatalog,
+  readPaperBlocks as readVaultPaperBlocks,
+  readPaperMetadata as readVaultPaperMetadata,
+  readPaperOutline as readVaultPaperOutline,
+  searchPaperBlocks as searchVaultPaperBlocks,
+  searchPaperCatalog as searchVaultPaperCatalog,
+} from './paper-tools.js'
 import { requireVaultPaths } from './vault-path.js'
 import { readAgentInstructions, vaultContextWithInstructions } from './agent-instructions.js'
 
@@ -47,6 +57,59 @@ export function createMcpToolService({
     }
 
     return results.slice(0, requestedLimit)
+  }
+
+  async function listPapers(args = {}) {
+    const results = []
+    for (const vaultPath of readableVaultPaths(args)) {
+      results.push(...await listVaultPaperCatalog(vaultPath))
+    }
+    return results.map(compactPaperToolResult)
+  }
+
+  async function searchPapers(args = {}) {
+    const results = []
+    const requestedLimit = Number.isFinite(args.limit) && args.limit > 0 ? args.limit : 10
+    for (const vaultPath of readableVaultPaths(args)) {
+      results.push(...await searchVaultPaperCatalog(vaultPath, args))
+      if (results.length >= requestedLimit) break
+    }
+    return results.slice(0, requestedLimit)
+  }
+
+  async function readPaperMetadata(args = {}) {
+    return readPaperFromActiveVaults(args, readVaultPaperMetadata)
+  }
+
+  async function readPaperOutline(args = {}) {
+    return readPaperFromActiveVaults(args, readVaultPaperOutline)
+  }
+
+  async function searchPaperBlocks(args = {}) {
+    const results = []
+    const errors = []
+    for (const vaultPath of readableVaultPaths(args)) {
+      try {
+        const result = await searchVaultPaperBlocks(vaultPath, args)
+        results.push(...result.results)
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (results.length === 0 && errors.length > 0) throw errors[0]
+    return { query: args.query, results }
+  }
+
+  async function readPaperBlocks(args = {}) {
+    return readPaperFromActiveVaults(args, readVaultPaperBlocks)
+  }
+
+  async function getPaperCitation(args = {}) {
+    return readPaperFromActiveVaults(args, getVaultPaperCitation)
+  }
+
+  async function getBlockCitation(args = {}) {
+    return readPaperFromActiveVaults(args, getVaultBlockCitation)
   }
 
   async function vaultContext(args = {}) {
@@ -130,6 +193,31 @@ export function createMcpToolService({
     throw errors[0] ?? new Error(`Note not found: ${notePath}`)
   }
 
+  async function readPaperFromActiveVaults(args, reader) {
+    const vaults = readableVaultPaths(args)
+    const matches = []
+    const errors = []
+
+    for (const vaultPath of vaults) {
+      try {
+        matches.push(await reader(vaultPath, args))
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+
+    if (matches.length === 1) return matches[0]
+    if (matches.length > 1) {
+      throw new Error(`Paper identifier is ambiguous across active vaults. Pass vaultPath for ${args.paperId}.`)
+    }
+    throw errors[0] ?? new Error(`Paper not found: ${args.paperId}`)
+  }
+
+  function readableVaultPaths(args = {}) {
+    const requested = requestedVaultPath(args)
+    return requested ? [requested] : activeVaultPaths()
+  }
+
   function writableVaultPath(args = {}) {
     const requested = requestedVaultPath(args)
     if (requested) return requested
@@ -149,12 +237,20 @@ export function createMcpToolService({
     createNote,
     highlightEditor,
     listVaults,
+    getBlockCitation,
+    getPaperCitation,
     openNoteAsTab,
     openNoteInEditor,
+    listPapers,
+    readPaperBlocks,
+    readPaperMetadata,
+    readPaperOutline,
     readNote,
     refreshVault,
     requestedVaultPath,
     resolveUiPath,
+    searchPaperBlocks,
+    searchPapers,
     searchNotes,
     setFilter,
     vaultContext,
@@ -172,6 +268,18 @@ function withVaultMetadata(note, vaultPath) {
     ...note,
     vaultPath,
     vaultLabel: vaultLabel(vaultPath),
+  }
+}
+
+function compactPaperToolResult(entry) {
+  const {
+    metadata,
+    frontmatter,
+    ...compact
+  } = entry
+  return {
+    ...compact,
+    wikilink: `[[${entry.title}]]`,
   }
 }
 

@@ -24,6 +24,7 @@ import {
 } from '../paper/sourceBlocks'
 import { paperMarkdownFromSourceBlocks } from '../paper/paperMarkdown'
 import type { PaperMetadata, PaperMetadataValues } from '../paper/metadata'
+import { buildPaperCatalog, filterPaperCatalog } from '../paper/catalog'
 import {
   parsePaperAnnotationsJsonl,
   validatePaperAnnotation,
@@ -654,6 +655,73 @@ function extractMockArxivId(content: string): string | null {
   return content.match(/\barxiv[:\s]*([0-9]{4}\.[0-9]{4,5})(?:v[0-9]+)?\b/iu)?.[1] ?? null
 }
 
+function mockFrontmatterBlock(content: string): string | null {
+  const lineEnding = content.startsWith('---\r\n')
+    ? '\r\n'
+    : content.startsWith('---\n') ? '\n' : null
+  if (!lineEnding) return null
+
+  const afterOpen = content.slice(3 + lineEnding.length)
+  const closeIndex = afterOpen.indexOf(`${lineEnding}---`)
+  if (closeIndex === -1) return null
+
+  return afterOpen.slice(0, closeIndex)
+}
+
+function mockFrontmatterScalar(content: string, key: string): string | null {
+  const block = mockFrontmatterBlock(content)
+  const value = block?.match(new RegExp(`^${key}:\\s*(.*)$`, 'imu'))?.[1]?.trim()
+  if (!value) return null
+  return value.replace(/^["']|["']$/gu, '').trim() || null
+}
+
+function mockFrontmatterList(content: string, key: string): string[] {
+  const block = mockFrontmatterBlock(content)
+  if (!block) return []
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+  const match = block.match(new RegExp(`^${escapedKey}:\\s*\\n((?:\\s+-\\s+.*\\n?)*)`, 'imu'))
+  if (!match) {
+    const scalar = mockFrontmatterScalar(content, key)
+    return scalar ? scalar.split(/,|;|\sand\s/u).map(item => item.trim()).filter(Boolean) : []
+  }
+  return match[1].split(/\r?\n/u)
+    .map(line => line.replace(/^\s+-\s*/u, '').replace(/^["']|["']$/gu, '').trim())
+    .filter(Boolean)
+}
+
+function mergeMockMetadataValues(base: PaperMetadataValues, next: PaperMetadataValues): PaperMetadataValues {
+  return {
+    title: next.title ?? base.title,
+    authors: next.authors.length > 0 ? next.authors : base.authors,
+    year: next.year ?? base.year,
+    venue: next.venue ?? base.venue,
+    venueShort: next.venueShort ?? base.venueShort,
+    venueType: next.venueType ?? base.venueType,
+    publicationDate: next.publicationDate ?? base.publicationDate,
+    publicationStage: next.publicationStage ?? base.publicationStage,
+    doi: next.doi ?? base.doi,
+    arxivId: next.arxivId ?? base.arxivId,
+    abstract: next.abstract ?? base.abstract,
+  }
+}
+
+function mockPaperFrontmatterMetadataValues(content: string): PaperMetadataValues {
+  const arxivValue = mockFrontmatterScalar(content, 'arxiv_id') ?? mockFrontmatterScalar(content, 'arxiv')
+  return {
+    title: mockFrontmatterScalar(content, 'title'),
+    authors: mockFrontmatterList(content, 'authors'),
+    year: Number(mockFrontmatterScalar(content, 'year') ?? '') || null,
+    venue: mockFrontmatterScalar(content, 'venue'),
+    venueShort: mockFrontmatterScalar(content, 'venue_short'),
+    venueType: mockFrontmatterScalar(content, 'venue_type') as PaperMetadataValues['venueType'],
+    publicationDate: mockFrontmatterScalar(content, 'publication_date'),
+    publicationStage: mockFrontmatterScalar(content, 'publication_stage') as PaperMetadataValues['publicationStage'],
+    doi: mockFrontmatterScalar(content, 'doi')?.replace(/^https?:\/\/doi\.org\//iu, '').toLowerCase() ?? null,
+    arxivId: arxivValue ? extractMockArxivId(arxivValue) ?? arxivValue.replace(/^arxiv:/iu, '').trim() : null,
+    abstract: mockFrontmatterScalar(content, 'abstract'),
+  }
+}
+
 function mockPaperMetadataValues(content: string, fallbackTitle: string): PaperMetadataValues {
   const body = stripMockFrontmatter(content).replace(/<!--\s*tolaria:block.*?-->/gsu, '')
   const lines = body.split(/\r?\n/u)
@@ -668,7 +736,7 @@ function mockPaperMetadataValues(content: string, fallbackTitle: string): PaperM
     .flatMap(line => line.split(/,|;|\sand\s/u))
     .map(author => author.trim())
     .filter(author => author.split(/\s+/u).length >= 2)
-  return {
+  const bodyValues: PaperMetadataValues = {
     title,
     authors,
     year: Number(body.match(/\b(19[7-9]\d|20\d{2})\b/u)?.[1] ?? '') || null,
@@ -681,6 +749,7 @@ function mockPaperMetadataValues(content: string, fallbackTitle: string): PaperM
     arxivId: extractMockArxivId(body),
     abstract: abstractIndex >= 0 ? lines.slice(abstractIndex + 1, abstractIndex + 4).join(' ') : null,
   }
+  return mergeMockMetadataValues(bodyValues, mockPaperFrontmatterMetadataValues(content))
 }
 
 function mockPaperEntryTitle(paperId: string): string {
@@ -1150,6 +1219,30 @@ function addMockEntryForCreatedContent(path: string, content: string): void {
   })
 }
 
+const mockDismissedPaperDuplicateDecisions = new Set<string>()
+
+function handleListPaperCatalog() {
+  return buildPaperCatalog(MOCK_ENTRIES, mockDismissedPaperDuplicateDecisions)
+}
+
+function handleSearchPaperCatalog(args: { query?: string }) {
+  return filterPaperCatalog(handleListPaperCatalog(), { query: args.query ?? '' })
+}
+
+function handleFindPaperDuplicates() {
+  return handleListPaperCatalog().filter(entry => entry.duplicateState === 'candidate')
+}
+
+function handleMarkPaperDuplicateDecision(args: { decisionId?: string; decision_id?: string; dismissed?: boolean }) {
+  const decisionId = args.decisionId ?? args.decision_id
+  if (decisionId && args.dismissed !== false) {
+    mockDismissedPaperDuplicateDecisions.add(decisionId)
+  } else if (decisionId) {
+    mockDismissedPaperDuplicateDecisions.delete(decisionId)
+  }
+  return handleListPaperCatalog()
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock handler map accepts heterogeneous arg types
 export const mockHandlers: Record<string, (args: any) => any> = {
   list_vault: () => MOCK_ENTRIES,
@@ -1175,6 +1268,11 @@ export const mockHandlers: Record<string, (args: any) => any> = {
   save_paper_annotation: handleSavePaperAnnotation,
   delete_paper_annotation: handleDeletePaperAnnotation,
   reset_paper_annotations: handleResetPaperAnnotations,
+  list_paper_catalog: handleListPaperCatalog,
+  search_paper_catalog: handleSearchPaperCatalog,
+  find_paper_duplicates: handleFindPaperDuplicates,
+  refresh_paper_catalog: handleListPaperCatalog,
+  mark_paper_duplicate_decision: handleMarkPaperDuplicateDecision,
   get_note_content: (args: { path: string }) => MOCK_CONTENT[args.path] ?? '',
   validate_note_content: (args: { path: string; content: string }) => (MOCK_CONTENT[args.path] ?? '') === args.content,
   create_note_content: (args: { path: string; content: string }) => {

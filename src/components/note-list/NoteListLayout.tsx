@@ -3,6 +3,7 @@ import { FilterPills } from './FilterPills'
 import { NoteListHeader } from './NoteListHeader'
 import { EntityView, ListView } from './NoteListViews'
 import type { useNoteListModel } from './useNoteListModel'
+import { PaperCatalogControls } from '../../paper/PaperCatalogControls'
 
 type NoteListLayoutProps = ReturnType<typeof useNoteListModel> & {
   handleBulkOrganize?: () => void
@@ -173,6 +174,7 @@ function NoteListBody({
   searched,
   locale,
   showFilterPills,
+  paperCatalogControls,
   noteListFilter,
   filterCounts,
   onNoteListFilterChange,
@@ -200,6 +202,7 @@ function NoteListBody({
   | 'searched'
   | 'locale'
   | 'showFilterPills'
+  | 'paperCatalogControls'
   | 'noteListFilter'
   | 'filterCounts'
   | 'onNoteListFilterChange'
@@ -219,6 +222,7 @@ function NoteListBody({
       onClickCapture={focusNoteList}
       data-testid="note-list-container"
     >
+      {paperCatalogControls && <PaperCatalogControls {...paperCatalogControls} />}
       <NoteListContent
         entitySelection={entitySelection}
         searchedGroups={searchedGroups}

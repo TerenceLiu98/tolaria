@@ -4,6 +4,8 @@
  */
 
 import type { VaultEntry } from '../types'
+import { parseBlockCitations } from '../paper/blockCitations'
+import { isPaperEntry } from '../paper/types'
 import { wikilinkTarget, resolveEntry } from './wikilink'
 import { splitFrontmatter } from './wikilinks'
 
@@ -89,6 +91,8 @@ const MAX_REFERENCED_NOTE_BODY_CHARS = 12_000
 const REFERENCED_NOTE_BODY_HEAD_CHARS = 8_000
 const REFERENCED_NOTE_BODY_TAIL_CHARS = 2_000
 const MAX_NOTE_LIST_ITEMS = 100
+const MAX_RELATED_PAPERS = 8
+const MAX_BLOCK_CITATIONS = 20
 
 interface ActiveNoteBody {
   body: string
@@ -214,6 +218,101 @@ function activeNoteSnapshot(activeEntry: VaultEntry, activeNoteContent?: string)
   return note
 }
 
+function propertyStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map(String).map(item => item.trim()).filter(Boolean)
+  }
+  const scalar = propertyString(value)
+  return scalar
+    ? scalar.split(/;|\n|\sand\s/iu).map(item => item.trim()).filter(Boolean)
+    : []
+}
+
+function propertyNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim())
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+function paperIdForEntry(entry: VaultEntry): string | undefined {
+  return propertyString(entry.properties?.paper_id)
+    ?? entry.path.match(/\/papers\/([^/]+)\/paper\.md$/u)?.[1]
+}
+
+function paperSummary(entry: VaultEntry): Record<string, unknown> {
+  const summary: Record<string, unknown> = {
+    paper_id: paperIdForEntry(entry) ?? entry.title,
+    title: propertyString(entry.properties?.title) ?? entry.title,
+    path: entry.path,
+  }
+  assignIfNonEmpty(summary, 'authors', propertyStringArray(entry.properties?.authors))
+  assignIfPresent(summary, 'year', propertyNumber(entry.properties?.year))
+  assignIfPresent(summary, 'venue', propertyString(entry.properties?.venue))
+  assignIfPresent(summary, 'venue_type', propertyString(entry.properties?.venue_type))
+  assignIfPresent(summary, 'doi', propertyString(entry.properties?.doi))
+  assignIfPresent(summary, 'arxiv_id', propertyString(entry.properties?.arxiv_id))
+  assignIfPresent(summary, 'metadata_status', propertyString(entry.properties?.metadata_status))
+  assignIfPresent(summary, 'parse_status', propertyString(entry.properties?.parse_status))
+  assignIfPresent(summary, 'source_pdf', propertyString(entry.properties?.source_pdf))
+  assignIfPresent(summary, 'blocks', propertyString(entry.properties?.blocks))
+  assignIfPresent(summary, 'annotations', propertyString(entry.properties?.annotations))
+  assignIfPresent(summary, 'workspace', entry.workspace ? {
+    id: entry.workspace.id,
+    label: entry.workspace.label,
+    path: entry.workspace.path,
+  } : null)
+  return summary
+}
+
+function findPaperById(entries: VaultEntry[], paperId: string): VaultEntry | undefined {
+  return entries.find(entry => isPaperEntry(entry) && paperIdForEntry(entry) === paperId)
+}
+
+function blockCitationContext(activeNoteContent: string | undefined, entries: VaultEntry[]): Record<string, unknown>[] {
+  if (!activeNoteContent) return []
+  return parseBlockCitations(activeNoteContent)
+    .filter(citation => !citation.malformed)
+    .slice(0, MAX_BLOCK_CITATIONS)
+    .map(citation => {
+      const paper = findPaperById(entries, citation.paperId)
+      const item: Record<string, unknown> = {
+        paper_id: citation.paperId,
+        block_id: citation.blockId,
+        raw: citation.raw,
+        citation: `@block[${citation.paperId}#${citation.blockId}]`,
+      }
+      if (paper) {
+        item.paper_title = propertyString(paper.properties?.title) ?? paper.title
+        item.paper_path = paper.path
+      }
+      return item
+    })
+}
+
+function appendPaperContext(snapshot: Record<string, unknown>, params: ContextSnapshotParams): void {
+  const { activeEntry, activeNoteContent, entries } = params
+  const papers = collectLinkedEntries(activeEntry, entries)
+    .filter(isPaperEntry)
+    .slice(0, MAX_RELATED_PAPERS)
+    .map(paperSummary)
+  const citations = blockCitationContext(activeNoteContent, entries)
+
+  if (isPaperEntry(activeEntry)) {
+    snapshot.activePaper = {
+      ...paperSummary(activeEntry),
+      comments: {
+        storage: propertyString(activeEntry.properties?.annotations) ?? 'annotations.jsonl',
+        note: 'Paper comments and annotations are stored outside paper.md; use paper tools for block provenance before citing claims.',
+      },
+    }
+  }
+  if (papers.length > 0) snapshot.relatedPapers = papers
+  if (citations.length > 0) snapshot.blockCitations = citations
+}
+
 function appendOpenTabs(snapshot: Record<string, unknown>, activeEntry: VaultEntry, openTabs?: VaultEntry[]): void {
   const otherTabs = openTabs?.filter(t => t.path !== activeEntry.path)
   if (!otherTabs?.length) return
@@ -290,6 +389,7 @@ function contextSnapshot(params: ContextSnapshotParams): Record<string, unknown>
   if (hasNoteListFilter(noteListFilter)) snapshot.noteListFilter = noteListFilter
   snapshot.vault = vaultSummary(entries)
   appendReferencedNotes(snapshot, references)
+  appendPaperContext(snapshot, params)
   return snapshot
 }
 
@@ -301,6 +401,7 @@ export function buildContextSnapshot(params: ContextSnapshotParams): string {
     'You are an AI assistant integrated into Tolaria, a personal knowledge management app.',
     'The user is viewing a specific note. Use the structured context below to answer questions accurately.',
     'You can also use MCP tools to search, read, create, or edit notes in the vault.',
+    'For Paper notes, use paper MCP tools such as search_papers, read_paper_metadata, search_paper_blocks, read_paper_blocks, and get_block_citation for citation-safe paper context.',
     'If the body field is empty or truncated, use get_note to read the full note from disk before content-sensitive edits or summaries.',
     'When you mention or reference a note by name, always use [[Note Title]] wikilink syntax so the user can click to open it.',
   ].join('\n')

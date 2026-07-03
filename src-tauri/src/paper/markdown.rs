@@ -53,8 +53,17 @@ fn markdown_for_block(block: &SourceBlock) -> String {
         "caption" => format!("*{text}*"),
         "figure" => figure_markdown(block, text.as_str()),
         "table" => table_markdown(block, text.as_str()),
+        _ if block_has_asset(block) => figure_markdown(block, text.as_str()),
         _ => text,
     }
+}
+
+fn block_has_asset(block: &SourceBlock) -> bool {
+    block
+        .asset_path
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty())
 }
 
 fn figure_markdown(block: &SourceBlock, text: &str) -> String {
@@ -70,7 +79,7 @@ fn figure_markdown(block: &SourceBlock, text: &str) -> String {
         .filter(|value| !value.is_empty())
     {
         let alt = caption
-            .or_else(|| (!text.is_empty()).then_some(text))
+            .or_else(|| meaningful_asset_alt(text, "figure"))
             .unwrap_or("Figure");
         let image = format!("![{}]({})", escape_markdown_image_alt(alt), asset_path);
         return match caption {
@@ -86,6 +95,18 @@ fn figure_markdown(block: &SourceBlock, text: &str) -> String {
     }
 }
 
+fn meaningful_asset_alt<'a>(text: &'a str, fallback_kind: &str) -> Option<&'a str> {
+    let trimmed = text.trim();
+    if trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case(fallback_kind)
+        || matches!(trimmed, "paragraph" | "chart" | "diagram")
+    {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
 fn table_markdown(block: &SourceBlock, text: &str) -> String {
     let table = normalize_table_markdown(text);
     let caption = block
@@ -93,6 +114,31 @@ fn table_markdown(block: &SourceBlock, text: &str) -> String {
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
+    if let Some(asset_path) = block
+        .asset_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let alt = caption
+            .or_else(|| {
+                let text = text.trim();
+                (!text.is_empty() && text != "table").then_some(text)
+            })
+            .unwrap_or("Table");
+        let image = format!("![{}]({})", escape_markdown_image_alt(alt), asset_path);
+        let mut parts = vec![image];
+        if let Some(caption) = caption {
+            parts.push(format!("*{caption}*"));
+        }
+        if !table.is_empty()
+            && table != "table"
+            && caption.map_or(true, |caption| !table.contains(caption))
+        {
+            parts.push(table);
+        }
+        return parts.join("\n\n");
+    }
     match caption {
         Some(caption) if !table.contains(caption) => format!("{table}\n\n*{caption}*"),
         _ => table,
@@ -241,7 +287,7 @@ fn normalized_kind(kind: &str) -> String {
     match kind.trim().to_lowercase().as_str() {
         "title" => "title".to_string(),
         "heading" | "header" => "heading".to_string(),
-        "figure" | "image" => "figure".to_string(),
+        "figure" | "image" | "chart" | "diagram" => "figure".to_string(),
         "table" => "table".to_string(),
         "equation" | "formula" | "interline_equation" | "inline_equation" => "equation".to_string(),
         "caption" | "image_caption" | "table_caption" => "caption".to_string(),
@@ -323,6 +369,20 @@ mod tests {
         }
     }
 
+    fn block_with_caption_and_asset(
+        id: &str,
+        kind: &str,
+        text: &str,
+        caption: &str,
+        asset_path: &str,
+    ) -> SourceBlock {
+        SourceBlock {
+            asset_path: Some(asset_path.to_string()),
+            caption: Some(caption.to_string()),
+            ..block(id, kind, text)
+        }
+    }
+
     #[test]
     fn renders_source_blocks_as_markdown_with_hidden_anchors() {
         let markdown = paper_markdown_from_blocks(&[
@@ -392,5 +452,42 @@ mod tests {
         assert!(markdown.contains("| Method | Score |"));
         assert!(markdown.contains("| --- | --- |"));
         assert!(markdown.contains("| KAN | 0.92 |"));
+    }
+
+    #[test]
+    fn renders_table_assets_as_markdown_images_with_captions() {
+        let markdown = paper_markdown_from_blocks(&[block_with_caption_and_asset(
+            "b0001",
+            "table",
+            "| Method | Score |",
+            "Table 1. Accuracy",
+            "assets/table-0001.png",
+        )]);
+
+        assert!(markdown.contains("![Table 1. Accuracy](assets/table-0001.png)"));
+        assert!(markdown.contains("*Table 1. Accuracy*"));
+        assert!(markdown.contains("| Method | Score |"));
+    }
+
+    #[test]
+    fn renders_image_only_table_assets_with_clean_alt_label() {
+        let markdown = paper_markdown_from_blocks(&[SourceBlock {
+            asset_path: Some("assets/table.jpg".to_string()),
+            ..block("b0001", "table", "")
+        }]);
+
+        assert!(markdown.contains("![Table](assets/table.jpg)"));
+        assert!(!markdown.contains("\n\ntable"));
+    }
+
+    #[test]
+    fn renders_unknown_asset_blocks_as_markdown_images() {
+        let markdown = paper_markdown_from_blocks(&[SourceBlock {
+            asset_path: Some("assets/chart.jpg".to_string()),
+            ..block("b0001", "paragraph", "")
+        }]);
+
+        assert!(markdown.contains("![Figure](assets/chart.jpg)"));
+        assert!(!markdown.contains("\nparagraph"));
     }
 }

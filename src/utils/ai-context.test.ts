@@ -175,9 +175,93 @@ describe('buildContextSnapshot', () => {
     expect(result).toContain('"owner": "Alice"')
   })
 
+  it('adds compact active Paper context when the active note is a Paper', () => {
+    const paper = makeEntry({
+      path: '/vault/papers/kan/paper.md',
+      filename: 'paper.md',
+      title: 'KAN Autoencoders',
+      isA: 'Paper',
+      properties: {
+        paper_id: 'kan',
+        title: 'KAN Autoencoders',
+        authors: ['Ada Lovelace', 'Grace Hopper'],
+        year: 2026,
+        venue: 'AAAI',
+        venue_type: 'conference',
+        parse_status: 'parsed',
+        metadata_status: 'ready',
+        source_pdf: 'source.pdf',
+        blocks: 'blocks.jsonl',
+        annotations: 'annotations.jsonl',
+      },
+    })
+    const result = buildContextSnapshot({ activeEntry: paper, entries: [paper], activeNoteContent: '# KAN Autoencoders' })
+    const json = JSON.parse(result.split('```json\n')[1].split('\n```')[0])
+
+    expect(json.activePaper).toMatchObject({
+      paper_id: 'kan',
+      title: 'KAN Autoencoders',
+      authors: ['Ada Lovelace', 'Grace Hopper'],
+      year: 2026,
+      venue: 'AAAI',
+      venue_type: 'conference',
+      parse_status: 'parsed',
+      metadata_status: 'ready',
+      source_pdf: 'source.pdf',
+      blocks: 'blocks.jsonl',
+      annotations: 'annotations.jsonl',
+      comments: {
+        storage: 'annotations.jsonl',
+      },
+    })
+  })
+
+  it('adds related Paper summaries and resolves @block citations from the active note', () => {
+    const paper = makeEntry({
+      path: '/vault/papers/kan/paper.md',
+      filename: 'paper.md',
+      title: 'KAN Autoencoders',
+      isA: 'Paper',
+      properties: {
+        paper_id: 'kan',
+        title: 'KAN Autoencoders',
+        year: 2026,
+      },
+    })
+    const note = makeEntry({
+      path: '/vault/note/research.md',
+      title: 'Research Note',
+      outgoingLinks: ['KAN Autoencoders'],
+    })
+    const result = buildContextSnapshot({
+      activeEntry: note,
+      entries: [note, paper],
+      activeNoteContent: 'See [[KAN Autoencoders]] and @block[kan#b0002].',
+    })
+    const json = JSON.parse(result.split('```json\n')[1].split('\n```')[0])
+
+    expect(json.relatedPapers).toEqual([
+      expect.objectContaining({
+        paper_id: 'kan',
+        title: 'KAN Autoencoders',
+        path: '/vault/papers/kan/paper.md',
+      }),
+    ])
+    expect(json.blockCitations).toEqual([
+      expect.objectContaining({
+        paper_id: 'kan',
+        block_id: 'b0002',
+        citation: '@block[kan#b0002]',
+        paper_title: 'KAN Autoencoders',
+        paper_path: '/vault/papers/kan/paper.md',
+      }),
+    ])
+  })
+
   it('includes system preamble', () => {
     const result = buildContextSnapshot({ activeEntry: active, entries })
     expect(result).toContain('AI assistant integrated into Tolaria')
+    expect(result).toContain('search_papers')
     expect(result).toContain('Context Snapshot')
   })
 

@@ -9,6 +9,7 @@
  *   - get_vault_context: vault structure overview (types, note count, folders)
  *   - get_note: parsed frontmatter + content (convenience over raw cat)
  *   - create_note: create a new markdown note without overwriting existing files
+ *   - search_papers / read_paper_blocks: citation-safe Paper library tools
  *   - open_note: signal Tolaria UI to open a note as a tab
  *   - highlight_editor: visually highlight a UI element (editor, tab, etc.)
  *   - refresh_vault: trigger vault rescan so new/modified files appear
@@ -159,6 +160,130 @@ const TOOLS = [
     },
   },
   {
+    name: 'list_papers',
+    description: 'List Paper notes in active Tolaria vaults with compact bibliographic metadata and provenance. Read-only.',
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        vaultPath: { type: 'string', description: 'Optional target vault root. Omit to inspect all active vaults.' },
+      },
+    },
+  },
+  {
+    name: 'search_papers',
+    description: 'Search Paper notes by title, authors, venue, DOI, arXiv, OpenAlex, or Semantic Scholar identifiers. Returns compact metadata, not full paper content.',
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Metadata search query.' },
+        limit: { type: 'number', description: 'Maximum number of results (default: 10, max: 20).' },
+        filters: {
+          type: 'object',
+          properties: {
+            author: { type: 'string' },
+            year: { type: 'number' },
+            venueType: { type: 'string' },
+            parseStatus: { type: 'string' },
+            metadataStatus: { type: 'string' },
+          },
+        },
+        vaultPath: { type: 'string', description: 'Optional target vault root when multiple vaults are active.' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'read_paper_metadata',
+    description: 'Read one Paper metadata record with frontmatter and metadata.json provenance. Use paperId and optional vaultPath.',
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paperId: { type: 'string', description: 'Paper id, Paper note path, or exact Paper title.' },
+        vaultPath: { type: 'string', description: 'Optional target vault root when multiple vaults are active.' },
+      },
+      required: ['paperId'],
+    },
+  },
+  {
+    name: 'read_paper_outline',
+    description: 'Read the title/heading outline from a Paper blocks.jsonl sidecar with block citations and page provenance.',
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paperId: { type: 'string', description: 'Paper id, Paper note path, or exact Paper title.' },
+        vaultPath: { type: 'string', description: 'Optional target vault root when multiple vaults are active.' },
+      },
+      required: ['paperId'],
+    },
+  },
+  {
+    name: 'search_paper_blocks',
+    description: 'Search parsed SourceBlocks by text, caption, or section. Returns compact snippets with @block citations and page provenance.',
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Block text search query.' },
+        paperId: { type: 'string', description: 'Optional Paper id. Omit to search all Papers in active vaults.' },
+        limit: { type: 'number', description: 'Maximum number of results (default: 10, max: 20).' },
+        vaultPath: { type: 'string', description: 'Optional target vault root when multiple vaults are active.' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'read_paper_blocks',
+    description: 'Read exact Paper SourceBlocks by blockIds or range. Requires paperId and returns compact, citation-safe blocks.',
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paperId: { type: 'string', description: 'Paper id, Paper note path, or exact Paper title.' },
+        blockIds: { type: 'array', items: { type: 'string' }, description: 'Specific block ids to read.' },
+        range: {
+          type: 'object',
+          properties: {
+            start: { type: 'number', description: 'Zero-based start index.' },
+            count: { type: 'number', description: 'Number of blocks to read.' },
+          },
+        },
+        vaultPath: { type: 'string', description: 'Optional target vault root when multiple vaults are active.' },
+      },
+      required: ['paperId'],
+    },
+  },
+  {
+    name: 'get_paper_citation',
+    description: 'Return a compact bibliographic citation and Tolaria wikilink for a Paper.',
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paperId: { type: 'string', description: 'Paper id, Paper note path, or exact Paper title.' },
+        vaultPath: { type: 'string', description: 'Optional target vault root when multiple vaults are active.' },
+      },
+      required: ['paperId'],
+    },
+  },
+  {
+    name: 'get_block_citation',
+    description: 'Return the canonical @block[paper_id#block_id] citation for one SourceBlock with paper/page provenance.',
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paperId: { type: 'string', description: 'Paper id, Paper note path, or exact Paper title.' },
+        blockId: { type: 'string', description: 'SourceBlock id.' },
+        vaultPath: { type: 'string', description: 'Optional target vault root when multiple vaults are active.' },
+      },
+      required: ['paperId', 'blockId'],
+    },
+  },
+  {
     name: 'create_note',
     description: 'Create a new markdown note inside an active Tolaria vault. Does not overwrite existing files. Use content for the full markdown including YAML frontmatter and H1.',
     annotations: LOCAL_CREATE_TOOL_ANNOTATIONS,
@@ -237,6 +362,38 @@ async function handleGetNote(args) {
   return { content: [{ type: 'text', text: JSON.stringify(note, null, 2) }] }
 }
 
+async function handleListPapers(args) {
+  return { content: [{ type: 'text', text: JSON.stringify(await toolService.listPapers(args), null, 2) }] }
+}
+
+async function handleSearchPapers(args) {
+  return { content: [{ type: 'text', text: JSON.stringify(await toolService.searchPapers(args), null, 2) }] }
+}
+
+async function handleReadPaperMetadata(args) {
+  return { content: [{ type: 'text', text: JSON.stringify(await toolService.readPaperMetadata(args), null, 2) }] }
+}
+
+async function handleReadPaperOutline(args) {
+  return { content: [{ type: 'text', text: JSON.stringify(await toolService.readPaperOutline(args), null, 2) }] }
+}
+
+async function handleSearchPaperBlocks(args) {
+  return { content: [{ type: 'text', text: JSON.stringify(await toolService.searchPaperBlocks(args), null, 2) }] }
+}
+
+async function handleReadPaperBlocks(args) {
+  return { content: [{ type: 'text', text: JSON.stringify(await toolService.readPaperBlocks(args), null, 2) }] }
+}
+
+async function handleGetPaperCitation(args) {
+  return { content: [{ type: 'text', text: JSON.stringify(await toolService.getPaperCitation(args), null, 2) }] }
+}
+
+async function handleGetBlockCitation(args) {
+  return { content: [{ type: 'text', text: JSON.stringify(await toolService.getBlockCitation(args), null, 2) }] }
+}
+
 async function handleCreateNote(args = {}) {
   const note = await toolService.createNote(args)
   return {
@@ -269,6 +426,14 @@ const TOOL_HANDLERS = new Map([
   ['get_vault_context', handleVaultContext],
   ['list_vaults', handleListVaults],
   ['get_note', handleGetNote],
+  ['list_papers', handleListPapers],
+  ['search_papers', handleSearchPapers],
+  ['read_paper_metadata', handleReadPaperMetadata],
+  ['read_paper_outline', handleReadPaperOutline],
+  ['search_paper_blocks', handleSearchPaperBlocks],
+  ['read_paper_blocks', handleReadPaperBlocks],
+  ['get_paper_citation', handleGetPaperCitation],
+  ['get_block_citation', handleGetBlockCitation],
   ['create_note', handleCreateNote],
   ['open_note', handleOpenNote],
   ['highlight_editor', handleHighlightEditor],

@@ -3,7 +3,7 @@ use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
 use std::io::{Cursor, Read};
@@ -1063,7 +1063,7 @@ fn normalize_mineru_content_list(
         let asset_path = raw_asset_path
             .as_deref()
             .and_then(|path| resolve_mineru_asset_path(path, asset_paths));
-        if text.is_none() && caption.is_none() && kind != "figure" {
+        if text.is_none() && caption.is_none() && asset_path.is_none() && kind != "figure" {
             continue;
         }
 
@@ -1108,6 +1108,8 @@ fn normalize_mineru_content_list(
         });
     }
 
+    append_unreferenced_mineru_image_blocks(paper_id, &mut blocks, asset_paths);
+
     if blocks.is_empty() {
         return Err(MineruTransportError {
             kind: "malformed_provider_output".to_string(),
@@ -1116,6 +1118,61 @@ fn normalize_mineru_content_list(
     }
 
     Ok(blocks)
+}
+
+fn append_unreferenced_mineru_image_blocks(
+    paper_id: &str,
+    blocks: &mut Vec<SourceBlock>,
+    asset_paths: &BTreeMap<String, String>,
+) {
+    let referenced_assets = blocks
+        .iter()
+        .filter_map(|block| block.asset_path.as_deref())
+        .collect::<BTreeSet<&str>>();
+    let orphan_assets = asset_paths
+        .values()
+        .filter(|path| path.starts_with("assets/"))
+        .filter(|path| !referenced_assets.contains(path.as_str()))
+        .cloned()
+        .collect::<BTreeSet<String>>();
+
+    for asset_path in orphan_assets {
+        let order = (blocks.len() + 1) as u32;
+        let page = blocks.last().map(|block| block.page).unwrap_or(1);
+        let caption = fallback_mineru_asset_caption(asset_path.as_str());
+        let mut extra = BTreeMap::new();
+        extra.insert(
+            "mineru_orphan_asset".to_string(),
+            Value::String(asset_path.clone()),
+        );
+
+        blocks.push(SourceBlock {
+            id: format!("b{order:04}"),
+            paper_id: paper_id.to_string(),
+            kind: "figure".to_string(),
+            page,
+            hash: source_block_hash(paper_id, page, order, None, Some(caption.as_str())),
+            text: None,
+            caption: Some(caption),
+            bbox: None,
+            section: None,
+            order: Some(order),
+            source_asset: Some(asset_path.clone()),
+            asset_path: Some(asset_path),
+            confidence: None,
+            parser: Some(MINERU_PARSER.to_string()),
+            extra,
+        });
+    }
+}
+
+fn fallback_mineru_asset_caption(asset_path: &str) -> String {
+    let file_name = asset_path
+        .rsplit('/')
+        .next()
+        .filter(|value| !value.is_empty())
+        .unwrap_or("image");
+    format!("Figure asset {file_name}")
 }
 
 fn mineru_content_items(value: &Value) -> Option<&Vec<Value>> {
@@ -1146,7 +1203,7 @@ fn normalize_mineru_kind(
                 "paragraph".to_string()
             }
         }
-        "image" | "figure" => "figure".to_string(),
+        "image" | "figure" | "chart" | "diagram" => "figure".to_string(),
         "table" => "table".to_string(),
         "equation" | "formula" | "interline_equation" | "inline_equation" => "equation".to_string(),
         "caption" | "image_caption" | "table_caption" => "caption".to_string(),
@@ -1171,6 +1228,9 @@ fn mineru_asset_path(object: &serde_json::Map<String, Value>) -> Option<String> 
             "img_path",
             "image_path",
             "imagePath",
+            "table_img_path",
+            "table_image_path",
+            "tableImagePath",
             "asset_path",
             "assetPath",
             "path",
@@ -1691,6 +1751,25 @@ mod tests {
         writer.finish().unwrap().into_inner()
     }
 
+    fn sample_mineru_zip_output_with_unreferenced_image() -> Vec<u8> {
+        let cursor = Cursor::new(Vec::new());
+        let mut writer = zip::ZipWriter::new(cursor);
+        let options = SimpleFileOptions::default();
+        writer
+            .start_file("source_content_list.json", options)
+            .unwrap();
+        writer
+            .write_all(sample_mineru_content_list().as_bytes())
+            .unwrap();
+        writer.start_file("images/figure-1.png", options).unwrap();
+        writer.write_all(b"png bytes").unwrap();
+        writer
+            .start_file("images/unreferenced-figure.png", options)
+            .unwrap();
+        writer.write_all(b"orphan png bytes").unwrap();
+        writer.finish().unwrap().into_inner()
+    }
+
     fn write_paper_bundle(root: &Path, paper_id: &str) -> (PathBuf, PathBuf, PathBuf) {
         let paper_dir = root.join("papers").join(paper_id);
         fs::create_dir_all(&paper_dir).unwrap();
@@ -1890,6 +1969,54 @@ mod tests {
     }
 
     #[test]
+    fn normalizes_mineru_table_image_assets_without_text() {
+        let asset_paths = BTreeMap::from([(
+            "images/table-1.jpg".to_string(),
+            "assets/table-1.jpg".to_string(),
+        )]);
+        let blocks = normalize_mineru_content_list(
+            "paper-1",
+            json!([
+                {"type":"table","table_img_path":"images/table-1.jpg","page_idx":2}
+            ])
+            .to_string()
+            .as_str(),
+            &asset_paths,
+        )
+        .unwrap();
+
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].kind, "table");
+        assert_eq!(blocks[0].asset_path.as_deref(), Some("assets/table-1.jpg"));
+        assert_eq!(
+            blocks[0].source_asset.as_deref(),
+            Some("assets/table-1.jpg")
+        );
+    }
+
+    #[test]
+    fn normalizes_mineru_chart_assets_as_figures() {
+        let asset_paths = BTreeMap::from([(
+            "images/chart-1.jpg".to_string(),
+            "assets/chart-1.jpg".to_string(),
+        )]);
+        let blocks = normalize_mineru_content_list(
+            "paper-1",
+            json!([
+                {"type":"chart","img_path":"images/chart-1.jpg","page_idx":4}
+            ])
+            .to_string()
+            .as_str(),
+            &asset_paths,
+        )
+        .unwrap();
+
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].kind, "figure");
+        assert_eq!(blocks[0].asset_path.as_deref(), Some("assets/chart-1.jpg"));
+    }
+
+    #[test]
     fn dev_fixture_parse_writes_paper_markdown_with_block_anchors() {
         let temp = TempDir::new().unwrap();
         let (paper_path, source_pdf_path, blocks_path) = write_paper_bundle(temp.path(), "paper-1");
@@ -2058,6 +2185,58 @@ mod tests {
 
         let blocks_jsonl = fs::read_to_string(&blocks_path).unwrap();
         assert!(blocks_jsonl.contains("\"asset_path\":\"assets/figure-1.png\""));
+    }
+
+    #[test]
+    fn mineru_zip_parse_keeps_unreferenced_image_assets_as_fallback_figures() {
+        let temp = TempDir::new().unwrap();
+        let (paper_path, source_pdf_path, blocks_path) = write_paper_bundle(temp.path(), "paper-1");
+        let transport = FakeMineruTransport::with_zip_output(
+            sample_mineru_zip_output_with_unreferenced_image(),
+        );
+
+        let result = parse_with_mineru_transport(
+            MineruParsePaths {
+                paper_id: "paper-1",
+                paper_path: &paper_path,
+                source_pdf_path: &source_pdf_path,
+                blocks_path: &blocks_path,
+            },
+            MineruTransportConfig {
+                token: "secret-token",
+                transport: &transport,
+                max_poll_attempts: 1,
+                poll_interval: Duration::from_secs(0),
+            },
+        )
+        .unwrap();
+
+        let fallback = result
+            .blocks
+            .iter()
+            .find(|block| block.asset_path.as_deref() == Some("assets/unreferenced-figure.png"))
+            .expect("expected unreferenced image to become a fallback figure block");
+        assert_eq!(fallback.kind, "figure");
+        assert_eq!(
+            fallback.caption.as_deref(),
+            Some("Figure asset unreferenced-figure.png")
+        );
+        assert_eq!(
+            fallback.extra.get("mineru_orphan_asset"),
+            Some(&json!("assets/unreferenced-figure.png"))
+        );
+        assert!(result
+            .assets
+            .iter()
+            .any(|asset| asset.path == "assets/unreferenced-figure.png"));
+
+        let paper = fs::read_to_string(&paper_path).unwrap();
+        assert!(paper
+            .contains("![Figure asset unreferenced-figure.png](assets/unreferenced-figure.png)"));
+
+        let blocks_jsonl = fs::read_to_string(&blocks_path).unwrap();
+        assert!(blocks_jsonl.contains("\"asset_path\":\"assets/unreferenced-figure.png\""));
+        assert!(blocks_jsonl.contains("\"mineru_orphan_asset\":\"assets/unreferenced-figure.png\""));
     }
 
     #[test]
