@@ -1047,5 +1047,14 @@
   "paper.reader.collapseOutline": "摺疊 Paper 大綱",
   "paper.reader.expandOutline": "展開 Paper 大綱",
   "paper.reader.outlineCollapsed": "大綱",
-  "paper.reader.parseAuthFailed": "MinerU 認證失敗。請在 Settings 裡檢查或更換 API token。提供方返回：{message}"
+  "paper.reader.parseAuthFailed": "MinerU 認證失敗。請在 Settings 裡檢查或更換 API token。提供方返回：{message}",
+  "paper.reader.searchBlocks": "搜尋 Paper 區塊",
+  "paper.reader.searchEmpty": "沒有符合的區塊",
+  "paper.reader.outlineEmpty": "尚無大綱",
+  "paper.reader.pageMissing": "缺少頁碼",
+  "paper.reader.pdfFocusRequested": "已請求 PDF 跳轉：{block}，第 {page} 頁",
+  "paper.reader.readingView": "閱讀視圖",
+  "paper.reader.zeroUsableBlocks": "已解析，但沒有可閱讀的區塊",
+  "paper.reader.missingPageNumbers": "部分區塊缺少頁碼",
+  "paper.reader.minimalBlocksWarning": "部分區塊只有最小中繼資料"
 }

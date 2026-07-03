@@ -1047,5 +1047,14 @@
   "paper.reader.collapseOutline": "折叠 Paper 大纲",
   "paper.reader.expandOutline": "展开 Paper 大纲",
   "paper.reader.outlineCollapsed": "大纲",
-  "paper.reader.parseAuthFailed": "MinerU 认证失败。请在 Settings 里检查或更换 API token。提供方返回：{message}"
+  "paper.reader.parseAuthFailed": "MinerU 认证失败。请在 Settings 里检查或更换 API token。提供方返回：{message}",
+  "paper.reader.searchBlocks": "搜索 Paper 块",
+  "paper.reader.searchEmpty": "没有匹配的块",
+  "paper.reader.outlineEmpty": "还没有大纲",
+  "paper.reader.pageMissing": "缺少页码",
+  "paper.reader.pdfFocusRequested": "已请求 PDF 跳转：{block}，第 {page} 页",
+  "paper.reader.readingView": "阅读视图",
+  "paper.reader.zeroUsableBlocks": "已解析，但没有可阅读的块",
+  "paper.reader.missingPageNumbers": "部分块缺少页码",
+  "paper.reader.minimalBlocksWarning": "部分块只有最小元数据"
 }

@@ -72,6 +72,52 @@ const blocks: SourceBlock[] = [
   },
 ]
 
+const parsedBlocks: SourceBlock[] = [
+  ...blocks,
+  {
+    id: 'b0003',
+    paper_id: 'attention',
+    kind: 'heading',
+    page: 2,
+    hash: 'sha256:method',
+    section: 'Method',
+    text: 'Model Architecture',
+  },
+  {
+    id: 'b0004',
+    paper_id: 'attention',
+    kind: 'figure',
+    page: 3,
+    hash: 'sha256:figure',
+    caption: 'Figure 1: Transformer model overview.',
+  },
+  {
+    id: 'b0005',
+    paper_id: 'attention',
+    kind: 'table',
+    page: 4,
+    hash: 'sha256:table',
+    section: 'Experiments',
+    text: 'BLEU scores by model size',
+  },
+  {
+    id: 'b0006',
+    paper_id: 'attention',
+    kind: 'equation',
+    page: 5,
+    hash: 'sha256:equation',
+    text: 'Attention(Q, K, V) = softmax(QK^T / sqrt(d_k))V',
+  },
+  {
+    id: 'b0007',
+    paper_id: 'attention',
+    kind: 'caption',
+    page: 5,
+    hash: 'sha256:caption',
+    text: 'Table 1: Training costs.',
+  },
+]
+
 function paperEntry(): VaultEntry {
   return {
     path: '/vault/papers/attention/paper.md',
@@ -183,6 +229,63 @@ describe('PaperReaderShell', () => {
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('@block[attention#b0001]')
     })
+  })
+
+  it('renders parsed SourceBlock kinds as a readable paper view', async () => {
+    mockedLoadPaperBlocks.mockResolvedValueOnce({
+      paperId: 'attention',
+      path: '/vault/papers/attention/blocks.jsonl',
+      state: 'ready',
+      blocks: parsedBlocks,
+    })
+
+    render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
+
+    expect(await screen.findByRole('heading', { name: 'Attention Is All You Need' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Model Architecture' })).toBeInTheDocument()
+    expect(screen.getByTestId('paper-reader-block-b0004')).toHaveTextContent('figure')
+    expect(screen.getByTestId('paper-reader-block-b0004')).toHaveTextContent('Transformer model overview')
+    expect(screen.getByTestId('paper-reader-block-b0005')).toHaveTextContent('table')
+    expect(screen.getByTestId('paper-reader-block-b0006')).toHaveTextContent('Attention(Q, K, V)')
+    expect(screen.getByTestId('paper-reader-block-b0007')).toHaveTextContent('Table 1: Training costs.')
+  })
+
+  it('navigates from outline items and records PDF page focus intent', async () => {
+    mockedLoadPaperBlocks.mockResolvedValueOnce({
+      paperId: 'attention',
+      path: '/vault/papers/attention/blocks.jsonl',
+      state: 'ready',
+      blocks: parsedBlocks,
+    })
+
+    render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
+
+    const outline = await screen.findByTestId('paper-reader-outline-items')
+    fireEvent.click(within(outline).getByRole('button', { name: /Model Architecture/u }))
+
+    expect(screen.getByTestId('paper-reader-selected-block')).toHaveTextContent('b0003')
+    expect(screen.getByTestId('paper-reader-pdf-focus-request')).toHaveTextContent('b0003')
+    expect(screen.getByTestId('paper-reader-pdf-focus-request')).toHaveTextContent('p.2')
+  })
+
+  it('searches parsed text and focuses a selected search result', async () => {
+    mockedLoadPaperBlocks.mockResolvedValueOnce({
+      paperId: 'attention',
+      path: '/vault/papers/attention/blocks.jsonl',
+      state: 'ready',
+      blocks: parsedBlocks,
+    })
+
+    render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
+
+    fireEvent.change(await screen.findByLabelText('Search paper blocks'), {
+      target: { value: 'overview' },
+    })
+    const results = await screen.findByTestId('paper-reader-search-results')
+    fireEvent.click(within(results).getByRole('button', { name: /Transformer model overview/u }))
+
+    expect(screen.getByTestId('paper-reader-selected-block')).toHaveTextContent('b0004')
+    expect(screen.getByTestId('paper-reader-pdf-focus-request')).toHaveTextContent('p.3')
   })
 
   it('creates and opens the default marginalia note from the reader action', async () => {
@@ -348,7 +451,8 @@ describe('PaperReaderShell', () => {
     expect(await screen.findByTestId('paper-reader-block-b0001')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Collapse paper outline' }))
 
-    expect(screen.queryByTestId('paper-reader-block-b0001')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('paper-reader-outline-items')).not.toBeInTheDocument()
+    expect(screen.getByTestId('paper-reader-block-b0001')).toBeInTheDocument()
     expect(screen.getByText('Outline')).toBeInTheDocument()
     expect(screen.getByTestId('paper-reader-read-layout').className).toContain('lg:grid-cols-[3rem_')
 
@@ -389,6 +493,29 @@ describe('PaperReaderShell', () => {
     render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
 
     expect(await screen.findByText('No readable blocks found')).toBeInTheDocument()
+  })
+
+  it('shows recoverable health warnings for minimally normalized parsed blocks', async () => {
+    mockedLoadPaperBlocks.mockResolvedValueOnce({
+      paperId: 'attention',
+      path: '/vault/papers/attention/blocks.jsonl',
+      state: 'ready',
+      blocks: [
+        {
+          id: 'b0001',
+          paper_id: 'attention',
+          kind: 'figure',
+          page: 0,
+          hash: 'sha256:minimal',
+        },
+      ],
+    })
+
+    render(<PaperReaderShell entry={paperEntry()} content={paperContent} vaultPath="/vault" />)
+
+    expect(await screen.findByText('Some blocks are missing page numbers')).toBeInTheDocument()
+    expect(screen.getByText('Some blocks only have minimal metadata')).toBeInTheDocument()
+    expect(screen.getByTestId('paper-reader-block-b0001')).toHaveTextContent('page missing')
   })
 
   it('shows a Parse Paper action when paper structure is missing', async () => {

@@ -95,9 +95,11 @@ The reader shell displays:
 - PDF readiness and the existing `FilePreview` view for the resolved source PDF path.
 - Parsed paper-structure state: loading, not parsed, empty, parsed, or error. The backing artifact is still `blocks.jsonl`, but the normal Reader UI presents it as the paper outline instead of exposing the sidecar filename.
 - Block count and current selected block id.
-- A collapsible SourceBlock outline loaded through the Phase 2A `read_paper_blocks` command.
+- A collapsible Paper outline loaded through the Phase 2A `read_paper_blocks` command.
 
-Block interaction remains intentionally minimal. Selecting a block only focuses the outline row, and the copy action uses the canonical Phase 2B formatter to write `@block[paper_id#block_id]` to the clipboard. Citation navigation consumes the pending `{ paperId, blockId }` request from `src/paper/blockCitationNavigation.ts`, opens the Paper entity, and scrolls/focuses the requested SourceBlock row when the sidecar has that id.
+Phase 4C turns parsed SourceBlocks into the first readable paper view. Titles and headings render as headings, paragraphs render as prose, and figures, tables, equations, and captions get distinct visual treatment while retaining page and section metadata. The outline is derived from titles, headings, and first blocks on each page; clicking an outline item scrolls/focuses that block. The Reader also provides in-paper search across block text, captions, sections, kinds, and ids, with search results focusing the matching block.
+
+Block interaction remains intentionally local to the Reader. Selecting a block highlights it, exposes the annotation composer, keeps citation and marginalia actions available, and records a PDF focus request when the block has a page number. The current PDF preview seam does not yet support reliable direct page navigation, so the Reader surfaces the requested block/page as UI state and leaves coordinate overlays for a later phase. Citation navigation consumes the pending `{ paperId, blockId }` request from `src/paper/blockCitationNavigation.ts`, opens the Paper entity, and scrolls/focuses the requested SourceBlock when the sidecar has that id. The copy action uses the canonical Phase 2B formatter to write `@block[paper_id#block_id]` to the clipboard.
 
 The Phase 2C reader does not write `source.pdf`, `paper.md`, or sidecars. Missing and empty parsed-structure artifacts render recoverable states; malformed sidecars render structured line errors from the existing sidecar reader. PDF page-coordinate overlays, parser integration, AI Ask, memory compilation, and graph UI remain out of scope for that phase.
 

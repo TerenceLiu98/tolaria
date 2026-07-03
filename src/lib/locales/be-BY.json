@@ -1047,5 +1047,14 @@
   "paper.reader.collapseOutline": "Collapse paper outline",
   "paper.reader.expandOutline": "Expand paper outline",
   "paper.reader.outlineCollapsed": "Outline",
-  "paper.reader.parseAuthFailed": "MinerU authentication failed. Check or replace the API token in Settings. Provider said: {message}"
+  "paper.reader.parseAuthFailed": "MinerU authentication failed. Check or replace the API token in Settings. Provider said: {message}",
+  "paper.reader.searchBlocks": "Search paper blocks",
+  "paper.reader.searchEmpty": "No block matches",
+  "paper.reader.outlineEmpty": "No outline yet",
+  "paper.reader.pageMissing": "page missing",
+  "paper.reader.pdfFocusRequested": "PDF page focus requested: {block}, p.{page}",
+  "paper.reader.readingView": "Reading view",
+  "paper.reader.zeroUsableBlocks": "Parsed with no usable blocks",
+  "paper.reader.missingPageNumbers": "Some blocks are missing page numbers",
+  "paper.reader.minimalBlocksWarning": "Some blocks only have minimal metadata"
 }
