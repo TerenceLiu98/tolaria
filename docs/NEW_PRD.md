@@ -265,27 +265,6 @@ template: |
 # Paper
 ```
 
-Example `research-note.md` Type document:
-
-```yaml
----
-type: Type
-icon: notebook-tabs
-color: blue
-order: 20
-sidebar_label: Research Notes
-template: |
-  # New Research Note
-
-  ## Claim
-
-  ## Evidence
-
-  ## Open Questions
----
-# Research Note
-```
-
 ## 9. Core Domain Model
 
 ### 9.1 Paper
@@ -391,9 +370,9 @@ normalized text or caption hash
 + collision suffix if needed
 ```
 
-### 9.3 Annotation
+### 9.3 Paper Comments
 
-Annotations are user-created marks over paper blocks or PDF coordinates.
+Paper comments are user-created notes attached to parsed paper blocks. They are stored outside `paper.md` so parser-owned paper text and user commentary stay separate.
 
 Stored in:
 
@@ -404,43 +383,25 @@ annotations.jsonl
 Example:
 
 ```json
-{"id":"ann_001","paper_id":"vaswani-2017-attention","block_id":"b0023","kind":"highlight","color":"important","created_at":"2026-07-02T10:15:00Z","text":"significantly more parallelization"}
-{"id":"ann_002","paper_id":"vaswani-2017-attention","block_id":"b0048","kind":"question","color":"questioning","note":"Is this assumption still true for long-context models?","created_at":"2026-07-02T10:18:00Z"}
+{"id":"ann_001","paper_id":"vaswani-2017-attention","block_id":"b0048","kind":"comment","note":"Is this assumption still true for long-context models?","created_at":"2026-07-02T10:18:00Z"}
 ```
 
-Annotation kinds:
+New records use `kind: comment`. Earlier development builds may have written highlight/question/bookmark kinds or semantic colors; the app preserves those records when reading the sidecar but does not expose kind/color controls in the Paper comment UI.
 
-- `highlight`
-- `underline`
-- `ink`
-- `question`
-- `comment`
-- `bookmark`
+### 9.4 Ordinary Notes for Research
 
-Default semantic colors:
+Long-form research thinking uses ordinary Tolaria `Note` entries. Users link those notes to Paper with existing wikilink/backlink behavior and cite exact parsed blocks with `@block[...]` when needed.
 
-| Color | Meaning |
-| --- | --- |
-| `questioning` | Needs follow-up |
-| `important` | Important claim or result |
-| `original` | Novel contribution |
-| `pending` | Unresolved or to revisit |
-| `conclusion` | Main takeaway |
-
-### 9.4 ResearchNote
-
-A ResearchNote is a Markdown note that links user thinking to one or more papers.
-
-Example:
+Example ordinary note:
 
 ```yaml
 ---
-type: ResearchNote
-paper:
-  - "[[papers/vaswani-2017-attention/paper]]"
+type: Note
 status: active
 ---
 # Why self-attention changed sequence modeling
+
+Related paper: [[papers/vaswani-2017-attention/paper]]
 
 The key move is replacing recurrence with self-attention. @block[vaswani-2017-attention#b0023]
 
@@ -565,7 +526,7 @@ Research additions should appear as modes and panels, not as a separate app shel
 The sidebar should support:
 
 - Papers type section.
-- Research Notes type section.
+- Ordinary note creation for long-form research notes.
 - Concepts type section.
 - Reading Queue saved view.
 - Recently Annotated saved view.
@@ -597,7 +558,7 @@ Layouts:
 | Mode | Layout | Purpose |
 | --- | --- | --- |
 | Read | PDF or parsed blocks + Inspector | Focused reading |
-| Notes | Existing note surface | Long-form synthesis through ordinary ResearchNotes |
+| Notes | Existing note surface | Long-form synthesis through ordinary Notes |
 | Ask | Reader + Ask panel | Grounded question answering |
 | Compare | Two paper readers or paper + note | Later milestone |
 
@@ -630,7 +591,7 @@ When viewing a Paper:
 - Memory preview.
 - Graph preview.
 
-When viewing a ResearchNote:
+When viewing an ordinary Note that links to Paper:
 
 - Paper links.
 - Cited blocks.
@@ -762,13 +723,13 @@ Acceptance criteria:
 - Annotation file is human-inspectable JSONL.
 - Git diff shows annotation additions.
 
-### 11.5 Research Notes
+### 11.5 Ordinary Notes
 
-Users can create ordinary ResearchNotes and cite Paper blocks while reading.
+Users can create ordinary Notes and cite Paper blocks while reading.
 
 Requirements:
 
-- ResearchNotes are normal Markdown notes created through Tolaria's existing note workflow.
+- Research notes are normal Markdown notes created through Tolaria's existing `Note` workflow.
 - Notes can link to the Paper with existing wikilink/path conventions.
 - Selected block citations use canonical `@block[paper_id#block_id]` syntax.
 - Paper Reader does not own a special note template or append action.
@@ -776,7 +737,7 @@ Requirements:
 Acceptance criteria:
 
 - User can cite Paper evidence from ordinary notes without mixing notes into parser-owned `paper.md`.
-- New note appears in Research Notes.
+- New note appears in the normal Notes section or wherever the user creates it.
 - Note links back to Paper.
 
 ### 11.6 Research Memory Compiler
@@ -1246,7 +1207,7 @@ Exit criteria:
 - Paper reads like a rendered note rather than a debug block list.
 - `blocks.jsonl` remains the machine index, not the primary reading surface.
 - Users can add, edit, and delete block-level comments without changing `paper.md`.
-- Long-form synthesis uses ordinary ResearchNotes created through Tolaria's normal note workflow.
+- Long-form synthesis uses ordinary Notes created through Tolaria's normal note workflow.
 
 ### Phase 4E: Note Editor Comment Seam and Paper Markdown Read/Comment Mode
 
@@ -1265,15 +1226,15 @@ Exit criteria:
 - `paper.md` is not mutated by comment create, edit, or delete actions.
 - Existing citation and annotation workflows still work.
 
-### Phase 4F: Shared NoteSurface for Paper and no Marginalia workflow
+### Phase 4F: Shared NoteSurface for Paper and no special research-note workflow
 
 Deliverables:
 
 - Paper Markdown mode mounts `paper.md` through the shared Note surface used by ordinary notes.
-- Paper source content is read-only/commentable by default.
+- Paper source content is editable/commentable by default.
 - Paper comments continue to persist through `annotations.jsonl`.
-- Marginalia-specific mode, pane, commands, templates, and append actions are removed.
-- Users can still create ordinary `ResearchNote` notes when they want long-form synthesis.
+- Paper-specific long-note mode, pane, commands, templates, and append actions are removed.
+- Users can still create ordinary `Note` entries when they want long-form synthesis.
 
 Exit criteria:
 
@@ -1335,7 +1296,7 @@ Exit criteria:
 - User imports first paper.
 - User parses first paper.
 - User creates first block citation.
-- User creates first ResearchNote with a block citation.
+- User creates first ordinary Note with a Paper link or block citation.
 
 ### 17.2 Engagement
 
@@ -1494,7 +1455,7 @@ The smallest useful product is:
 2. Parse or load fixture blocks into `blocks.jsonl`.
 3. Open Paper Reader Mode.
 4. Select a block and copy/insert a citation.
-5. Write a ResearchNote with `@block[...]`.
+5. Write an ordinary Note with `@block[...]`.
 6. Click citation to jump back to the source block.
 7. Highlight a block and persist annotation.
 8. Ask a question about the current block and receive cited answer.
@@ -1510,7 +1471,7 @@ v1 should include:
 - Block citation editor integration.
 - Paper Reader Mode.
 - Annotation persistence.
-- Research notes.
+- Ordinary notes linked to papers.
 - Grounded Ask.
 - Research memory compiler.
 - Citation validation.
@@ -1529,14 +1490,14 @@ v1 should include:
 6. User opens Paper Reader Mode.
 7. User highlights a paragraph as Important.
 8. App appends to `annotations.jsonl`.
-9. User creates or opens an ordinary ResearchNote.
+9. User creates or opens an ordinary Note.
 10. User inserts `@block[vaswani-2017-attention#b0023]`.
 11. User asks "What is the key architectural contribution?"
 12. AI answers with block citations.
 13. User saves the answer as an Ask trace.
 14. User compiles research memory.
 15. App writes `memory.md`.
-16. Git shows changes to `paper.md`, `blocks.jsonl`, `annotations.jsonl`, the user's ResearchNote, `ask-traces.jsonl`, and `memory.md`.
+16. Git shows changes to `paper.md`, `blocks.jsonl`, `annotations.jsonl`, the user's Note, `ask-traces.jsonl`, and `memory.md`.
 
 ## 27. Appendix: Terminology
 
@@ -1547,7 +1508,7 @@ v1 should include:
 | SourceBlock | Stable unit extracted from paper |
 | Block Citation | Markdown token pointing to SourceBlock |
 | Sidecar | File stored beside source PDF containing derived or user-created data |
-| Annotation | User-created sidecar mark such as comment, highlight, question, underline, or bookmark |
+| Annotation | User-created Paper comment stored in `annotations.jsonl` |
 | ResearchMemory | Compiled memory artifact from notes and traces |
 | Grounded Ask | AI question answering constrained by explicit evidence |
 | MCP | Model Context Protocol bridge exposing vault tools to agents |

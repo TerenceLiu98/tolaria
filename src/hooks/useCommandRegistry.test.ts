@@ -165,14 +165,14 @@ describe('useCommandRegistry', () => {
     expect(findCommand(result.current, 'list-paper')).toBeDefined()
   })
 
-  it('does not include a Paper marginalia command', () => {
+  it('does not include a Paper-specific note workflow command', () => {
     const config = makeConfig({
       activeTabPath: '/vault/papers/attention/paper.md',
       entries: [paperEntry()],
     })
     const { result } = renderHook(() => useCommandRegistry(config))
 
-    expect(findCommand(result.current, 'open-paper-marginalia')).toBeUndefined()
+    expect(findCommand(result.current, 'open-paper-note')).toBeUndefined()
   })
 
   it('includes a Parse Current Paper command for the active Paper entry', () => {

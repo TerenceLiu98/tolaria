@@ -197,7 +197,7 @@ describe('PaperReaderShell', () => {
     })
   })
 
-  it('renders paper metadata and mounts paper.md through a read-only NoteSurface', async () => {
+  it('renders paper metadata and mounts paper.md through an editable NoteSurface', async () => {
     readyBlocks()
 
     renderPaperReader()
@@ -207,7 +207,7 @@ describe('PaperReaderShell', () => {
     expect(screen.getByText('PDF: ready')).toBeInTheDocument()
     expect(await screen.findByText('Structure: parsed')).toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-outline')).not.toBeInTheDocument()
-    expect(screen.getByTestId('note-surface')).toHaveAttribute('data-readonly', 'true')
+    expect(screen.getByTestId('note-surface')).toHaveAttribute('data-readonly', 'false')
     expect(screen.getByTestId('note-surface')).toHaveAttribute('data-source-path', '/vault/papers/attention/paper.md')
     expect(screen.getByTestId('note-surface-comment-seam')).toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-source-preview')).not.toBeInTheDocument()
@@ -246,7 +246,7 @@ describe('PaperReaderShell', () => {
     expect(await screen.findByText('Structure: parsed')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Read' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('paper-reader-markdown-layout')).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Marginalia' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /note/i })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'PDF' }))
 
@@ -431,7 +431,8 @@ describe('PaperReaderShell', () => {
 
     expect(await screen.findByTestId('comment-gutter-count-b0002')).toHaveTextContent('1')
     fireEvent.click(screen.getByTestId('note-surface-anchor-b0002'))
-    expect(screen.getByTestId('paper-reader-annotations-b0002')).toHaveTextContent('Highlight')
+    expect(screen.getByTestId('paper-reader-annotations-b0002')).toBeInTheDocument()
+    expect(screen.queryByText('Highlight')).not.toBeInTheDocument()
     fireEvent.click(screen.getByTestId('note-surface-anchor-b0002'))
     expect(screen.queryByTestId('paper-reader-comment-thread-b0002')).not.toBeInTheDocument()
   })
@@ -457,30 +458,29 @@ describe('PaperReaderShell', () => {
     expect(within(controls).queryByRole('combobox', { name: 'Annotation kind' })).not.toBeInTheDocument()
     expect(within(controls).queryByRole('combobox', { name: 'Annotation color' })).not.toBeInTheDocument()
     expect(within(reopenedThread).queryByText(/b0002|p\.2/u)).not.toBeInTheDocument()
-    fireEvent.change(within(controls).getByLabelText('Annotation note'), {
+    fireEvent.change(within(controls).getByLabelText('Comment'), {
       target: { value: 'This claim needs a citation.' },
     })
     fireEvent.click(within(controls).getByRole('button', { name: 'Comment' }))
 
     await waitFor(() => {
       expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"comment"')
+      expect(MOCK_CONTENT[annotationsPath]).not.toContain('"color"')
       expect(MOCK_CONTENT[annotationsPath]).toContain('"note":"This claim needs a citation."')
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })
 
     const editor = await screen.findByTestId(/paper-reader-annotation-editor-/u)
-    fireEvent.click(within(editor).getByRole('combobox', { name: 'Annotation kind' }))
-    fireEvent.click(screen.getByRole('option', { name: 'Question' }))
-    fireEvent.click(within(editor).getByRole('combobox', { name: 'Annotation color' }))
-    fireEvent.click(screen.getByRole('option', { name: 'Original' }))
-    fireEvent.change(within(editor).getByLabelText('Annotation note'), {
+    expect(within(editor).queryByRole('combobox', { name: 'Annotation kind' })).not.toBeInTheDocument()
+    expect(within(editor).queryByRole('combobox', { name: 'Annotation color' })).not.toBeInTheDocument()
+    fireEvent.change(within(editor).getByLabelText('Comment'), {
       target: { value: 'Updated interpretation' },
     })
-    fireEvent.click(within(editor).getByRole('button', { name: 'Save annotation' }))
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"question"')
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"color":"original"')
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"comment"')
+      expect(MOCK_CONTENT[annotationsPath]).not.toContain('"color"')
       expect(MOCK_CONTENT[annotationsPath]).toContain('"note":"Updated interpretation"')
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })

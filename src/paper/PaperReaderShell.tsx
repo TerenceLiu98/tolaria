@@ -10,13 +10,6 @@ import {
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Tabs,
   TabsContent,
   TabsList,
@@ -50,15 +43,9 @@ import { loadPaperBlocks, type PaperBlocksError, type PaperBlocksReadResult } fr
 import type {
   AnnotationsByBlockId,
   PaperAnnotation,
-  PaperAnnotationColor,
   PaperAnnotationKind,
 } from './annotations'
 import {
-  PAPER_ANNOTATION_COLORS,
-  PAPER_ANNOTATION_KINDS,
-} from './annotations'
-import {
-  blockDisplayText,
   type PaperReaderBlocksState,
   paperMetadataForReader,
   paperReaderSummary,
@@ -234,43 +221,12 @@ function paperStructureStatusLabel(locale: AppLocale, blocksState: PaperReaderBl
   return translate(locale, labelKeys[blocksState])
 }
 
-const DEFAULT_ANNOTATION_KIND: PaperAnnotationKind = 'highlight'
-const DEFAULT_ANNOTATION_COLOR: PaperAnnotationColor = 'important'
 const EMPTY_SOURCE_BLOCKS: SourceBlock[] = []
-
-const ANNOTATION_KIND_LABEL_KEYS: Record<PaperAnnotationKind, TranslationKey> = {
-  bookmark: 'paper.reader.addBookmark',
-  comment: 'paper.reader.addComment',
-  highlight: 'paper.reader.addHighlight',
-  question: 'paper.reader.addQuestion',
-  underline: 'paper.reader.addUnderline',
-}
-
-const ANNOTATION_COLOR_LABEL_KEYS: Record<PaperAnnotationColor, TranslationKey> = {
-  conclusion: 'paper.reader.colorConclusion',
-  important: 'paper.reader.colorImportant',
-  original: 'paper.reader.colorOriginal',
-  pending: 'paper.reader.colorPending',
-  questioning: 'paper.reader.colorQuestioning',
-}
-
-function annotationKindLabel(locale: AppLocale, kind: PaperAnnotationKind): string {
-  return translate(locale, ANNOTATION_KIND_LABEL_KEYS[kind])
-}
-
-function annotationColorLabel(locale: AppLocale, color: PaperAnnotationColor): string {
-  return translate(locale, ANNOTATION_COLOR_LABEL_KEYS[color])
-}
+const PAPER_COMMENT_KIND: PaperAnnotationKind = 'comment'
 
 function cleanOptionalNote(note: string): string | undefined {
   const trimmed = note.trim()
   return trimmed.length > 0 ? trimmed : undefined
-}
-
-function textSnapshotForAnnotation(block: SourceBlock, kind: PaperAnnotationKind): string | undefined {
-  return kind === 'highlight' || kind === 'underline'
-    ? blockDisplayText(block)
-    : undefined
 }
 
 function PaperMetadataPanel({
@@ -425,122 +381,35 @@ function AnnotationStateNotice({
   return null
 }
 
-function AnnotationKindSelect({
-  locale,
-  value,
-  onValueChange,
-}: {
-  locale: AppLocale
-  value: PaperAnnotationKind
-  onValueChange: (value: PaperAnnotationKind) => void
-}) {
-  return (
-    <Select
-      value={value}
-      onValueChange={(nextValue) => {
-        const nextKind = PAPER_ANNOTATION_KINDS.find((kind) => kind === nextValue)
-        if (nextKind) onValueChange(nextKind)
-      }}
-    >
-      <SelectTrigger
-        size="sm"
-        className="h-7 w-[8.5rem] text-xs"
-        aria-label={translate(locale, 'paper.reader.annotationKind')}
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {PAPER_ANNOTATION_KINDS.map((kind) => (
-          <SelectItem key={kind} value={kind}>
-            {annotationKindLabel(locale, kind)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
-function AnnotationColorSelect({
-  locale,
-  value,
-  onValueChange,
-}: {
-  locale: AppLocale
-  value: PaperAnnotationColor
-  onValueChange: (value: PaperAnnotationColor) => void
-}) {
-  return (
-    <Select
-      value={value}
-      onValueChange={(nextValue) => {
-        const nextColor = PAPER_ANNOTATION_COLORS.find((color) => color === nextValue)
-        if (nextColor) onValueChange(nextColor)
-      }}
-    >
-      <SelectTrigger
-        size="sm"
-        className="h-7 w-[8.5rem] text-xs"
-        aria-label={translate(locale, 'paper.reader.annotationColor')}
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {PAPER_ANNOTATION_COLORS.map((color) => (
-          <SelectItem key={color} value={color}>
-            {annotationColorLabel(locale, color)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
 function BlockAnnotationComposer({
   block,
-  defaultKind = DEFAULT_ANNOTATION_KIND,
   locale,
   onCreateAnnotation,
 }: {
   block: SourceBlock
-  defaultKind?: PaperAnnotationKind
   locale: AppLocale
   onCreateAnnotation: (block: SourceBlock, input: {
-    color: PaperAnnotationColor
     kind: PaperAnnotationKind
     note?: string
     text?: string
   }) => void
 }) {
-  const [kind, setKind] = useState<PaperAnnotationKind>(defaultKind)
-  const [color, setColor] = useState<PaperAnnotationColor>(DEFAULT_ANNOTATION_COLOR)
-  const isDefaultComment = defaultKind === 'comment'
-
   const createAnnotation = useCallback((note: string) => {
     onCreateAnnotation(block, {
-      color,
-      kind,
+      kind: PAPER_COMMENT_KIND,
       note: cleanOptionalNote(note),
-      text: textSnapshotForAnnotation(block, kind),
     })
-  }, [block, color, kind, onCreateAnnotation])
+  }, [block, onCreateAnnotation])
 
   return (
     <div
       className="grid gap-2 rounded-md border border-border/60 bg-muted/30 p-2"
       data-testid={`paper-reader-annotation-controls-${block.id}`}
     >
-      {isDefaultComment ? null : (
-        <div className="flex flex-wrap items-center gap-2">
-          <AnnotationKindSelect locale={locale} value={kind} onValueChange={setKind} />
-          <AnnotationColorSelect locale={locale} value={color} onValueChange={setColor} />
-        </div>
-      )}
       <CommentComposer
-        label={translate(locale, 'paper.reader.annotationNote')}
-        placeholder={translate(locale, 'paper.reader.annotationNotePlaceholder')}
-        submitLabel={kind === 'comment'
-          ? translate(locale, 'paper.reader.addComment')
-          : translate(locale, 'paper.reader.addAnnotation')}
+        label={translate(locale, 'paper.reader.addComment')}
+        placeholder={translate(locale, 'paper.reader.addComment')}
+        submitLabel={translate(locale, 'paper.reader.addComment')}
         onSubmit={createAnnotation}
       />
     </div>
@@ -558,19 +427,15 @@ function PaperAnnotationEditor({
   onDeleteAnnotation: (annotationId: string) => void
   onSaveAnnotation: (annotation: PaperAnnotation) => void
 }) {
-  const [kind, setKind] = useState<PaperAnnotationKind>(annotation.kind)
-  const [color, setColor] = useState<PaperAnnotationColor>(annotation.color ?? DEFAULT_ANNOTATION_COLOR)
-  const [note, setNote] = useState(annotation.note ?? '')
+  const [note, setNote] = useState(annotation.note ?? annotation.text ?? '')
 
   const saveAnnotation = useCallback(() => {
     onSaveAnnotation({
       ...annotation,
-      color,
-      kind,
       note: cleanOptionalNote(note),
       updated_at: new Date().toISOString(),
     })
-  }, [annotation, color, kind, note, onSaveAnnotation])
+  }, [annotation, note, onSaveAnnotation])
 
   return (
     <li
@@ -578,8 +443,6 @@ function PaperAnnotationEditor({
       data-testid={`paper-reader-annotation-editor-${annotation.id}`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <AnnotationKindSelect locale={locale} value={kind} onValueChange={setKind} />
-        <AnnotationColorSelect locale={locale} value={color} onValueChange={setColor} />
         <Button
           type="button"
           variant="secondary"
@@ -587,7 +450,7 @@ function PaperAnnotationEditor({
           onClick={saveAnnotation}
         >
           <Check className="size-3.5" />
-          {translate(locale, 'paper.reader.saveAnnotation')}
+          {translate(locale, 'common.save')}
         </Button>
         <Button
           type="button"
@@ -601,9 +464,9 @@ function PaperAnnotationEditor({
         </Button>
       </div>
       <Textarea
-        aria-label={translate(locale, 'paper.reader.annotationNote')}
+        aria-label={translate(locale, 'paper.reader.addComment')}
         className="min-h-14 resize-y text-xs"
-        placeholder={translate(locale, 'paper.reader.annotationNotePlaceholder')}
+        placeholder={translate(locale, 'paper.reader.addComment')}
         value={note}
         onChange={(event) => setNote(event.currentTarget.value)}
       />
@@ -625,7 +488,6 @@ function BlockCommentThread({
   block: SourceBlock
   locale: AppLocale
   onCreateAnnotation: (block: SourceBlock, input: {
-    color: PaperAnnotationColor
     kind: PaperAnnotationKind
     note?: string
     text?: string
@@ -675,7 +537,6 @@ function BlockCommentThread({
     >
       <BlockAnnotationComposer
         block={block}
-        defaultKind="comment"
         locale={locale}
         onCreateAnnotation={onCreateAnnotation}
       />
@@ -726,7 +587,6 @@ function PaperMarkdownNoteSurface({
   locale: AppLocale
   onCloseCommentThread: () => void
   onCreateAnnotation: (block: SourceBlock, input: {
-    color: PaperAnnotationColor
     kind: PaperAnnotationKind
     note?: string
     text?: string
@@ -818,7 +678,7 @@ function PaperMarkdownNoteSurface({
             renderThread: renderCommentThread,
             selectedAnchorId: openCommentBlockId,
           }}
-          editable={false}
+          editable={true}
           editor={editor}
           entries={entries}
           locale={locale}
@@ -959,14 +819,12 @@ export function PaperReaderShell({
     [annotations.annotations],
   )
   const createAnnotation = useCallback((block: SourceBlock, input: {
-    color: PaperAnnotationColor
     kind: PaperAnnotationKind
     note?: string
     text?: string
   }) => {
     void annotations.createBlockLevelAnnotation({
       blockId: block.id,
-      color: input.color,
       kind: input.kind,
       note: input.note,
       text: input.text,
