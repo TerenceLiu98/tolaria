@@ -115,11 +115,12 @@ SITE_CHANGED=false
 if [ -n "$PUSH_TARGET" ]; then
   CHANGED=$(git diff --name-only "$PUSH_TARGET"..HEAD)
   APP_CHANGED=false
-  if ! echo "$CHANGED" | grep -qE '^(src-tauri/|Cargo)'; then
-    RUST_CHANGED=false
-  fi
+  RUST_CHANGED=false
   for FILE in $CHANGED; do
     case "$FILE" in
+      src-tauri/*|Cargo*)
+        RUST_CHANGED=true
+        ;;
       site/*)
         SITE_CHANGED=true
         ;;
@@ -236,7 +237,7 @@ if ! run_sidecar_automatic_checks; then
 
   # ── 5. Playwright core smoke lane (if any exist) ──────────────────────
   echo ""
-  SMOKE_FILES=$(find tests/smoke tests/integration -name '*.spec.ts' 2>/dev/null | head -1)
+  SMOKE_FILES=$(find tests/smoke tests/integration -name '*.spec.ts' -print -quit 2>/dev/null)
   if [ -n "$SMOKE_FILES" ]; then
     echo "🎭 [5/6] Playwright core smoke tests..."
     if ! pnpm playwright:smoke; then
@@ -260,8 +261,16 @@ THRESHOLDS_FILE="$(git rev-parse --show-toplevel)/.codescene-thresholds"
 HOTSPOT_MIN=9.45
 AVERAGE_MIN=9.29
 if [ -f "$THRESHOLDS_FILE" ]; then
-  HOTSPOT_MIN=$(grep HOTSPOT_THRESHOLD "$THRESHOLDS_FILE" | cut -d= -f2)
-  AVERAGE_MIN=$(grep AVERAGE_THRESHOLD "$THRESHOLDS_FILE" | cut -d= -f2)
+  while IFS='=' read -r THRESHOLD_KEY THRESHOLD_VALUE; do
+    case "$THRESHOLD_KEY" in
+      HOTSPOT_THRESHOLD)
+        HOTSPOT_MIN="$THRESHOLD_VALUE"
+        ;;
+      AVERAGE_THRESHOLD)
+        AVERAGE_MIN="$THRESHOLD_VALUE"
+        ;;
+    esac
+  done < "$THRESHOLDS_FILE"
 fi
 
 echo ""
@@ -336,3 +345,4 @@ echo ""
 echo "================================================"
 echo "✅ All checks passed — pushing (${MINUTES}m ${SECONDS}s)"
 echo ""
+exit 0
