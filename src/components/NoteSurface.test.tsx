@@ -2,11 +2,20 @@ import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { NoteSurface } from './NoteSurface'
 
+const singleEditorViewMock = vi.fn()
+
 vi.mock('./SingleEditorView', () => ({
-  SingleEditorView: () => <div data-testid="single-editor-view" />,
+  SingleEditorView: (props: unknown) => {
+    singleEditorViewMock(props)
+    return <div data-testid="single-editor-view" />
+  },
 }))
 
 describe('NoteSurface', () => {
+  beforeEach(() => {
+    singleEditorViewMock.mockClear()
+  })
+
   it('keeps the comment seam compact and renders the selected thread at the selected anchor', () => {
     render(
       <NoteSurface
@@ -32,5 +41,21 @@ describe('NoteSurface', () => {
     expect(firstAnchor).not.toContainElement(screen.getByTestId('selected-comment-thread'))
     expect(selectedAnchor).toContainElement(screen.getByTestId('selected-comment-thread'))
     expect(within(selectedAnchor).getByTestId('comment-gutter-count-b0002')).toHaveTextContent('1')
+  })
+
+  it('forwards selected text context changes to the shared editor view', () => {
+    const onSelectedTextContextChange = vi.fn()
+    render(
+      <NoteSurface
+        editor={{} as never}
+        entries={[]}
+        onNavigateWikilink={vi.fn()}
+        onSelectedTextContextChange={onSelectedTextContextChange}
+      />,
+    )
+
+    expect(singleEditorViewMock).toHaveBeenCalledWith(expect.objectContaining({
+      onSelectedTextContextChange,
+    }))
   })
 })

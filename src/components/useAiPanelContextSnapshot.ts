@@ -3,6 +3,8 @@ import type { VaultEntry } from '../types'
 import {
   buildContextSnapshot,
   collectLinkedEntries,
+  paperAiContextSummary,
+  type AiSelectedTextContext,
   type NoteListItem,
 } from '../utils/ai-context'
 import { extractInlineWikilinkReferences } from './inlineWikilinkText'
@@ -15,6 +17,7 @@ interface UseAiPanelContextSnapshotArgs {
   openTabs?: VaultEntry[]
   noteList?: NoteListItem[]
   noteListFilter?: { type: string | null; query: string }
+  selectedContext?: AiSelectedTextContext | null
 }
 
 export function useAiPanelContextSnapshot({
@@ -25,6 +28,7 @@ export function useAiPanelContextSnapshot({
   openTabs,
   noteList,
   noteListFilter,
+  selectedContext,
 }: UseAiPanelContextSnapshotArgs) {
   const linkedEntries = useMemo(() => {
     if (!activeEntry || !entries) return []
@@ -46,8 +50,18 @@ export function useAiPanelContextSnapshot({
       noteListFilter,
       entries,
       references: draftReferences.length > 0 ? draftReferences : undefined,
+      selectedContext,
     })
-  }, [activeEntry, activeNoteContent, draftReferences, entries, noteList, noteListFilter, openTabs])
+  }, [activeEntry, activeNoteContent, draftReferences, entries, noteList, noteListFilter, openTabs, selectedContext])
 
-  return { linkedEntries, contextPrompt }
+  const paperContext = useMemo(() => {
+    if (!activeEntry || !entries) return null
+    return paperAiContextSummary({
+      activeEntry,
+      activeNoteContent: activeNoteContent ?? undefined,
+      entries,
+    })
+  }, [activeEntry, activeNoteContent, entries])
+
+  return { linkedEntries, contextPrompt, paperContext }
 }

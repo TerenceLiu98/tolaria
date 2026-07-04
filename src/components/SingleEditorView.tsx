@@ -35,6 +35,7 @@ import { observeNativeTextAssistanceDisabled } from '../lib/nativeTextAssistance
 import { getRuntimeStyleNonce } from '../lib/runtimeStyleNonce'
 import { WikilinkSuggestionMenu, type WikilinkSuggestionItem } from './WikilinkSuggestionMenu'
 import type { VaultEntry } from '../types'
+import type { AiSelectedTextContext } from '../utils/ai-context'
 import { _wikilinkEntriesRef } from './editorSchema'
 import {
   handleEditorFileBlockClick,
@@ -91,6 +92,7 @@ import {
   selectedEditorRange,
   writeRichEditorClipboardPayload,
 } from './editorRichCopy'
+import { selectedImageContextFromTarget } from './editorSelectedContext'
 
 const TEST_TABLE_MARKDOWN = `| Head 1 | Head 2 | Head 3 |
 | --- | --- | --- |
@@ -1166,11 +1168,12 @@ function refreshCodeBlockSyntaxHighlighting(editor: ReturnType<typeof useCreateB
 }
 
 /** Single BlockNote editor view — content is swapped via replaceBlocks */
-export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
+export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange, onSelectedTextContextChange, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
   editor: ReturnType<typeof useCreateBlockNote>
   entries: VaultEntry[]
   onNavigateWikilink: (target: string) => void
   onChange?: () => void
+  onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   sourceEntry?: VaultEntry | null
   vaultPath?: string
   editable?: boolean
@@ -1180,6 +1183,7 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
   const themeMode = useDocumentThemeMode()
   const previousThemeModeRef = useRef(themeMode)
   const containerRef = useRef<HTMLDivElement>(null)
+  const selectedImageContextRef = useRef<AiSelectedTextContext | null>(null)
   const suppressNextContainerClickRef = useRef(false)
   const handleContainerClick = useEditorContainerClickHandler({
     editable,
@@ -1253,14 +1257,75 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
     activatePlainTextPaste()
     handleCodeBlockCopyFocus(event)
   }, [activatePlainTextPaste, handleCodeBlockCopyFocus])
+  const handleImageSelectionContextClick = useCallback((event: React.MouseEvent<HTMLDivElement>): boolean => {
+    if (!sourceEntry || !onSelectedTextContextChange) {
+      selectedImageContextRef.current = null
+      return false
+    }
+
+    const context = selectedImageContextFromTarget({
+      editor,
+      sourceEntry,
+      target: event.target,
+      vaultPath,
+    })
+    if (!context) {
+      selectedImageContextRef.current = null
+      return false
+    }
+
+    selectedImageContextRef.current = context
+    onSelectedTextContextChange(context)
+    return true
+  }, [editor, onSelectedTextContextChange, sourceEntry, vaultPath])
   const handleMouseDownCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     activatePlainTextPaste()
+    if (handleImageSelectionContextClick(event)) return
     handleWhitespaceMouseSelection(event)
-  }, [activatePlainTextPaste, handleWhitespaceMouseSelection])
+  }, [activatePlainTextPaste, handleImageSelectionContextClick, handleWhitespaceMouseSelection])
   const handleCopyCapture = useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
     handleEditorCopy(event, editor)
   }, [editor])
+  const handleSelectionContextRefresh = useCallback(() => {
+    if (!sourceEntry || !onSelectedTextContextChange) return
 
+    const container = containerRef.current
+    const selection = window.getSelection()
+    if (!container || !selection || selection.rangeCount === 0) return
+
+    const range = selection.getRangeAt(0)
+    if (!container.contains(range.commonAncestorContainer)) {
+      return
+    }
+    if (selection.isCollapsed) {
+      const selectedImageContext = selectedImageContextRef.current
+      if (selectedImageContext) {
+        onSelectedTextContextChange(selectedImageContext)
+        return
+      }
+      onSelectedTextContextChange(null)
+      return
+    }
+
+    const text = selection.toString().trim()
+    if (!text) {
+      const selectedImageContext = selectedImageContextRef.current
+      if (selectedImageContext) {
+        onSelectedTextContextChange(selectedImageContext)
+        return
+      }
+      onSelectedTextContextChange(null)
+      return
+    }
+
+    selectedImageContextRef.current = null
+    onSelectedTextContextChange({
+      kind: 'text',
+      entryPath: sourceEntry.path,
+      entryTitle: sourceEntry.title,
+      text,
+    })
+  }, [onSelectedTextContextChange, sourceEntry])
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -1270,6 +1335,16 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
     container.addEventListener('click', handleClick)
     return () => container.removeEventListener('click', handleClick)
   }, [handleContainerClick])
+
+  useEffect(() => {
+    if (!onSelectedTextContextChange) return
+
+    const handleSelectionChange = () => {
+      handleSelectionContextRefresh()
+    }
+    document.addEventListener('selectionchange', handleSelectionChange)
+    return () => document.removeEventListener('selectionchange', handleSelectionChange)
+  }, [handleSelectionContextRefresh, onSelectedTextContextChange])
 
   const insertWikilink = useInsertWikilink(editor, runEditorAction)
   const suggestionMenuItems = useSuggestionMenuItems({
@@ -1291,8 +1366,10 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
       className={`editor__blocknote-container${isDragOver ? ' editor__blocknote-container--drag-over' : ''}`}
       style={cssVars as React.CSSProperties}
       onCopyCapture={handleCopyCapture}
+      onClickCapture={handleImageSelectionContextClick}
       onFocusCapture={handleFocusCapture}
       onMouseLeave={clearCopyTarget}
+      onMouseUp={handleSelectionContextRefresh}
       onMouseDownCapture={handleMouseDownCapture}
       onMouseMove={handleCodeBlockCopyMouseMove}
       onPasteCapture={handlePasteCapture}

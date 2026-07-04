@@ -405,6 +405,14 @@
   "ai.panel.newChat": "New AI chat",
   "ai.panel.close": "Close AI panel",
   "ai.panel.linkedCount": "+ {count} linked",
+  "ai.panel.paperContext.toolsAvailable": "Công cụ Paper",
+  "ai.panel.paperContext.included": "đã gồm ngữ cảnh",
+  "ai.panel.paperContext.activePaper": "Paper đang hoạt động: {paper}",
+  "ai.panel.paperContext.related": "{count} Paper liên quan từ wikilink",
+  "ai.panel.paperContext.relatedShort": "{count} liên quan",
+  "ai.panel.paperContext.citations": "Đã phân giải {count} trích dẫn khối",
+  "ai.panel.paperContext.mountedVaults": "{count} Paper Vault đã gắn khả dụng chỉ đọc",
+  "ai.panel.paperContext.readOnlyVaultsShort": "{count} vault chỉ đọc",
   "ai.panel.empty.checkingTitle": "Checking AI agent availability",
   "ai.panel.empty.checkingDescription": "Messages can be sent when the selected agent is ready",
   "ai.panel.empty.missingTitle": "{agent} is not available on this machine",
@@ -1069,5 +1077,9 @@
   "paper.reader.confirmParseAgainAction": "Parse again",
   "paper.reader.confirmRefreshMetadataTitle": "Refresh existing metadata?",
   "paper.reader.confirmRefreshMetadataMessage": "This Paper already has metadata. Refreshing can replace resolved fields and review candidates.",
-  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata"
+  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata",
+  "ai.panel.selectedText.include": "Include selected text",
+  "ai.panel.selectedText.included": "Selected text included",
+  "ai.panel.selectedText.tooltip": "Include {count} selected characters in the next AI context.",
+  "ai.panel.selectedText.emptyTooltip": "Select text in the note to include it in AI context."
 }

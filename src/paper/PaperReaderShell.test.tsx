@@ -1,10 +1,14 @@
 import type { ComponentProps } from 'react'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSurfaceCommentOptions } from '../components/NoteSurface'
 import { MOCK_CONTENT } from '../mock-tauri/mock-content'
 import type { VaultEntry } from '../types'
-import { clearPendingBlockFocus, setPendingBlockFocus } from './blockCitationNavigation'
+import {
+  BLOCK_CITATION_NAVIGATE_EVENT,
+  clearPendingBlockFocus,
+  setPendingBlockFocus,
+} from './blockCitationNavigation'
 import { loadPaperBlocks } from './blocks'
 import { PaperReaderShell } from './PaperReaderShell'
 import { parsePaper } from './parser'
@@ -42,6 +46,7 @@ vi.mock('../components/NoteSurface', () => ({
             <button
               key={anchor.id}
               type="button"
+              data-paper-source-block-id={anchor.id}
               data-testid={`note-surface-anchor-${anchor.id}`}
               onClick={() => commentOptions.onOpenThread(anchor.id)}
             >
@@ -198,6 +203,10 @@ async function openMetadataDialog() {
 describe('PaperReaderShell', () => {
   beforeEach(() => {
     clearPendingBlockFocus()
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    })
     Reflect.deleteProperty(MOCK_CONTENT, annotationsPath)
     MOCK_CONTENT[metadataPath] = `${JSON.stringify({
       authors: ['Ashish Vaswani'],
@@ -322,6 +331,29 @@ describe('PaperReaderShell', () => {
       expect(screen.getByTestId('paper-reader-selected-block')).toHaveTextContent('b0002')
       expect(screen.getByTestId('note-surface-anchor-b0002')).toBeInTheDocument()
       expect(screen.getByTestId('paper-reader-comment-thread-b0002')).toBeInTheDocument()
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' })
+    })
+  })
+
+  it('switches from PDF mode to Reading view when a block citation requests Markdown focus', async () => {
+    readyBlocks()
+
+    renderPaperReader()
+
+    await screen.findByTestId('note-surface')
+    fireEvent.click(screen.getByRole('tab', { name: 'PDF' }))
+    expect(screen.getByRole('tab', { name: 'PDF' })).toHaveAttribute('aria-selected', 'true')
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(BLOCK_CITATION_NAVIGATE_EVENT, {
+        detail: { paperId: 'attention', blockId: 'b0002' },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Read' })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByTestId('paper-reader-selected-block')).toHaveTextContent('b0002')
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' })
     })
   })
 

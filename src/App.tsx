@@ -89,6 +89,7 @@ import { openNoteInNewWindow } from './utils/openNoteWindow'
 import { refreshPulledVaultState } from './utils/pulledVaultRefresh'
 import { viewMatchesSelection } from './utils/viewIdentity'
 import { isAiWorkspaceWindow, isNoteWindow, getNoteWindowParams, type NoteWindowParams } from './utils/windowMode'
+import type { AiSelectedTextContext } from './utils/ai-context'
 import { GitSetupDialog } from './components/GitRequiredModal'
 import { RenameDetectedBanner } from './components/RenameDetectedBanner'
 import { openNoteListPropertiesPicker } from './components/note-list/noteListPropertiesEvents'
@@ -216,6 +217,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   const multiSelectionCommandRef = useRef<NoteListMultiSelectionCommands | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [gitHistoryRefreshKey, setGitHistoryRefreshKey] = useState(0)
+  const [selectedTextContext, setSelectedTextContext] = useState<AiSelectedTextContext | null>(null)
   const dialogs = useDialogs()
   const { closeAIChat, openAIChat, showAIChat } = dialogs
   const [showFeedback, setShowFeedback] = useState(false)
@@ -1433,6 +1435,9 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   })
   const activeTabEntry = activeTab?.entry ?? null
   const activeTabPath = activeTabEntry?.path
+  useEffect(() => {
+    setSelectedTextContext(null)
+  }, [activeTabPath])
   const activePaperMetadata = useMemo(
     () => activeTabEntry?.isA === 'Paper' ? paperMetadataForReader(activeTab?.content ?? null) : null,
     [activeTab?.content, activeTabEntry?.isA],
@@ -1693,6 +1698,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
       initialActiveConversationId={lastAiWorkspaceConversationId ?? undefined}
       activeEntry={activeTab?.entry ?? null}
       activeNoteContent={activeTab?.content ?? null}
+      selectedTextContext={selectedTextContext}
       entries={visibleEntries}
       openTabs={notes.tabs.map((tab) => tab.entry)}
       noteList={aiNoteList}
@@ -1779,6 +1785,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
               isVaultLoading={isVaultContentLoading}
               entries={visibleEntries}
               onNavigateWikilink={notes.handleNavigateWikilink}
+              onSelectedTextContextChange={setSelectedTextContext}
               onLoadDiff={loadDiffForPath}
               onLoadDiffAtCommit={loadDiffAtCommitForPath}
               pendingCommitDiffRequest={pendingDiffRequest}

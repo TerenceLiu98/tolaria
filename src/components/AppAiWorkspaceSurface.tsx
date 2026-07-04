@@ -1,7 +1,7 @@
 import type { AiAgentId, AiAgentReadiness, AiAgentsStatus } from '../lib/aiAgents'
 import type { AiModelProvider, AiTarget } from '../lib/aiTargets'
 import type { AppLocale } from '../lib/i18n'
-import type { NoteListItem } from '../utils/ai-context'
+import type { AiSelectedTextContext, NoteListItem } from '../utils/ai-context'
 import type { VaultAiGuidanceStatus } from '../lib/vaultAiGuidance'
 import type { AiWorkspaceConversationSetting, VaultEntry } from '../types'
 import { AiWorkspace } from './AiWorkspace'
@@ -23,6 +23,7 @@ interface AppAiWorkspaceSurfaceProps {
   mode: 'docked' | 'side' | 'window'
   noteList: NoteListItem[]
   noteListFilter: { type: string | null; query: string }
+  selectedTextContext?: AiSelectedTextContext | null
   onActiveConversationChange?: (id: string) => void
   onActiveTargetChange?: (target: AiTarget) => void
   onClose: () => void
@@ -60,6 +61,7 @@ export function AppAiWorkspaceSurface({
   mode,
   noteList,
   noteListFilter,
+  selectedTextContext,
   onActiveConversationChange,
   onActiveTargetChange,
   onClose,
@@ -98,6 +100,7 @@ export function AppAiWorkspaceSurface({
       openTabs={openTabs}
       noteList={noteList}
       noteListFilter={noteListFilter}
+      selectedTextContext={selectedTextContext}
       onActiveConversationChange={onActiveConversationChange}
       onActiveTargetChange={onActiveTargetChange}
       onClose={onClose}

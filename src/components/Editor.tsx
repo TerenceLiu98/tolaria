@@ -12,7 +12,7 @@ import type { VaultEntry, GitCommit, NoteWidthMode, NoteStatus, WorkspaceIdentit
 import type { PaperParserProvider } from '../paper/parserSettings'
 import { stripPaperBlockAnchors } from '../paper/paperMarkdown'
 import { shouldOpenPaperReader } from '../paper/paperReaderModel'
-import type { NoteListItem } from '../utils/ai-context'
+import type { AiSelectedTextContext, NoteListItem } from '../utils/ai-context'
 import type { FrontmatterValue } from './Inspector'
 import type { FrontmatterOpOptions } from '../hooks/frontmatterOps'
 import { ResizeHandle } from './ResizeHandle'
@@ -72,6 +72,7 @@ interface EditorProps {
   isVaultLoading?: boolean
   entries: VaultEntry[]
   onNavigateWikilink: (target: string) => void
+  onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   onUnsupportedAiPaste?: (message: string) => void
   onLoadDiff?: (path: string) => Promise<string>
   onLoadDiffAtCommit?: (path: string, commitHash: string) => Promise<string>
@@ -421,6 +422,7 @@ function EditorLayout({
   inspectorCollapsed,
   onToggleInspector,
   onNavigateWikilink,
+  onSelectedTextContextChange,
   handleEditorChange,
   onToggleFavorite,
   onToggleOrganized,
@@ -500,6 +502,7 @@ function EditorLayout({
   inspectorCollapsed: boolean
   onToggleInspector: () => void
   onNavigateWikilink: (target: string) => void
+  onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   handleEditorChange: () => void
   onToggleFavorite?: (path: string) => void
   onToggleOrganized?: (path: string) => void
@@ -598,6 +601,7 @@ function EditorLayout({
               inspectorCollapsed={inspectorCollapsed}
               onToggleInspector={onToggleInspector}
               onNavigateWikilink={onNavigateWikilink}
+              onSelectedTextContextChange={onSelectedTextContextChange}
               onEditorChange={handleEditorChange}
               onToggleFavorite={onToggleFavorite}
               onToggleOrganized={onToggleOrganized}

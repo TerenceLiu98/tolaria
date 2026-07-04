@@ -18,6 +18,8 @@ import {
 import {
   type NoteListItem,
   type NoteReference,
+  type PaperAiContextSummary,
+  type AiSelectedTextContext,
 } from '../utils/ai-context'
 import { useAiPanelContextSnapshot } from './useAiPanelContextSnapshot'
 
@@ -34,6 +36,7 @@ interface UseAiPanelControllerArgs {
   openTabs?: VaultEntry[]
   noteList?: NoteListItem[]
   noteListFilter?: { type: string | null; query: string }
+  selectedTextContext?: AiSelectedTextContext | null
   locale?: AppLocale
   onOpenNote?: (path: string) => void
   onFileCreated?: (relativePath: string) => void
@@ -47,6 +50,9 @@ export interface AiPanelController {
   input: string
   setInput: React.Dispatch<React.SetStateAction<string>>
   linkedEntries: ReturnType<typeof useAiPanelContextSnapshot>['linkedEntries']
+  paperContext: PaperAiContextSummary | null
+  selectedTextContext: AiSelectedTextContext | null
+  selectedTextIncluded: boolean
   hasContext: boolean
   isActive: boolean
   permissionMode: AiAgentPermissionMode
@@ -55,6 +61,7 @@ export interface AiPanelController {
   handleNavigateWikilink: (target: string) => void
   handlePermissionModeChange: (mode: AiAgentPermissionMode) => void
   handleNewChat: () => void
+  handleToggleSelectedTextContext: () => void
 }
 
 function resolveAgentReady(
@@ -67,6 +74,18 @@ function resolveAgentReady(
 function useVaultAiAgentPermissionMode(): AiAgentPermissionMode {
   const vaultConfig = useSyncExternalStore(subscribeVaultConfig, getVaultConfig)
   return normalizeAiAgentPermissionMode(vaultConfig.ai_agent_permission_mode)
+}
+
+function selectedTextContextKey(context: AiSelectedTextContext | null | undefined): string | null {
+  if (!context) return null
+  const selectedValue = context.kind === 'image' ? context.path.trim() : context.text.trim()
+  if (!selectedValue) return null
+  return [
+    context.kind,
+    context.entryPath,
+    context.kind === 'image' ? '' : context.anchorId ?? '',
+    selectedValue,
+  ].join('\u0000')
 }
 
 function useAgentFileCallbacks({
@@ -160,6 +179,7 @@ export function useAiPanelController({
   openTabs,
   noteList,
   noteListFilter,
+  selectedTextContext,
   locale = 'en',
   onOpenNote,
   onFileCreated,
@@ -168,7 +188,11 @@ export function useAiPanelController({
   sessionId,
 }: UseAiPanelControllerArgs): AiPanelController {
   const [input, setInput] = useState('')
-  const { linkedEntries, contextPrompt } = useAiPanelContextSnapshot({
+  const [excludedSelectedTextKey, setExcludedSelectedTextKey] = useState<string | null>(null)
+  const currentSelectedTextKey = selectedTextContextKey(selectedTextContext)
+  const selectedTextIncluded = currentSelectedTextKey !== null && currentSelectedTextKey !== excludedSelectedTextKey
+  const selectedContext = selectedTextIncluded ? selectedTextContext : null
+  const { linkedEntries, contextPrompt, paperContext } = useAiPanelContextSnapshot({
     activeEntry,
     activeNoteContent,
     entries,
@@ -176,6 +200,7 @@ export function useAiPanelController({
     openTabs,
     noteList,
     noteListFilter,
+    selectedContext,
   })
 
   const { agent, permissionMode } = usePanelAgent({ vaultPath, vaultPaths, contextPrompt, defaultAiAgent, defaultAiTarget, defaultAiAgentReady, defaultAiAgentReadiness, locale, onFileCreated, onFileModified, onVaultChanged, sessionId })
@@ -201,13 +226,26 @@ export function useAiPanelController({
   const handleNewChat = useCallback(() => {
     agent.clearConversation()
     setInput('')
+    setExcludedSelectedTextKey(null)
   }, [agent])
+
+  const handleToggleSelectedTextContext = useCallback(() => {
+    const nextKey = selectedTextContextKey(selectedTextContext)
+    if (!nextKey) {
+      setExcludedSelectedTextKey(null)
+      return
+    }
+    setExcludedSelectedTextKey(current => current === nextKey ? null : nextKey)
+  }, [selectedTextContext])
 
   return {
     agent,
     input,
     setInput,
     linkedEntries,
+    paperContext,
+    selectedTextContext: selectedTextContext ?? null,
+    selectedTextIncluded,
     hasContext: !!activeEntry,
     isActive,
     permissionMode,
@@ -216,5 +254,6 @@ export function useAiPanelController({
     handleNavigateWikilink,
     handlePermissionModeChange,
     handleNewChat,
+    handleToggleSelectedTextContext,
   }
 }

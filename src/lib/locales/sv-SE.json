@@ -405,6 +405,14 @@
   "ai.panel.newChat": "Ny AI-chatt",
   "ai.panel.close": "Stäng AI-panel",
   "ai.panel.linkedCount": "+ {count} länkade",
+  "ai.panel.paperContext.toolsAvailable": "Paper-verktyg",
+  "ai.panel.paperContext.included": "kontext inkluderad",
+  "ai.panel.paperContext.activePaper": "Aktiv Paper: {paper}",
+  "ai.panel.paperContext.related": "{count} relaterade Papers från wikilänkar",
+  "ai.panel.paperContext.relatedShort": "{count} relaterade",
+  "ai.panel.paperContext.citations": "{count} blockcitat lösta",
+  "ai.panel.paperContext.mountedVaults": "{count} monterade Paper Vaults tillgängliga skrivskyddade",
+  "ai.panel.paperContext.readOnlyVaultsShort": "{count} skrivskyddade vaults",
   "ai.panel.empty.checkingTitle": "Kontrollerar AI-agentens tillgänglighet",
   "ai.panel.empty.checkingDescription": "Meddelanden kan skickas när den valda agenten är redo",
   "ai.panel.empty.missingTitle": "{agent} är inte tillgänglig på den här datorn",
@@ -1069,5 +1077,9 @@
   "paper.reader.confirmParseAgainAction": "Parse again",
   "paper.reader.confirmRefreshMetadataTitle": "Refresh existing metadata?",
   "paper.reader.confirmRefreshMetadataMessage": "This Paper already has metadata. Refreshing can replace resolved fields and review candidates.",
-  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata"
+  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata",
+  "ai.panel.selectedText.include": "Include selected text",
+  "ai.panel.selectedText.included": "Selected text included",
+  "ai.panel.selectedText.tooltip": "Include {count} selected characters in the next AI context.",
+  "ai.panel.selectedText.emptyTooltip": "Select text in the note to include it in AI context."
 }

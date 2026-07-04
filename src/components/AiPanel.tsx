@@ -1,8 +1,10 @@
 import { useCallback, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import {
+  AiPanelContextBar,
   AiPanelComposer,
   AiPanelHeader,
   AiPanelMessageHistory,
+  AiSelectedTextContextButton,
 } from './AiPanelChrome'
 import {
   DEFAULT_AI_AGENT,
@@ -12,7 +14,7 @@ import {
 } from '../lib/aiAgents'
 import type { AiTarget } from '../lib/aiTargets'
 import type { AppLocale } from '../lib/i18n'
-import { type NoteListItem } from '../utils/ai-context'
+import { type NoteListItem, type AiSelectedTextContext } from '../utils/ai-context'
 import type { VaultEntry } from '../types'
 import { useAiPanelController, type AiPanelController } from './useAiPanelController'
 import { useAiPanelPromptQueue } from './useAiPanelPromptQueue'
@@ -41,6 +43,7 @@ interface AiPanelProps {
   openTabs?: VaultEntry[]
   noteList?: NoteListItem[]
   noteListFilter?: { type: string | null; query: string }
+  selectedTextContext?: AiSelectedTextContext | null
 }
 
 interface AiPanelViewProps {
@@ -130,7 +133,7 @@ function AiPanelFrame({
     <aside
       ref={panelRef}
       tabIndex={-1}
-      className={`flex flex-1 flex-col overflow-hidden ${surface === 'sidebar' ? 'bg-sidebar text-sidebar-foreground' : 'bg-background text-foreground'}`}
+      className={`flex min-h-0 flex-1 flex-col overflow-hidden ${surface === 'sidebar' ? 'bg-sidebar text-sidebar-foreground' : 'bg-background text-foreground'}`}
       style={aiPanelFrameStyle(isActive, showLeftBorder)}
       data-testid="ai-panel"
       data-ai-active={isActive || undefined}
@@ -175,6 +178,9 @@ export function AiPanelView({
     input,
     setInput,
     hasContext,
+    paperContext,
+    selectedTextContext,
+    selectedTextIncluded,
     isActive,
     permissionMode,
     handleSend,
@@ -182,6 +188,7 @@ export function AiPanelView({
     handleNavigateWikilink,
     handlePermissionModeChange,
     handleNewChat,
+    handleToggleSelectedTextContext,
   } = controller
 
   useAiPanelPromptQueue({
@@ -206,6 +213,15 @@ export function AiPanelView({
     onSendPrompt?.(text)
     handleSend(text, references)
   }, [handleSend, isActive, onSendPrompt])
+  const selectedTextControl = (
+    <AiSelectedTextContextButton
+      disabled={isActive}
+      included={selectedTextIncluded}
+      locale={locale}
+      selectedTextContext={selectedTextContext}
+      onToggle={handleToggleSelectedTextContext}
+    />
+  )
 
   return (
     <AiPanelFrame panelRef={panelRef} isActive={isActive} showLeftBorder={showLeftBorder} surface={surface}>
@@ -220,6 +236,12 @@ export function AiPanelView({
           onPermissionModeChange={handlePermissionModeChange}
           onClose={onClose}
           onNewChat={handleNewChat}
+        />
+      )}
+      {paperContext?.toolsAvailable && (
+        <AiPanelContextBar
+          paperContext={paperContext}
+          locale={locale}
         />
       )}
       <AiPanelMessageHistory
@@ -243,7 +265,12 @@ export function AiPanelView({
         input={input}
         inputRef={inputRef}
         isActive={isActive}
-        controls={composerControls}
+        controls={(
+          <>
+            {selectedTextControl}
+            {composerControls}
+          </>
+        )}
         onChange={setInput}
         onSend={handleComposerSend}
         onStop={handleStop}
@@ -273,6 +300,7 @@ export function AiPanel({
   openTabs,
   noteList,
   noteListFilter,
+  selectedTextContext,
 }: AiPanelProps) {
   const defaultAiAgentReadiness = providedDefaultAiAgentReadiness
     ?? readinessFromReadyFlag(providedDefaultAiAgentReady)
@@ -289,6 +317,7 @@ export function AiPanel({
     openTabs,
     noteList,
     noteListFilter,
+    selectedTextContext,
     locale,
     onOpenNote,
     onFileCreated,

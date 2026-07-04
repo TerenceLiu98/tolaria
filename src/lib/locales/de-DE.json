@@ -405,6 +405,14 @@
   "ai.panel.newChat": "Neuer KI-Chat",
   "ai.panel.close": "KI-Panel schließen",
   "ai.panel.linkedCount": "+ {count} verknüpft",
+  "ai.panel.paperContext.toolsAvailable": "Paper-Tools",
+  "ai.panel.paperContext.included": "Kontext enthalten",
+  "ai.panel.paperContext.activePaper": "Aktives Paper: {paper}",
+  "ai.panel.paperContext.related": "{count} verwandte Papers aus Wikilinks",
+  "ai.panel.paperContext.relatedShort": "{count} verwandt",
+  "ai.panel.paperContext.citations": "{count} Blockzitate aufgelöst",
+  "ai.panel.paperContext.mountedVaults": "{count} gemountete Paper Vaults schreibgeschützt verfügbar",
+  "ai.panel.paperContext.readOnlyVaultsShort": "{count} schreibgeschützte Vaults",
   "ai.panel.empty.checkingTitle": "Verfügbarkeit des KI-Agents wird geprüft",
   "ai.panel.empty.checkingDescription": "Nachrichten können gesendet werden, sobald der ausgewählte Agent bereit ist",
   "ai.panel.empty.missingTitle": "{agent} ist auf diesem Computer nicht verfügbar",
@@ -1069,5 +1077,9 @@
   "paper.reader.confirmParseAgainAction": "Parse again",
   "paper.reader.confirmRefreshMetadataTitle": "Refresh existing metadata?",
   "paper.reader.confirmRefreshMetadataMessage": "This Paper already has metadata. Refreshing can replace resolved fields and review candidates.",
-  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata"
+  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata",
+  "ai.panel.selectedText.include": "Include selected text",
+  "ai.panel.selectedText.included": "Selected text included",
+  "ai.panel.selectedText.tooltip": "Include {count} selected characters in the next AI context.",
+  "ai.panel.selectedText.emptyTooltip": "Select text in the note to include it in AI context."
 }

@@ -405,6 +405,14 @@
   "ai.panel.newChat": "新建 AI 聊天",
   "ai.panel.close": "關閉 AI 面板",
   "ai.panel.linkedCount": "+ {count} 個已連結",
+  "ai.panel.paperContext.toolsAvailable": "Paper 工具",
+  "ai.panel.paperContext.included": "已包含上下文",
+  "ai.panel.paperContext.activePaper": "目前 Paper：{paper}",
+  "ai.panel.paperContext.related": "來自 wikilink 的 {count} 篇相關 Paper",
+  "ai.panel.paperContext.relatedShort": "{count} 篇相關",
+  "ai.panel.paperContext.citations": "已解析 {count} 個區塊引用",
+  "ai.panel.paperContext.mountedVaults": "{count} 個掛載的 Paper Vault 可唯讀使用",
+  "ai.panel.paperContext.readOnlyVaultsShort": "{count} 個唯讀 vault",
   "ai.panel.empty.checkingTitle": "正在檢查 AI 客服人員的空閒狀態",
   "ai.panel.empty.checkingDescription": "當所選客服人員準備就緒時，即可傳送訊息",
   "ai.panel.empty.missingTitle": "{agent} 在此電腦上無法使用",
@@ -1069,5 +1077,9 @@
   "paper.reader.confirmParseAgainAction": "Parse again",
   "paper.reader.confirmRefreshMetadataTitle": "Refresh existing metadata?",
   "paper.reader.confirmRefreshMetadataMessage": "This Paper already has metadata. Refreshing can replace resolved fields and review candidates.",
-  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata"
+  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata",
+  "ai.panel.selectedText.include": "Include selected text",
+  "ai.panel.selectedText.included": "Selected text included",
+  "ai.panel.selectedText.tooltip": "Include {count} selected characters in the next AI context.",
+  "ai.panel.selectedText.emptyTooltip": "Select text in the note to include it in AI context."
 }

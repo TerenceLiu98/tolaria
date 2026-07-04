@@ -858,4 +858,61 @@ describe('SingleEditorView', () => {
     expect(editor.setTextCursorPosition).not.toHaveBeenCalled()
     expect(editor.focus).not.toHaveBeenCalled()
   })
+
+  it('keeps a single-clicked image attached when mouse movement reports a collapsed selection', () => {
+    const editor = createEditor()
+    editor.getBlock.mockReturnValue({
+      id: 'image-block',
+      type: 'image',
+      props: { url: 'asset://localhost/vault/attachments/clicked.png' },
+    })
+    const sourceEntry = makeEntry({
+      path: '/vault/note.md',
+      title: 'Image Note',
+    })
+    const onSelectedTextContextChange = vi.fn()
+    render(
+      <SingleEditorView
+        editor={editor as never}
+        entries={[sourceEntry]}
+        onNavigateWikilink={vi.fn()}
+        onSelectedTextContextChange={onSelectedTextContextChange}
+        sourceEntry={sourceEntry}
+        vaultPath="/vault"
+      />,
+      { wrapper: TooltipProvider },
+    )
+    const blockNoteView = screen.getByTestId('blocknote-view')
+    const blockContainer = document.createElement('div')
+    blockContainer.setAttribute('data-node-type', 'blockContainer')
+    blockContainer.dataset.id = 'image-block'
+    const image = document.createElement('img')
+    blockContainer.appendChild(image)
+    blockNoteView.appendChild(blockContainer)
+
+    fireEvent.mouseDown(image, { button: 0 })
+    const range = document.createRange()
+    range.setStart(blockNoteView, 0)
+    range.collapse(true)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+    fireEvent.mouseMove(window, { buttons: 0, clientX: 120, clientY: 120 })
+    document.dispatchEvent(new Event('selectionchange'))
+    const imageSelectionRange = document.createRange()
+    imageSelectionRange.selectNode(image)
+    selection?.removeAllRanges()
+    selection?.addRange(imageSelectionRange)
+    document.dispatchEvent(new Event('selectionchange'))
+
+    expect(editor.getBlock).toHaveBeenCalledWith('image-block')
+    expect(onSelectedTextContextChange).toHaveBeenLastCalledWith({
+      kind: 'image',
+      entryPath: '/vault/note.md',
+      entryTitle: 'Image Note',
+      path: 'attachments/clicked.png',
+      sourceUrl: 'asset://localhost/vault/attachments/clicked.png',
+    })
+  })
 })

@@ -71,7 +71,7 @@ export const MarkdownContent = memo(function MarkdownContent({
                 node?.setAttribute('tabindex', '0')
               }}
               href={href}
-              className="block-citation border-0 bg-transparent p-0 font-medium underline decoration-dotted underline-offset-2"
+              className="block-citation break-words border-0 bg-transparent p-0 font-medium underline decoration-dotted underline-offset-2"
               data-block-citation-paper-id={target.paperId}
               data-block-citation-block-id={target.blockId}
               onClick={(event) => {
@@ -96,7 +96,7 @@ export const MarkdownContent = memo(function MarkdownContent({
           const malformed = malformedBlockCitationFromHref(href)
           return (
             <span
-              className="block-citation block-citation--broken rounded-sm border border-amber-500/70 px-1 font-medium text-amber-700 dark:text-amber-300"
+              className="block-citation block-citation--broken break-words rounded-sm border border-amber-500/70 px-1 font-medium text-amber-700 dark:text-amber-300"
               data-block-citation-state="malformed"
               data-block-citation-raw={malformed?.raw}
               data-block-citation-reason={malformed?.reason ?? undefined}
@@ -114,7 +114,7 @@ export const MarkdownContent = memo(function MarkdownContent({
                 node?.setAttribute('tabindex', '0')
               }}
               href={href}
-              className="chat-wikilink border-0 bg-transparent p-0"
+              className="chat-wikilink break-words border-0 bg-transparent p-0"
               data-wikilink-target={target}
               onClick={(event) => {
                 event.preventDefault()
@@ -126,9 +126,9 @@ export const MarkdownContent = memo(function MarkdownContent({
           )
         }
         if (isExplicitWebUrl(href)) {
-          return <a href={href} onClick={(event) => openExplicitWebUrl(event, href)}>{children}</a>
+          return <a href={href} className="break-words" onClick={(event) => openExplicitWebUrl(event, href)}>{children}</a>
         }
-        return <a href={href}>{children}</a>
+        return <a href={href} className="break-words">{children}</a>
       },
     }
   }, [onBlockCitationClick, onWikilinkClick])

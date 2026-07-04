@@ -405,6 +405,14 @@
   "ai.panel.newChat": "Novy ŠI čat",
   "ai.panel.close": "Zakryć paneĺ ŠI",
   "ai.panel.linkedCount": "+ {count} zviazana",
+  "ai.panel.paperContext.toolsAvailable": "Instrumenty Paper",
+  "ai.panel.paperContext.included": "kantekst uklučany",
+  "ai.panel.paperContext.activePaper": "Aktyŭny Paper: {paper}",
+  "ai.panel.paperContext.related": "{count} zviazanych Paper z wikilink",
+  "ai.panel.paperContext.relatedShort": "{count} zviazanych",
+  "ai.panel.paperContext.citations": "{count} cytat blokaŭ vyrasana",
+  "ai.panel.paperContext.mountedVaults": "{count} padklučanych Paper Vault dastupnyja tolki dla čytannia",
+  "ai.panel.paperContext.readOnlyVaultsShort": "{count} vault tolki dla čytannia",
   "ai.panel.empty.checkingTitle": "Pravierka dastupnasci ŠI...",
   "ai.panel.empty.checkingDescription": "Paviedamlienni stanuć dastupnyja paslia zahruzki",
   "ai.panel.empty.missingTitle": "{agent} niedastupny na hetaj pryladzie",
@@ -1069,5 +1077,9 @@
   "paper.reader.confirmParseAgainAction": "Parse again",
   "paper.reader.confirmRefreshMetadataTitle": "Refresh existing metadata?",
   "paper.reader.confirmRefreshMetadataMessage": "This Paper already has metadata. Refreshing can replace resolved fields and review candidates.",
-  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata"
+  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata",
+  "ai.panel.selectedText.include": "Include selected text",
+  "ai.panel.selectedText.included": "Selected text included",
+  "ai.panel.selectedText.tooltip": "Include {count} selected characters in the next AI context.",
+  "ai.panel.selectedText.emptyTooltip": "Select text in the note to include it in AI context."
 }

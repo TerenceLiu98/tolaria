@@ -65,6 +65,26 @@ export interface NoteReference {
   content?: string
 }
 
+export type AiSelectedTextContext = AiSelectedTextSelectionContext | AiSelectedImageContext
+
+export interface AiSelectedTextSelectionContext {
+  kind: 'text'
+  entryPath: string
+  entryTitle: string
+  text: string
+  anchorId?: string
+  paperId?: string
+  blockCitation?: string
+}
+
+export interface AiSelectedImageContext {
+  kind: 'image'
+  entryPath: string
+  entryTitle: string
+  path: string
+  sourceUrl?: string
+}
+
 /** Lightweight note summary for the context snapshot. */
 export interface NoteListItem {
   path: string
@@ -82,6 +102,9 @@ export interface ContextSnapshotParams {
   noteListFilter?: { type: string | null; query: string }
   entries: VaultEntry[]
   references?: NoteReference[]
+  selectedContext?: AiSelectedTextContext | null
+  selectedPaperId?: string | null
+  selectedBlockId?: string | null
 }
 
 const MAX_ACTIVE_NOTE_BODY_CHARS = 24_000
@@ -93,6 +116,30 @@ const REFERENCED_NOTE_BODY_TAIL_CHARS = 2_000
 const MAX_NOTE_LIST_ITEMS = 100
 const MAX_RELATED_PAPERS = 8
 const MAX_BLOCK_CITATIONS = 20
+const MAX_SELECTED_TEXT_CHARS = 4_000
+
+export interface PaperAiContextSummary {
+  toolsAvailable: boolean
+  contextIncluded: boolean
+  activePaper: {
+    paperId: string
+    title: string
+    year?: number
+    venue?: string
+    venueType?: string
+  } | null
+  relatedPaperCount: number
+  blockCitationCount: number
+  mountedPaperVaults: Array<{
+    id: string
+    label: string
+    path: string
+    paperCount: number
+    readOnly: true
+  }>
+  selectedPaperId?: string
+  selectedBlockId?: string
+}
 
 interface ActiveNoteBody {
   body: string
@@ -267,6 +314,20 @@ function paperSummary(entry: VaultEntry): Record<string, unknown> {
   return summary
 }
 
+function compactPaperForSummary(entry: VaultEntry): NonNullable<PaperAiContextSummary['activePaper']> {
+  const paper: NonNullable<PaperAiContextSummary['activePaper']> = {
+    paperId: paperIdForEntry(entry) ?? entry.title,
+    title: propertyString(entry.properties?.title) ?? entry.title,
+  }
+  const year = propertyNumber(entry.properties?.year)
+  if (year !== undefined) paper.year = year
+  const venue = propertyString(entry.properties?.venue)
+  if (venue) paper.venue = venue
+  const venueType = propertyString(entry.properties?.venue_type)
+  if (venueType) paper.venueType = venueType
+  return paper
+}
+
 function findPaperById(entries: VaultEntry[], paperId: string): VaultEntry | undefined {
   return entries.find(entry => isPaperEntry(entry) && paperIdForEntry(entry) === paperId)
 }
@@ -292,6 +353,47 @@ function blockCitationContext(activeNoteContent: string | undefined, entries: Va
     })
 }
 
+export function paperAiContextSummary(params: ContextSnapshotParams): PaperAiContextSummary {
+  const { activeEntry, activeNoteContent, entries } = params
+  const relatedPapers = collectLinkedEntries(activeEntry, entries)
+    .filter(isPaperEntry)
+    .slice(0, MAX_RELATED_PAPERS)
+  const blockCitations = blockCitationContext(activeNoteContent, entries)
+  const activeWorkspacePath = activeEntry.workspace?.path
+  const mountedPaperVaultMap = new Map<string, NonNullable<PaperAiContextSummary['mountedPaperVaults']>[number]>()
+
+  for (const entry of entries) {
+    if (!isPaperEntry(entry) || !entry.workspace?.mounted) continue
+    if (activeWorkspacePath && entry.workspace.path === activeWorkspacePath) continue
+    const existing = mountedPaperVaultMap.get(entry.workspace.id)
+    if (existing) {
+      existing.paperCount += 1
+      continue
+    }
+    mountedPaperVaultMap.set(entry.workspace.id, {
+      id: entry.workspace.id,
+      label: entry.workspace.label,
+      path: entry.workspace.path,
+      paperCount: 1,
+      readOnly: true,
+    })
+  }
+
+  const mountedPaperVaults = [...mountedPaperVaultMap.values()]
+  const summary: PaperAiContextSummary = {
+    toolsAvailable: isPaperEntry(activeEntry) || relatedPapers.length > 0 || blockCitations.length > 0 || mountedPaperVaults.length > 0,
+    contextIncluded: isPaperEntry(activeEntry) || relatedPapers.length > 0 || blockCitations.length > 0,
+    activePaper: isPaperEntry(activeEntry) ? compactPaperForSummary(activeEntry) : null,
+    relatedPaperCount: relatedPapers.length,
+    blockCitationCount: blockCitations.length,
+    mountedPaperVaults,
+  }
+
+  if (params.selectedPaperId) summary.selectedPaperId = params.selectedPaperId
+  if (params.selectedBlockId) summary.selectedBlockId = params.selectedBlockId
+  return summary
+}
+
 function appendPaperContext(snapshot: Record<string, unknown>, params: ContextSnapshotParams): void {
   const { activeEntry, activeNoteContent, entries } = params
   const papers = collectLinkedEntries(activeEntry, entries)
@@ -299,6 +401,7 @@ function appendPaperContext(snapshot: Record<string, unknown>, params: ContextSn
     .slice(0, MAX_RELATED_PAPERS)
     .map(paperSummary)
   const citations = blockCitationContext(activeNoteContent, entries)
+  const summary = paperAiContextSummary(params)
 
   if (isPaperEntry(activeEntry)) {
     snapshot.activePaper = {
@@ -311,6 +414,14 @@ function appendPaperContext(snapshot: Record<string, unknown>, params: ContextSn
   }
   if (papers.length > 0) snapshot.relatedPapers = papers
   if (citations.length > 0) snapshot.blockCitations = citations
+  if (summary.toolsAvailable) {
+    snapshot.paperTools = {
+      available: true,
+      mountedPaperVaults: summary.mountedPaperVaults,
+      readOnlyMountedVaults: summary.mountedPaperVaults.map(vault => vault.path),
+      guidance: 'Use search_papers for discovery, read_paper_metadata for bibliographic claims, and search/read_paper_blocks for evidence. Mounted Paper Vaults are read-only through Paper tools.',
+    }
+  }
 }
 
 function appendOpenTabs(snapshot: Record<string, unknown>, activeEntry: VaultEntry, openTabs?: VaultEntry[]): void {
@@ -367,6 +478,57 @@ function appendReferencedNotes(snapshot: Record<string, unknown>, references?: N
   snapshot.referencedNotes = referencedNotes
 }
 
+function selectedTextContextSnapshot(selectedContext: AiSelectedTextSelectionContext): Record<string, unknown> | null {
+  const text = selectedContext.text.trim()
+  if (!text) return null
+
+  const snapshot: Record<string, unknown> = {
+    kind: selectedContext.kind,
+    entryPath: selectedContext.entryPath,
+    entryTitle: selectedContext.entryTitle,
+    text: text.length > MAX_SELECTED_TEXT_CHARS ? text.slice(0, MAX_SELECTED_TEXT_CHARS).trimEnd() : text,
+  }
+  assignIfPresent(snapshot, 'anchorId', selectedContext.anchorId)
+  assignIfPresent(snapshot, 'paperId', selectedContext.paperId)
+  assignIfPresent(snapshot, 'blockCitation', selectedContext.blockCitation)
+  if (text.length > MAX_SELECTED_TEXT_CHARS) {
+    snapshot.textTruncated = {
+      shownChars: MAX_SELECTED_TEXT_CHARS,
+      totalChars: text.length,
+    }
+  }
+  return snapshot
+}
+
+function selectedImageContextSnapshot(selectedContext: AiSelectedImageContext): Record<string, unknown> | null {
+  const path = selectedContext.path.trim()
+  if (!path) return null
+
+  const snapshot: Record<string, unknown> = {
+    kind: selectedContext.kind,
+    entryPath: selectedContext.entryPath,
+    entryTitle: selectedContext.entryTitle,
+    path,
+  }
+  assignIfPresent(snapshot, 'sourceUrl', selectedContext.sourceUrl)
+  return snapshot
+}
+
+function selectedContextSnapshot(selectedContext?: AiSelectedTextContext | null): Record<string, unknown> | null {
+  if (!selectedContext) return null
+
+  return selectedContext.kind === 'image'
+    ? selectedImageContextSnapshot(selectedContext)
+    : selectedTextContextSnapshot(selectedContext)
+}
+
+function appendSelectedContext(snapshot: Record<string, unknown>, selectedContext?: AiSelectedTextContext | null): void {
+  const selected = selectedContextSnapshot(selectedContext)
+  if (!selected) return
+
+  snapshot.selectedContext = selected
+}
+
 function vaultSummary(entries: VaultEntry[]): Record<string, unknown> {
   const types = new Set<string>()
   for (const e of entries) {
@@ -379,7 +541,7 @@ function vaultSummary(entries: VaultEntry[]): Record<string, unknown> {
 }
 
 function contextSnapshot(params: ContextSnapshotParams): Record<string, unknown> {
-  const { activeEntry, activeNoteContent, openTabs, noteList, noteListFilter, entries, references } = params
+  const { activeEntry, activeNoteContent, openTabs, noteList, noteListFilter, entries, references, selectedContext } = params
   const snapshot: Record<string, unknown> = {
     activeNote: activeNoteSnapshot(activeEntry, activeNoteContent),
   }
@@ -389,6 +551,7 @@ function contextSnapshot(params: ContextSnapshotParams): Record<string, unknown>
   if (hasNoteListFilter(noteListFilter)) snapshot.noteListFilter = noteListFilter
   snapshot.vault = vaultSummary(entries)
   appendReferencedNotes(snapshot, references)
+  appendSelectedContext(snapshot, selectedContext)
   appendPaperContext(snapshot, params)
   return snapshot
 }
@@ -402,6 +565,7 @@ export function buildContextSnapshot(params: ContextSnapshotParams): string {
     'The user is viewing a specific note. Use the structured context below to answer questions accurately.',
     'You can also use MCP tools to search, read, create, or edit notes in the vault.',
     'For Paper notes, use paper MCP tools such as search_papers, read_paper_metadata, search_paper_blocks, read_paper_blocks, and get_block_citation for citation-safe paper context.',
+    'If selectedContext is present, the user explicitly included that selected text or image; treat it as the most local context for the next answer.',
     'If the body field is empty or truncated, use get_note to read the full note from disk before content-sensitive edits or summaries.',
     'When you mention or reference a note by name, always use [[Note Title]] wikilink syntax so the user can click to open it.',
   ].join('\n')

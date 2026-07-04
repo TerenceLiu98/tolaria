@@ -36,7 +36,7 @@ import { translate, type AppLocale } from '../lib/i18n'
 import { trackAiWorkspaceChatTitled, trackAiWorkspaceSidebarToggled } from '../lib/productAnalytics'
 import type { AgentStatus, AiAgentMessage } from '../hooks/useCliAiAgent'
 import type { AiWorkspaceConversationSetting } from '../types'
-import type { NoteListItem } from '../utils/ai-context'
+import type { AiSelectedTextContext, NoteListItem } from '../utils/ai-context'
 import type { VaultEntry } from '../types'
 import { NEW_AI_CHAT_EVENT } from '../utils/aiPromptBridge'
 import { type GenerateAiConversationTitleRequest } from '../utils/aiConversationTitle'
@@ -86,6 +86,7 @@ interface AiWorkspaceProps {
   mode?: 'docked' | 'side' | 'window'
   noteList?: NoteListItem[]
   noteListFilter?: { type: string | null; query: string }
+  selectedTextContext?: AiSelectedTextContext | null
   onActiveConversationChange?: (id: string) => void
   onActiveTargetChange?: (target: AiTarget) => void
   onClose: () => void
@@ -308,6 +309,7 @@ type ConversationSessionProps = {
   mode: AiWorkspaceMode
   noteList?: NoteListItem[]
   noteListFilter?: { type: string | null; query: string }
+  selectedTextContext?: AiSelectedTextContext | null
   onArchive: () => void
   onClose: () => void
   onDock?: () => void
@@ -404,6 +406,7 @@ interface ConversationSessionContext {
   noteList?: NoteListItem[]
   noteListFilter?: { type: string | null; query: string }
   openTabs?: VaultEntry[]
+  selectedTextContext?: AiSelectedTextContext | null
 }
 
 function activeContextForSession({
@@ -414,7 +417,8 @@ function activeContextForSession({
   noteList,
   noteListFilter,
   openTabs,
-}: Pick<ConversationSessionProps, 'active' | 'activeEntry' | 'activeNoteContent' | 'entries' | 'noteList' | 'noteListFilter' | 'openTabs'>): ConversationSessionContext {
+  selectedTextContext,
+}: Pick<ConversationSessionProps, 'active' | 'activeEntry' | 'activeNoteContent' | 'entries' | 'noteList' | 'noteListFilter' | 'openTabs' | 'selectedTextContext'>): ConversationSessionContext {
   if (!active) {
     return {
       activeEntry: null,
@@ -429,6 +433,7 @@ function activeContextForSession({
     noteList,
     noteListFilter,
     openTabs,
+    selectedTextContext,
   }
 }
 
@@ -534,6 +539,7 @@ function ConversationSession({
   mode,
   noteList,
   noteListFilter,
+  selectedTextContext,
   onArchive,
   onClose,
   onDock,
@@ -565,6 +571,7 @@ function ConversationSession({
     noteList,
     noteListFilter,
     openTabs,
+    selectedTextContext,
   })
   const readiness = agentReadinessForTarget(target, aiAgentsStatus)
   const controller = useAiPanelController({
@@ -580,6 +587,7 @@ function ConversationSession({
     openTabs: context.openTabs,
     noteList: context.noteList,
     noteListFilter: context.noteListFilter,
+    selectedTextContext: context.selectedTextContext,
     locale,
     onOpenNote,
     onFileCreated,
@@ -1019,6 +1027,7 @@ function ConversationSessions({
             mode={workspace.mode}
             noteList={workspace.noteList}
             noteListFilter={workspace.noteListFilter}
+            selectedTextContext={workspace.selectedTextContext}
             onArchive={() => model.archiveConversationSafely(conversation.id)}
             onClose={workspace.onClose}
             onDock={workspace.onDock}

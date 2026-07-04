@@ -405,6 +405,14 @@
   "ai.panel.newChat": "新しいAIチャット",
   "ai.panel.close": "AIパネルを閉じる",
   "ai.panel.linkedCount": "+ {count}件リンク済み",
+  "ai.panel.paperContext.toolsAvailable": "Paper ツール",
+  "ai.panel.paperContext.included": "コンテキストを含む",
+  "ai.panel.paperContext.activePaper": "アクティブな Paper: {paper}",
+  "ai.panel.paperContext.related": "wikilink から {count} 件の関連 Paper",
+  "ai.panel.paperContext.relatedShort": "関連 {count} 件",
+  "ai.panel.paperContext.citations": "{count} 件のブロック引用を解決済み",
+  "ai.panel.paperContext.mountedVaults": "マウント済み Paper Vault {count} 件を読み取り専用で利用可能",
+  "ai.panel.paperContext.readOnlyVaultsShort": "読み取り専用 vault {count} 件",
   "ai.panel.empty.checkingTitle": "AIエージェントの対応可能状況を確認中",
   "ai.panel.empty.checkingDescription": "選択したエージェントの準備が整ったら、メッセージを送信できます",
   "ai.panel.empty.missingTitle": "{agent}はこのマシンでは利用できません",
@@ -1069,5 +1077,9 @@
   "paper.reader.confirmParseAgainAction": "Parse again",
   "paper.reader.confirmRefreshMetadataTitle": "Refresh existing metadata?",
   "paper.reader.confirmRefreshMetadataMessage": "This Paper already has metadata. Refreshing can replace resolved fields and review candidates.",
-  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata"
+  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata",
+  "ai.panel.selectedText.include": "Include selected text",
+  "ai.panel.selectedText.included": "Selected text included",
+  "ai.panel.selectedText.tooltip": "Include {count} selected characters in the next AI context.",
+  "ai.panel.selectedText.emptyTooltip": "Select text in the note to include it in AI context."
 }

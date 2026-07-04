@@ -112,6 +112,7 @@ function QueuedPromptTargetHarness({ onTargetChange }: { onTargetChange: (target
     input,
     setInput,
     linkedEntries: [],
+    paperContext: null,
     hasContext: false,
     isActive: false,
     permissionMode: 'safe',
@@ -327,6 +328,75 @@ describe('AiPanel', () => {
     expect(screen.queryByText('My Note')).toBeNull()
   })
 
+  it('includes selected text in AI context by default and lets the user detach it', async () => {
+    const entry = makeEntry({ path: '/vault/note/selection.md', title: 'Selection Note' })
+    render(
+      <AiPanel
+        onClose={vi.fn()}
+        vaultPath="/tmp/vault"
+        activeEntry={entry}
+        entries={[entry]}
+        selectedTextContext={{
+          kind: 'text',
+          entryPath: entry.path,
+          entryTitle: entry.title,
+          text: 'This selected paragraph should guide the answer.',
+        }}
+      />,
+    )
+
+    const toggle = screen.getByRole('button', { name: 'Selected text included' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    let snapshot = JSON.parse(mockUseCliAiAgent.mock.calls.at(-1)?.[2].split('```json\n')[1].split('\n```')[0])
+    expect(snapshot.selectedContext.text).toBe('This selected paragraph should guide the answer.')
+
+    fireEvent.click(toggle)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Include selected text' })).toHaveAttribute('aria-pressed', 'false')
+      snapshot = JSON.parse(mockUseCliAiAgent.mock.calls.at(-1)?.[2].split('```json\n')[1].split('\n```')[0])
+      expect(snapshot.selectedContext).toBeUndefined()
+    })
+  })
+
+  it('includes selected image paths in AI context by default and lets the user detach them', async () => {
+    const entry = makeEntry({ path: '/vault/note/image.md', title: 'Image Note' })
+    render(
+      <AiPanel
+        onClose={vi.fn()}
+        vaultPath="/tmp/vault"
+        activeEntry={entry}
+        entries={[entry]}
+        selectedTextContext={{
+          kind: 'image',
+          entryPath: entry.path,
+          entryTitle: entry.title,
+          path: 'attachments/diagram.png',
+          sourceUrl: 'asset://localhost/vault/attachments/diagram.png',
+        }}
+      />,
+    )
+
+    const toggle = screen.getByRole('button', { name: 'Selected text included' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    let snapshot = JSON.parse(mockUseCliAiAgent.mock.calls.at(-1)?.[2].split('```json\n')[1].split('\n```')[0])
+    expect(snapshot.selectedContext).toEqual({
+      kind: 'image',
+      entryPath: entry.path,
+      entryTitle: entry.title,
+      path: 'attachments/diagram.png',
+      sourceUrl: 'asset://localhost/vault/attachments/diagram.png',
+    })
+
+    fireEvent.click(toggle)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Include selected text' })).toHaveAttribute('aria-pressed', 'false')
+      snapshot = JSON.parse(mockUseCliAiAgent.mock.calls.at(-1)?.[2].split('```json\n')[1].split('\n```')[0])
+      expect(snapshot.selectedContext).toBeUndefined()
+    })
+  })
+
   it('does not show linked count in a sub-header', () => {
     const linked = makeEntry({ path: '/vault/linked.md', title: 'Linked Note' })
     const entry = makeEntry({ title: 'My Note', outgoingLinks: ['Linked Note'] })
@@ -338,6 +408,87 @@ describe('AiPanel', () => {
     )
     expect(screen.queryByText('+ 1 linked')).toBeNull()
     expect(screen.queryByTestId('context-bar')).toBeNull()
+  })
+
+  it('shows compact Paper context indicators for an active Paper', () => {
+    const paper = makeEntry({
+      path: '/vault/papers/kan/paper.md',
+      filename: 'paper.md',
+      title: 'KAN Autoencoders',
+      isA: 'Paper',
+      properties: {
+        paper_id: 'kan',
+        title: 'KAN Autoencoders',
+        year: 2026,
+        venue: 'AAAI',
+        venue_type: 'conference',
+      },
+    })
+
+    render(
+      <AiPanel
+        onClose={vi.fn()}
+        vaultPath="/tmp/vault"
+        activeEntry={paper}
+        activeNoteContent="# KAN Autoencoders"
+        entries={[paper]}
+      />
+    )
+
+    expect(screen.getByTestId('context-bar')).toHaveTextContent('Paper tools')
+    expect(screen.getByTestId('context-bar')).toHaveTextContent('context included')
+    expect(screen.getByTestId('context-bar')).not.toHaveTextContent('KAN Autoencoders · 2026 · AAAI')
+  })
+
+  it('shows Paper citation and mounted read-only vault indicators', () => {
+    const projectWorkspace = {
+      id: 'project-vault',
+      label: 'Project Vault',
+      alias: 'project',
+      path: '/vault/project',
+      shortLabel: 'Project',
+      color: null,
+      icon: null,
+      mounted: true,
+      available: true,
+      defaultForNewNotes: true,
+    }
+    const paperWorkspace = {
+      ...projectWorkspace,
+      id: 'paper-vault',
+      label: 'Paper Vault',
+      alias: 'papers',
+      path: '/vault/papers',
+      shortLabel: 'Papers',
+      defaultForNewNotes: false,
+    }
+    const project = makeEntry({
+      path: '/vault/project/project.md',
+      title: 'Project',
+      isA: 'Project',
+      workspace: projectWorkspace,
+    })
+    const paper = makeEntry({
+      path: '/vault/papers/papers/kan/paper.md',
+      title: 'KAN Autoencoders',
+      isA: 'Paper',
+      workspace: paperWorkspace,
+      properties: { paper_id: 'kan', title: 'KAN Autoencoders' },
+    })
+
+    render(
+      <AiPanel
+        onClose={vi.fn()}
+        vaultPath="/tmp/vault"
+        activeEntry={project}
+        activeNoteContent="Discuss @block[kan#b0002]."
+        entries={[project, paper]}
+      />
+    )
+
+    expect(screen.getByTestId('context-bar')).toHaveTextContent('Paper tools')
+    expect(screen.getByTestId('ai-paper-citation-count')).toHaveTextContent('1')
+    expect(screen.getByTestId('ai-paper-mounted-vault-count')).toHaveTextContent('1 read-only vaults')
   })
 
   it('renders input field enabled', () => {
@@ -438,6 +589,71 @@ describe('AiPanel', () => {
     expect(screen.getByTestId('agent-send')).toBeEnabled()
     expect(document.activeElement).toBe(screen.getByTestId('agent-input'))
     vi.useRealTimers()
+  })
+
+  it('keeps the message history pinned to bottom across panel resizes until the user scrolls up', () => {
+    let resizeCallback: ResizeObserverCallback | null = null
+    const originalResizeObserver = globalThis.ResizeObserver
+    globalThis.ResizeObserver = class {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as typeof ResizeObserver
+    mockMessages = [{
+      userMessage: 'Question',
+      actions: [],
+      response: 'Answer',
+      id: 'msg-scroll',
+    }]
+
+    try {
+      render(<AiPanel onClose={vi.fn()} vaultPath="/tmp/vault" />)
+      const history = screen.getByTestId('ai-message-history')
+      Object.defineProperties(history, {
+        clientHeight: { configurable: true, value: 200 },
+        scrollHeight: { configurable: true, value: 600 },
+      })
+      history.scrollTop = 400
+
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver)
+      })
+
+      expect(history.scrollTop).toBe(600)
+
+      history.scrollTop = 350
+      fireEvent.scroll(history)
+      expect(history.scrollTop).toBe(600)
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver)
+      })
+
+      expect(history.scrollTop).toBe(600)
+
+      fireEvent.pointerDown(history)
+      history.scrollTop = 250
+      fireEvent.scroll(history)
+      expect(history.scrollTop).toBe(600)
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver)
+      })
+
+      expect(history.scrollTop).toBe(600)
+
+      fireEvent.wheel(history)
+      history.scrollTop = 100
+      fireEvent.scroll(history)
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver)
+      })
+
+      expect(history.scrollTop).toBe(100)
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver
+    }
   })
 
   it('calls onClose when Escape is pressed while panel has focus', async () => {

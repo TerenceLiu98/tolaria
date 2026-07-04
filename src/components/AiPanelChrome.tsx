@@ -1,5 +1,14 @@
-import { memo, useCallback, useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
-import { Sparkle, X, PaperPlaneRight, Plus, Link, Stop } from '@phosphor-icons/react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react'
+import { Sparkle, X, PaperPlaneRight, Plus, Stop, Books, Quotes, Paperclip } from '@phosphor-icons/react'
 import { AiMessage } from './AiMessage'
 import { Button } from '@/components/ui/button'
 import { ActionTooltip } from '@/components/ui/action-tooltip'
@@ -14,6 +23,7 @@ import { createTranslator, type AppLocale } from '../lib/i18n'
 import type { AiAgentMessage } from '../hooks/useCliAiAgent'
 import type { AiAgentReadiness } from '../lib/aiAgents'
 import type { NoteReference } from '../utils/ai-context'
+import type { AiSelectedTextContext, PaperAiContextSummary } from '../utils/ai-context'
 import type { VaultEntry } from '../types'
 import { cn } from '@/lib/utils'
 
@@ -30,9 +40,8 @@ interface AiPanelHeaderProps {
 }
 
 interface AiPanelContextBarProps {
-  activeEntry: VaultEntry
+  paperContext: PaperAiContextSummary
   locale?: AppLocale
-  linkedCount: number
 }
 
 interface AiPanelMessageHistoryProps {
@@ -62,6 +71,52 @@ interface AiPanelComposerProps {
   onSend: (text: string, references: NoteReference[]) => void
   onStop: () => void
   onUnsupportedAiPaste?: (message: string) => void
+}
+
+const AI_MESSAGE_HISTORY_BOTTOM_EPSILON_PX = 8
+const AI_MESSAGE_HISTORY_SCROLLBAR_HITBOX_PX = 18
+const AI_MESSAGE_HISTORY_SCROLL_KEYS = new Set([
+  ' ',
+  'ArrowDown',
+  'ArrowUp',
+  'End',
+  'Home',
+  'PageDown',
+  'PageUp',
+])
+
+function isAiMessageHistoryNearBottom(element: HTMLElement): boolean {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= AI_MESSAGE_HISTORY_BOTTOM_EPSILON_PX
+}
+
+function scrollAiMessageHistoryToBottom(element: HTMLElement): void {
+  element.scrollTop = element.scrollHeight
+}
+
+function nowForScrollIntent(): number {
+  return typeof performance === 'undefined' ? Date.now() : performance.now()
+}
+
+function hasRecentUserScrollIntent(lastIntentAt: number): boolean {
+  return nowForScrollIntent() - lastIntentAt < 750
+}
+
+function isAiMessageHistoryScrollKey(key: string): boolean {
+  return AI_MESSAGE_HISTORY_SCROLL_KEYS.has(key)
+}
+
+function isAiMessageHistoryScrollbarPointer(event: ReactPointerEvent<HTMLElement>): boolean {
+  const element = event.currentTarget
+  const rect = element.getBoundingClientRect()
+  if (rect.width <= 0 && rect.height <= 0) return false
+  const hasVerticalScrollbar = element.scrollHeight > element.clientHeight
+  const hasHorizontalScrollbar = element.scrollWidth > element.clientWidth
+  const onVerticalScrollbar = hasVerticalScrollbar
+    && event.clientX >= rect.right - AI_MESSAGE_HISTORY_SCROLLBAR_HITBOX_PX
+  const onHorizontalScrollbar = hasHorizontalScrollbar
+    && event.clientY >= rect.bottom - AI_MESSAGE_HISTORY_SCROLLBAR_HITBOX_PX
+
+  return onVerticalScrollbar || onHorizontalScrollbar
 }
 
 function getComposerPlaceholder(
@@ -435,24 +490,62 @@ function AiPermissionModeToggle({
 }
 
 export const AiPanelContextBar = memo(function AiPanelContextBar({
-  activeEntry,
-  linkedCount,
+  paperContext,
   locale = 'en',
 }: AiPanelContextBarProps) {
   const t = createTranslator(locale)
+  const activePaperLabel = paperContext.activePaper
+    ? [
+        paperContext.activePaper.title,
+        paperContext.activePaper.year,
+        paperContext.activePaper.venue,
+      ].filter(Boolean).join(' · ')
+    : null
+  const preview = [
+    activePaperLabel ? t('ai.panel.paperContext.activePaper', { paper: activePaperLabel }) : null,
+    paperContext.relatedPaperCount > 0 ? t('ai.panel.paperContext.related', { count: paperContext.relatedPaperCount }) : null,
+    paperContext.blockCitationCount > 0 ? t('ai.panel.paperContext.citations', { count: paperContext.blockCitationCount }) : null,
+    paperContext.mountedPaperVaults.length > 0 ? t('ai.panel.paperContext.mountedVaults', { count: paperContext.mountedPaperVaults.length }) : null,
+  ].filter(Boolean).join('\n')
 
   return (
-    <div
-      className="flex shrink-0 items-center border-b border-border text-muted-foreground"
-      style={{ padding: '6px 12px', gap: 6, fontSize: 11 }}
-      data-testid="context-bar"
+    <ActionTooltip
+      copy={{ label: preview || t('ai.panel.paperContext.toolsAvailable') }}
+      side="bottom"
+      align="start"
+      contentTestId="ai-paper-context-tooltip"
     >
-      <Link size={12} className="shrink-0" />
-      <span className="truncate" style={{ fontWeight: 500 }}>{activeEntry.title}</span>
-      {linkedCount > 0 && (
-        <span style={{ opacity: 0.6 }}>{t('ai.panel.linkedCount', { count: linkedCount })}</span>
-      )}
-    </div>
+      <div
+        className="flex w-full max-w-full min-w-0 items-center overflow-hidden border-b border-border text-muted-foreground"
+        style={{ padding: '6px 12px', gap: 6, fontSize: 11 }}
+        data-testid="context-bar"
+      >
+        <Books size={12} className="shrink-0" />
+        <span className="shrink-0" style={{ fontWeight: 600 }}>{t('ai.panel.paperContext.toolsAvailable')}</span>
+        {paperContext.contextIncluded && (
+          <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px]">
+            {t('ai.panel.paperContext.included')}
+          </span>
+        )}
+        <span className="min-w-0 flex-1" aria-hidden="true" />
+        {paperContext.blockCitationCount > 0 && (
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1" data-testid="ai-paper-citation-count">
+            <Quotes size={11} />
+            {paperContext.blockCitationCount}
+          </span>
+        )}
+        {paperContext.relatedPaperCount > 0 && (
+          <span className="shrink-0" data-testid="ai-paper-related-count">
+            {t('ai.panel.paperContext.relatedShort', { count: paperContext.relatedPaperCount })}
+          </span>
+        )}
+        {paperContext.mountedPaperVaults.length > 0 && (
+          <span className="shrink-0" data-testid="ai-paper-mounted-vault-count">
+            {t('ai.panel.paperContext.readOnlyVaultsShort', { count: paperContext.mountedPaperVaults.length })}
+          </span>
+        )}
+      </div>
+    </ActionTooltip>
   )
 })
 
@@ -470,23 +563,73 @@ export const AiPanelMessageHistory = memo(function AiPanelMessageHistory({
   hasContext,
 }: AiPanelMessageHistoryProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const endRef = useRef<HTMLDivElement>(null)
+  const pinnedToBottomRef = useRef(true)
+  const lastUserScrollIntentAtRef = useRef(Number.NEGATIVE_INFINITY)
+
+  const markUserScrollIntent = useCallback(() => {
+    lastUserScrollIntentAtRef.current = nowForScrollIntent()
+  }, [])
+  const markKeyboardScrollIntent = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (isAiMessageHistoryScrollKey(event.key)) markUserScrollIntent()
+  }, [markUserScrollIntent])
+  const markPointerScrollIntent = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (isAiMessageHistoryScrollbarPointer(event)) markUserScrollIntent()
+  }, [markUserScrollIntent])
 
   const updateScrollState = useCallback(() => {
     const element = containerRef.current
+    if (element) {
+      const nearBottom = isAiMessageHistoryNearBottom(element)
+      if (nearBottom) {
+        pinnedToBottomRef.current = true
+      } else if (hasRecentUserScrollIntent(lastUserScrollIntentAtRef.current)) {
+        pinnedToBottomRef.current = false
+      } else if (pinnedToBottomRef.current) {
+        scrollAiMessageHistoryToBottom(element)
+      }
+    }
     onScrollStateChange?.((element?.scrollTop ?? 0) > 1)
   }, [onScrollStateChange])
 
   useEffect(() => {
     void isActive
     void messages
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
-    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(updateScrollState)
-    else updateScrollState()
+    const syncToBottom = () => {
+      const element = containerRef.current
+      if (!element) return
+      scrollAiMessageHistoryToBottom(element)
+      updateScrollState()
+    }
+    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(syncToBottom)
+    else syncToBottom()
   }, [messages, isActive, updateScrollState])
 
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return undefined
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (pinnedToBottomRef.current) {
+        scrollAiMessageHistoryToBottom(element)
+      }
+      updateScrollState()
+    })
+    resizeObserver.observe(element)
+    return () => resizeObserver.disconnect()
+  }, [updateScrollState])
+
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto" style={{ padding: 12 }} onScroll={updateScrollState}>
+    <div
+      ref={containerRef}
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      style={{ padding: 12 }}
+      onKeyDown={markKeyboardScrollIntent}
+      onPointerDown={markPointerScrollIntent}
+      onScroll={updateScrollState}
+      onTouchMove={markUserScrollIntent}
+      onWheel={markUserScrollIntent}
+      data-testid="ai-message-history"
+    >
       {messages.length === 0 && !isActive && (
         <AiPanelEmptyState
           agentLabel={agentLabel}
@@ -507,7 +650,6 @@ export const AiPanelMessageHistory = memo(function AiPanelMessageHistory({
           onRegenerate={onRegenerateMessage}
         />
       ))}
-      <div ref={endRef} />
     </div>
   )
 })
@@ -569,5 +711,58 @@ export function AiPanelComposer({
         </ComposerControlsRow>
       </div>
     </div>
+  )
+}
+
+export function AiSelectedTextContextButton({
+  disabled,
+  included,
+  locale = 'en',
+  selectedTextContext,
+  onToggle,
+}: {
+  disabled?: boolean
+  included: boolean
+  locale?: AppLocale
+  selectedTextContext: AiSelectedTextContext | null
+  onToggle: () => void
+}) {
+  const t = createTranslator(locale)
+  const selectedContextValue = selectedTextContext?.kind === 'image'
+    ? selectedTextContext.path.trim()
+    : selectedTextContext?.text.trim() ?? ''
+  const hasSelection = selectedContextValue.length > 0
+  const label = included
+    ? t('ai.panel.selectedText.included')
+    : t('ai.panel.selectedText.include')
+  const tooltip = hasSelection
+    ? t('ai.panel.selectedText.tooltip', { count: selectedContextValue.length })
+    : t('ai.panel.selectedText.emptyTooltip')
+
+  return (
+    <ActionTooltip
+      copy={{ label: tooltip }}
+      side="top"
+      align="start"
+      contentTestId="ai-selected-text-tooltip"
+    >
+      <Button
+        type="button"
+        variant={included ? 'secondary' : 'ghost'}
+        size="icon-xs"
+        className={cn(
+          'h-7 w-7 text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground',
+          included && 'border border-border bg-muted text-foreground',
+        )}
+        aria-label={label}
+        title={label}
+        disabled={disabled || !hasSelection}
+        aria-pressed={included}
+        data-testid="ai-selected-text-context-toggle"
+        onClick={onToggle}
+      >
+        <Paperclip size={15} weight={included ? 'bold' : 'regular'} />
+      </Button>
+    </ActionTooltip>
   )
 }

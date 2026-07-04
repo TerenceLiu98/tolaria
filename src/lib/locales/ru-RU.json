@@ -405,6 +405,14 @@
   "ai.panel.newChat": "Новый AI-чат",
   "ai.panel.close": "Закрыть панель ИИ",
   "ai.panel.linkedCount": "+ {count} связано",
+  "ai.panel.paperContext.toolsAvailable": "Инструменты Paper",
+  "ai.panel.paperContext.included": "контекст включён",
+  "ai.panel.paperContext.activePaper": "Активный Paper: {paper}",
+  "ai.panel.paperContext.related": "{count} связанных Papers из wikilink",
+  "ai.panel.paperContext.relatedShort": "{count} связанных",
+  "ai.panel.paperContext.citations": "{count} цитат блоков разрешено",
+  "ai.panel.paperContext.mountedVaults": "{count} подключённых Paper Vaults доступны только для чтения",
+  "ai.panel.paperContext.readOnlyVaultsShort": "{count} vault только для чтения",
   "ai.panel.empty.checkingTitle": "Проверка доступности AI-агента",
   "ai.panel.empty.checkingDescription": "Сообщения можно будет отправлять, когда выбранный агент будет готов",
   "ai.panel.empty.missingTitle": "{agent} недоступен на этом компьютере",
@@ -1069,5 +1077,9 @@
   "paper.reader.confirmParseAgainAction": "Parse again",
   "paper.reader.confirmRefreshMetadataTitle": "Refresh existing metadata?",
   "paper.reader.confirmRefreshMetadataMessage": "This Paper already has metadata. Refreshing can replace resolved fields and review candidates.",
-  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata"
+  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata",
+  "ai.panel.selectedText.include": "Include selected text",
+  "ai.panel.selectedText.included": "Selected text included",
+  "ai.panel.selectedText.tooltip": "Include {count} selected characters in the next AI context.",
+  "ai.panel.selectedText.emptyTooltip": "Select text in the note to include it in AI context."
 }

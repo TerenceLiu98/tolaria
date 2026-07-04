@@ -405,6 +405,14 @@
   "ai.panel.newChat": "Новий чат зі ШІ",
   "ai.panel.close": "Закрити панель ШІ",
   "ai.panel.linkedCount": "+ {count} пов'язано",
+  "ai.panel.paperContext.toolsAvailable": "Інструменти Paper",
+  "ai.panel.paperContext.included": "контекст включено",
+  "ai.panel.paperContext.activePaper": "Активний Paper: {paper}",
+  "ai.panel.paperContext.related": "{count} пов'язаних Papers з wikilink",
+  "ai.panel.paperContext.relatedShort": "{count} пов'язаних",
+  "ai.panel.paperContext.citations": "{count} цитат блоків розв'язано",
+  "ai.panel.paperContext.mountedVaults": "{count} підключених Paper Vaults доступні лише для читання",
+  "ai.panel.paperContext.readOnlyVaultsShort": "{count} vault лише для читання",
   "ai.panel.empty.checkingTitle": "Перевірка доступності агента ШІ",
   "ai.panel.empty.checkingDescription": "Повідомлення можна надсилати, коли вибраний агент готовий",
   "ai.panel.empty.missingTitle": "{agent} недоступний на цій машині",
@@ -1069,5 +1077,9 @@
   "paper.reader.confirmParseAgainAction": "Parse again",
   "paper.reader.confirmRefreshMetadataTitle": "Refresh existing metadata?",
   "paper.reader.confirmRefreshMetadataMessage": "This Paper already has metadata. Refreshing can replace resolved fields and review candidates.",
-  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata"
+  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata",
+  "ai.panel.selectedText.include": "Include selected text",
+  "ai.panel.selectedText.included": "Selected text included",
+  "ai.panel.selectedText.tooltip": "Include {count} selected characters in the next AI context.",
+  "ai.panel.selectedText.emptyTooltip": "Select text in the note to include it in AI context."
 }

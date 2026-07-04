@@ -2,6 +2,7 @@ import type React from 'react'
 import { useMemo, useRef } from 'react'
 import type { useCreateBlockNote } from '@blocknote/react'
 import type { AppLocale } from '../../lib/i18n'
+import type { AiSelectedTextContext } from '../../utils/ai-context'
 import type { NoteWidthMode, NoteStatus, VaultEntry } from '../../types'
 import type { PaperParserProvider } from '../../paper/parserSettings'
 import { useEditorTheme } from '../../hooks/useTheme'
@@ -39,6 +40,7 @@ export interface EditorContentProps {
   onToggleInspector: () => void
   onNavigateWikilink: (target: string) => void
   onEditorChange?: () => void
+  onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   onToggleFavorite?: (path: string) => void
   onToggleOrganized?: (path: string) => void
   onEnterNeighborhood?: (entry: VaultEntry) => void

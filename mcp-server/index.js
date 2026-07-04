@@ -161,7 +161,7 @@ const TOOLS = [
   },
   {
     name: 'list_papers',
-    description: 'List Paper notes in active Tolaria vaults with compact bibliographic metadata and provenance. Read-only.',
+    description: 'Use for a compact overview of available Paper notes before choosing a target. Lists active Tolaria vault Papers with bibliographic metadata, vault provenance, and wikilinks. Does not return full paper text. Read-only.',
     annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: 'object',
@@ -172,7 +172,7 @@ const TOOLS = [
   },
   {
     name: 'search_papers',
-    description: 'Search Paper notes by title, authors, venue, DOI, arXiv, OpenAlex, or Semantic Scholar identifiers. Returns compact metadata, not full paper content.',
+    description: 'Use for paper discovery by title, authors, venue, year, DOI, arXiv, OpenAlex, or Semantic Scholar identifiers. Returns compact ranked metadata with vault provenance and wikilinks, not full paper content. Read-only.',
     annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: 'object',
@@ -196,7 +196,7 @@ const TOOLS = [
   },
   {
     name: 'read_paper_metadata',
-    description: 'Read one Paper metadata record with frontmatter and metadata.json provenance. Use paperId and optional vaultPath.',
+    description: 'Use before making bibliographic claims about one Paper. Reads frontmatter plus metadata.json provenance/candidates/errors for paperId and optional vaultPath. Read-only.',
     annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: 'object',
@@ -209,7 +209,7 @@ const TOOLS = [
   },
   {
     name: 'read_paper_outline',
-    description: 'Read the title/heading outline from a Paper blocks.jsonl sidecar with block citations and page provenance.',
+    description: 'Use to orient within one parsed Paper before reading evidence. Returns title/heading SourceBlocks from blocks.jsonl with page provenance and @block citations. Read-only.',
     annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: 'object',
@@ -222,7 +222,7 @@ const TOOLS = [
   },
   {
     name: 'search_paper_blocks',
-    description: 'Search parsed SourceBlocks by text, caption, or section. Returns compact snippets with @block citations and page provenance.',
+    description: 'Use to find evidence inside Papers by text, caption, or section. Returns compact snippets with paper title, vault provenance, page number, and canonical @block citations. Does not dump full papers. Read-only.',
     annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: 'object',
@@ -237,7 +237,7 @@ const TOOLS = [
   },
   {
     name: 'read_paper_blocks',
-    description: 'Read exact Paper SourceBlocks by blockIds or range. Requires paperId and returns compact, citation-safe blocks.',
+    description: 'Use after search_paper_blocks or read_paper_outline to read exact evidence. Requires paperId and blockIds or a range; returns compact SourceBlocks with citation/page provenance and structured truncation if too large. Read-only.',
     annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: 'object',
@@ -258,7 +258,7 @@ const TOOLS = [
   },
   {
     name: 'get_paper_citation',
-    description: 'Return a compact bibliographic citation and Tolaria wikilink for a Paper.',
+    description: 'Use when the user needs a bibliographic citation for one Paper. Returns a compact citation, paper id, vault provenance, and Tolaria wikilink. Read-only.',
     annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: 'object',
@@ -271,7 +271,7 @@ const TOOLS = [
   },
   {
     name: 'get_block_citation',
-    description: 'Return the canonical @block[paper_id#block_id] citation for one SourceBlock with paper/page provenance.',
+    description: 'Use when citing an exact claim or resolving an @block target. Returns canonical @block[paper_id#block_id] syntax plus paper title, vault provenance, page number, and wikilink. Read-only.',
     annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: 'object',

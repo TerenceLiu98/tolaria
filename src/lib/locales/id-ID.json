@@ -405,6 +405,14 @@
   "ai.panel.newChat": "Obrolan AI Baru",
   "ai.panel.close": "Tutup panel AI",
   "ai.panel.linkedCount": "+ {count} tertaut",
+  "ai.panel.paperContext.toolsAvailable": "Alat Paper",
+  "ai.panel.paperContext.included": "konteks disertakan",
+  "ai.panel.paperContext.activePaper": "Paper aktif: {paper}",
+  "ai.panel.paperContext.related": "{count} Paper terkait dari wikilink",
+  "ai.panel.paperContext.relatedShort": "{count} terkait",
+  "ai.panel.paperContext.citations": "{count} kutipan blok diselesaikan",
+  "ai.panel.paperContext.mountedVaults": "{count} Paper Vault terpasang tersedia hanya-baca",
+  "ai.panel.paperContext.readOnlyVaultsShort": "{count} vault hanya-baca",
   "ai.panel.empty.checkingTitle": "Memeriksa ketersediaan agen AI",
   "ai.panel.empty.checkingDescription": "Pesan dapat dikirim ketika agen yang dipilih sudah siap",
   "ai.panel.empty.missingTitle": "{agent} tidak tersedia di mesin ini",
@@ -1069,5 +1077,9 @@
   "paper.reader.confirmParseAgainAction": "Parse again",
   "paper.reader.confirmRefreshMetadataTitle": "Refresh existing metadata?",
   "paper.reader.confirmRefreshMetadataMessage": "This Paper already has metadata. Refreshing can replace resolved fields and review candidates.",
-  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata"
+  "paper.reader.confirmRefreshMetadataAction": "Refresh metadata",
+  "ai.panel.selectedText.include": "Include selected text",
+  "ai.panel.selectedText.included": "Selected text included",
+  "ai.panel.selectedText.tooltip": "Include {count} selected characters in the next AI context.",
+  "ai.panel.selectedText.emptyTooltip": "Select text in the note to include it in AI context."
 }

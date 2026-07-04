@@ -536,8 +536,15 @@
 .ai-markdown a {
   color: var(--link-color);
   text-decoration: none;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .ai-markdown a:hover { text-decoration: underline; }
+
+.ai-markdown .block-citation {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 
 .ai-markdown .chat-wikilink {
   display: inline;

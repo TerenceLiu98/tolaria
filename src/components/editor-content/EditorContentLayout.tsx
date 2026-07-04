@@ -359,6 +359,7 @@ function EditorCanvas({
   entries,
   onNavigateWikilink,
   onEditorChange,
+  onSelectedTextContextChange,
   onCopyFilePath,
   onOpenExternalFile,
   onParsePaper,
@@ -380,6 +381,7 @@ function EditorCanvas({
   | 'entries'
   | 'onNavigateWikilink'
   | 'onEditorChange'
+  | 'onSelectedTextContextChange'
   | 'onRawContentChange'
   | 'sheetFlushRef'
   | 'isDeletedPreview'
@@ -409,6 +411,7 @@ function EditorCanvas({
           vaultPath={vaultPath}
           locale={locale}
           onNavigateWikilink={onNavigateWikilink}
+          onSelectedTextContextChange={onSelectedTextContextChange}
           onCopyFilePath={onCopyFilePath}
           onOpenExternalFile={onOpenExternalFile}
           onParsePaper={onParsePaper}
@@ -454,6 +457,7 @@ function EditorCanvas({
           entries={entries}
           onNavigateWikilink={onNavigateWikilink}
           onChange={onEditorChange}
+          onSelectedTextContextChange={onSelectedTextContextChange}
           sourceEntry={activeTab?.entry ?? null}
           vaultPath={vaultPath}
           editable={!isDeletedPreview}
@@ -523,6 +527,7 @@ export function EditorContentLayout(model: EditorContentModel) {
     cssVars,
     onNavigateWikilink,
     onEditorChange,
+    onSelectedTextContextChange,
     onCopyFilePath,
     onOpenExternalFile,
     onRevealFile,
@@ -594,6 +599,7 @@ export function EditorContentLayout(model: EditorContentModel) {
             entries={entries}
             onNavigateWikilink={onNavigateWikilink}
             onEditorChange={onEditorChange}
+            onSelectedTextContextChange={onSelectedTextContextChange}
             onCopyFilePath={onCopyFilePath}
             onOpenExternalFile={onOpenExternalFile}
             onRevealFile={onRevealFile}

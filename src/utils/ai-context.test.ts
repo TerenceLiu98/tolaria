@@ -5,6 +5,7 @@ import {
   buildContextualPrompt,
   buildContextSnapshot,
   formatPromptWithReferences,
+  paperAiContextSummary,
 } from './ai-context'
 import type { VaultEntry } from '../types'
 
@@ -175,6 +176,72 @@ describe('buildContextSnapshot', () => {
     expect(result).toContain('"owner": "Alice"')
   })
 
+  it('includes explicitly selected text as local AI context', () => {
+    const result = buildContextSnapshot({
+      activeEntry: active,
+      entries,
+      activeNoteContent: '# Alpha\nProject content.',
+      selectedContext: {
+        kind: 'text',
+        entryPath: '/vault/a.md',
+        entryTitle: 'Alpha',
+        text: 'Selected claim from the current note.',
+      },
+    })
+    const json = JSON.parse(result.split('```json\n')[1].split('\n```')[0])
+
+    expect(json.selectedContext).toEqual({
+      kind: 'text',
+      entryPath: '/vault/a.md',
+      entryTitle: 'Alpha',
+      text: 'Selected claim from the current note.',
+    })
+  })
+
+  it('compacts long selected text before adding it to AI context', () => {
+    const selectedText = 'Important selected sentence. '.repeat(300)
+    const result = buildContextSnapshot({
+      activeEntry: active,
+      entries,
+      selectedContext: {
+        kind: 'text',
+        entryPath: '/vault/a.md',
+        entryTitle: 'Alpha',
+        text: selectedText,
+      },
+    })
+    const json = JSON.parse(result.split('```json\n')[1].split('\n```')[0])
+
+    expect(json.selectedContext.text.length).toBeLessThan(selectedText.length)
+    expect(json.selectedContext.textTruncated).toEqual({
+      shownChars: 4000,
+      totalChars: selectedText.trim().length,
+    })
+  })
+
+  it('includes explicitly selected image paths as local AI context', () => {
+    const result = buildContextSnapshot({
+      activeEntry: active,
+      entries,
+      selectedContext: {
+        kind: 'image',
+        entryPath: '/vault/a.md',
+        entryTitle: 'Alpha',
+        path: 'attachments/diagram.png',
+        sourceUrl: 'asset://localhost/vault/attachments/diagram.png',
+      },
+    })
+    const json = JSON.parse(result.split('```json\n')[1].split('\n```')[0])
+
+    expect(json.selectedContext).toEqual({
+      kind: 'image',
+      entryPath: '/vault/a.md',
+      entryTitle: 'Alpha',
+      path: 'attachments/diagram.png',
+      sourceUrl: 'asset://localhost/vault/attachments/diagram.png',
+    })
+  })
+
   it('adds compact active Paper context when the active note is a Paper', () => {
     const paper = makeEntry({
       path: '/vault/papers/kan/paper.md',
@@ -256,6 +323,79 @@ describe('buildContextSnapshot', () => {
         paper_path: '/vault/papers/kan/paper.md',
       }),
     ])
+  })
+
+  it('does not add Paper tool context for a normal note with no Paper references or mounted Paper vaults', () => {
+    const note = makeEntry({ path: '/vault/note/plain.md', title: 'Plain Note' })
+    const result = buildContextSnapshot({
+      activeEntry: note,
+      entries: [note],
+      activeNoteContent: '# Plain Note\n\nNo paper context.',
+    })
+    const json = JSON.parse(result.split('```json\n')[1].split('\n```')[0])
+
+    expect(json.activePaper).toBeUndefined()
+    expect(json.relatedPapers).toBeUndefined()
+    expect(json.blockCitations).toBeUndefined()
+    expect(json.paperTools).toBeUndefined()
+    expect(paperAiContextSummary({ activeEntry: note, entries: [note] }).toolsAvailable).toBe(false)
+  })
+
+  it('marks mounted Paper workspaces as read-only Paper tool availability', () => {
+    const projectWorkspace = {
+      id: 'project-vault',
+      label: 'Project Vault',
+      alias: 'project',
+      path: '/vault/project',
+      shortLabel: 'Project',
+      color: null,
+      icon: null,
+      mounted: true,
+      available: true,
+      defaultForNewNotes: true,
+    }
+    const paperWorkspace = {
+      ...projectWorkspace,
+      id: 'paper-vault',
+      label: 'Paper Vault',
+      alias: 'papers',
+      path: '/vault/papers',
+      shortLabel: 'Papers',
+      defaultForNewNotes: false,
+    }
+    const project = makeEntry({
+      path: '/vault/project/project.md',
+      title: 'Project',
+      isA: 'Project',
+      workspace: projectWorkspace,
+    })
+    const paper = makeEntry({
+      path: '/vault/papers/papers/kan/paper.md',
+      title: 'KAN Autoencoders',
+      isA: 'Paper',
+      workspace: paperWorkspace,
+      properties: { paper_id: 'kan' },
+    })
+    const result = buildContextSnapshot({
+      activeEntry: project,
+      entries: [project, paper],
+      activeNoteContent: '# Project',
+    })
+    const json = JSON.parse(result.split('```json\n')[1].split('\n```')[0])
+
+    expect(json.paperTools).toMatchObject({
+      available: true,
+      mountedPaperVaults: [{
+        id: 'paper-vault',
+        label: 'Paper Vault',
+        path: '/vault/papers',
+        paperCount: 1,
+        readOnly: true,
+      }],
+      readOnlyMountedVaults: ['/vault/papers'],
+    })
+    expect(json.activePaper).toBeUndefined()
+    expect(json.relatedPapers).toBeUndefined()
   })
 
   it('includes system preamble', () => {

@@ -33,6 +33,7 @@ import {
   trackPaperReaderOpened,
 } from '../lib/productAnalytics'
 import type { VaultEntry } from '../types'
+import type { AiSelectedTextContext } from '../utils/ai-context'
 import { FilePreview } from '../components/FilePreview'
 import { NoteSurface, type NoteSurfaceCommentAnchor } from '../components/NoteSurface'
 import {
@@ -97,6 +98,7 @@ interface PaperReaderShellProps {
   onCopyFilePath?: (path: string) => void
   onOpenExternalFile?: (path: string) => void
   onNavigateWikilink: (target: string) => void
+  onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   onParsePaper?: (paperId: string, options?: { force?: boolean }) => void | Promise<void>
   paperParserProvider?: PaperParserProvider
   onRevealFile?: (path: string) => void
@@ -135,6 +137,50 @@ interface SettledMetadataLoadState extends MetadataLoadState {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function cssAttributeValue(value: string): string {
+  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+    ? CSS.escape(value)
+    : value.replace(/["\\]/gu, '\\$&')
+}
+
+function sourceBlockEditorBlockId(
+  editor: ReturnType<typeof useCreateBlockNote>,
+  sourceBlockIndex: number,
+): string | null {
+  const editorBlock = editor.document?.[sourceBlockIndex]
+  return isRecord(editorBlock) && typeof editorBlock.id === 'string' ? editorBlock.id : null
+}
+
+function queryBlockTarget(container: Element | null | undefined, selector: string): HTMLElement | null {
+  const target = container?.querySelector(selector)
+  return target instanceof HTMLElement ? target : null
+}
+
+function scrollPaperMarkdownBlockIntoView({
+  blockId,
+  blocks,
+  container,
+  editor,
+}: {
+  blockId: string
+  blocks: readonly SourceBlock[]
+  container: HTMLElement | null
+  editor: ReturnType<typeof useCreateBlockNote>
+}) {
+  const sourceBlockIndex = blocks.findIndex((block) => block.id === blockId)
+  const editorBlockId = sourceBlockIndex >= 0 ? sourceBlockEditorBlockId(editor, sourceBlockIndex) : null
+  const editorTarget = editorBlockId
+    ? queryBlockTarget(editor.domElement, `[data-id="${cssAttributeValue(editorBlockId)}"]`)
+    : null
+  const sourceBlockTarget = queryBlockTarget(
+    container,
+    `[data-paper-source-block-id="${cssAttributeValue(blockId)}"]`,
+  )
+
+  const target = editorTarget ?? sourceBlockTarget
+  target?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
 }
 
 function isPaperBlocksError(error: unknown): error is PaperBlocksError {
@@ -900,10 +946,12 @@ function PaperMarkdownNoteSurface({
   onCreateAnnotation,
   onDeleteAnnotation,
   onNavigateWikilink,
+  onSelectedTextContextChange,
   onResetAnnotations,
   onSaveAnnotation,
   onToggleCommentThread,
   openCommentBlockId,
+  selectedBlockId,
   sourceEntry,
   vaultPath,
 }: {
@@ -927,13 +975,16 @@ function PaperMarkdownNoteSurface({
   }) => void
   onDeleteAnnotation: (annotationId: string) => void
   onNavigateWikilink: (target: string) => void
+  onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   onResetAnnotations: () => void
   onSaveAnnotation: (annotation: PaperAnnotation) => void
   onToggleCommentThread: (blockId: string) => void
   openCommentBlockId: string | null
+  selectedBlockId: string | null
   sourceEntry: VaultEntry
   vaultPath?: string
 }) {
+  const readScrollAreaRef = useRef<HTMLDivElement>(null)
   const blocksById = useMemo(() => new Map(blocks.map((block) => [block.id, block])), [blocks])
   const commentAnchors = useMemo<NoteSurfaceCommentAnchor[]>(() => (
     blocks.map((block) => ({
@@ -942,6 +993,19 @@ function PaperMarkdownNoteSurface({
       title: sourceBlockPrimaryText(block),
     }))
   ), [blocks, commentsByAnchorId])
+
+  useEffect(() => {
+    if (!selectedBlockId) return
+    const animationFrame = requestAnimationFrame(() => {
+      scrollPaperMarkdownBlockIntoView({
+        blockId: selectedBlockId,
+        blocks,
+        container: readScrollAreaRef.current,
+        editor,
+      })
+    })
+    return () => cancelAnimationFrame(animationFrame)
+  }, [blocks, editor, selectedBlockId])
 
   const copyCitation = useCallback((block: SourceBlock) => {
     const citation = formatBlockCitation({ paperId: block.paper_id, blockId: block.id })
@@ -1001,6 +1065,7 @@ function PaperMarkdownNoteSurface({
         onResetAnnotations={onResetAnnotations}
       />
       <div
+        ref={readScrollAreaRef}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
         data-testid="paper-reader-read-scroll-area"
       >
@@ -1017,6 +1082,7 @@ function PaperMarkdownNoteSurface({
           entries={entries}
           locale={locale}
           onNavigateWikilink={onNavigateWikilink}
+          onSelectedTextContextChange={onSelectedTextContextChange}
           sourceEntry={sourceEntry}
           vaultPath={vaultPath}
         />
@@ -1082,6 +1148,7 @@ export function PaperReaderShell({
   onCopyFilePath,
   onOpenExternalFile,
   onNavigateWikilink,
+  onSelectedTextContextChange,
   onParsePaper,
   paperParserProvider = 'none',
   onRevealFile,
@@ -1234,6 +1301,7 @@ export function PaperReaderShell({
     })
   }, [handleSelectBlock])
   const handleFocusBlockFromCitation = useCallback((blockId: string) => {
+    setReaderMode('markdown')
     handleSelectBlock(blockId)
     setOpenCommentBlockId(blockId)
   }, [handleSelectBlock])
@@ -1330,10 +1398,12 @@ export function PaperReaderShell({
             onCreateAnnotation={createAnnotation}
             onDeleteAnnotation={deleteAnnotation}
             onNavigateWikilink={onNavigateWikilink}
+            onSelectedTextContextChange={onSelectedTextContextChange}
             onResetAnnotations={resetAnnotations}
             onSaveAnnotation={saveAnnotation}
             onToggleCommentThread={handleToggleCommentThread}
             openCommentBlockId={openCommentBlockId}
+            selectedBlockId={selectedBlockId}
             sourceEntry={entry}
             vaultPath={vaultPath}
           />

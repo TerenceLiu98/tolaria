@@ -62,4 +62,17 @@ describe('buildAgentSystemPrompt', () => {
     expect(prompt).toContain('[[')
     expect(prompt).toMatch(/wikilink/i)
   })
+
+  it('includes paper-aware evidence and citation tool guidance', () => {
+    const prompt = buildAgentSystemPrompt()
+
+    expect(prompt).toContain('search_papers')
+    expect(prompt).toContain('read_paper_metadata')
+    expect(prompt).toContain('search_paper_blocks')
+    expect(prompt).toContain('read_paper_blocks')
+    expect(prompt).toContain('get_block_citation')
+    expect(prompt).toContain('@block[...] citations')
+    expect(prompt).toContain('Mounted Paper Vaults are read-only')
+    expect(prompt).toContain('do not dump or read whole papers by default')
+  })
 })

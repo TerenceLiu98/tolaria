@@ -124,6 +124,11 @@ describe('MarkdownContent', () => {
     expect(container.querySelector('.ai-markdown')).toHaveClass('min-w-0', 'max-w-full', 'overflow-hidden')
   })
 
+  it('marks long links as safe to wrap inside narrow AI panels', () => {
+    const { container } = render(<MarkdownContent content="[long citation](https://example.com/06979-aaai26-fengd-dm-b0012-b0013-b0057-b0060)" />)
+    expect(container.querySelector('a')).toHaveClass('break-words')
+  })
+
   it('renders plain text without crashing', () => {
     render(<MarkdownContent content="Just plain text" />)
     expect(screen.getByText('Just plain text')).toBeTruthy()
@@ -253,6 +258,7 @@ describe('MarkdownContent', () => {
       )
 
       const citation = container.querySelector('.block-citation')!
+      expect(citation).toHaveClass('break-words')
       expect(citation.textContent).toBe('Transformer claim')
       expect(citation.getAttribute('data-block-citation-paper-id')).toBe('vaswani-2017-attention')
       expect(citation.getAttribute('data-block-citation-block-id')).toBe('b0023')

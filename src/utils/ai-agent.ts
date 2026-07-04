@@ -81,6 +81,8 @@ Prefer file edit tools for note changes.
 Use the provided MCP tools for: full-text search (search_notes), vault orientation (get_vault_context), parsed note reading (get_note), and opening notes in the UI (open_note).
 Use create_note(path, content, vaultPath?) for new Markdown notes when shell writes are unavailable.
 
+Paper-aware MCP tools are available when the vault contains Paper notes. Use search_papers for paper discovery; use read_paper_metadata before making bibliographic claims; use search_paper_blocks and read_paper_blocks for evidence; use get_block_citation when citing an exact parsed block. Resolve @block[...] citations before discussing cited evidence. Prefer exact paper block citations for paper-grounded claims, say when evidence is insufficient, and do not dump or read whole papers by default. Mounted Paper Vaults are read-only through Paper tools unless Tolaria explicitly exposes a write path.
+
 When you create or edit a note, call open_note(path) so the user sees it in Tolaria.
 When you mention or reference a note by name, always use [[Note Title]] wikilink syntax so the user can click to open it.
 Be concise and helpful. When you've completed a task, briefly summarize what you did.`

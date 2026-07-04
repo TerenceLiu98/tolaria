@@ -209,7 +209,11 @@ function duplicateMatch(left: PaperCatalogEntry, right: PaperCatalogEntry): { ma
 
 export function withDuplicateCandidates(entries: PaperCatalogEntry[], dismissedDecisionIds: Iterable<string> = []): PaperCatalogEntry[] {
   const dismissed = new Set(dismissedDecisionIds)
-  const next = entries.map(entry => ({ ...entry, duplicateCandidates: [], duplicateState: 'none' as PaperCatalogDuplicateState }))
+  const next: PaperCatalogEntry[] = entries.map(entry => ({
+    ...entry,
+    duplicateCandidates: [],
+    duplicateState: 'none',
+  }))
 
   for (let leftIndex = 0; leftIndex < next.length; leftIndex += 1) {
     for (let rightIndex = leftIndex + 1; rightIndex < next.length; rightIndex += 1) {

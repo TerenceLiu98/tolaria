@@ -3,6 +3,7 @@ import type { useCreateBlockNote } from '@blocknote/react'
 import { cn } from '@/lib/utils'
 import type { NoteComment } from '../comments/commentProvider'
 import type { AppLocale } from '../lib/i18n'
+import type { AiSelectedTextContext } from '../utils/ai-context'
 import type { VaultEntry } from '../types'
 import { CommentGutter } from './comments/CommentUI'
 import { SingleEditorView } from './SingleEditorView'
@@ -28,6 +29,7 @@ export function NoteSurface({
   entries,
   locale = 'en',
   onChange,
+  onSelectedTextContextChange,
   onNavigateWikilink,
   sourceEntry,
   vaultPath,
@@ -39,6 +41,7 @@ export function NoteSurface({
   entries: VaultEntry[]
   locale?: AppLocale
   onChange?: () => void
+  onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   onNavigateWikilink: (target: string) => void
   sourceEntry?: VaultEntry | null
   vaultPath?: string
@@ -59,6 +62,7 @@ export function NoteSurface({
           entries={entries}
           onNavigateWikilink={onNavigateWikilink}
           onChange={onChange}
+          onSelectedTextContextChange={onSelectedTextContextChange}
           sourceEntry={sourceEntry}
           vaultPath={vaultPath}
           editable={editable}
@@ -77,6 +81,7 @@ export function NoteSurface({
                 <div
                   key={anchor.id}
                   className="group/comment-anchor relative grid justify-items-end gap-2"
+                  data-paper-source-block-id={anchor.id}
                   data-testid={`note-surface-comment-anchor-${anchor.id}`}
                 >
                   <CommentGutter
