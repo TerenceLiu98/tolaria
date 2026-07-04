@@ -1360,7 +1360,7 @@ export const mockHandlers: Record<string, (args: any) => any> = {
     antigravity: { installed: false, version: null },
     kiro: { installed: false, version: null },
   }),
-  get_agent_docs_path: () => '/mock/Tolaria/resources/agent-docs',
+  get_agent_docs_path: () => '/mock/Sapientia/resources/agent-docs',
   get_vault_ai_guidance_status: () => ({ ...mockVaultAiGuidanceStatus }),
   restore_vault_ai_guidance: () => {
     mockVaultAiGuidanceStatus = {
@@ -1491,7 +1491,7 @@ export const mockHandlers: Record<string, (args: any) => any> = {
       tolaria: {
         type: 'stdio',
         command: 'node',
-        args: ['/mock/Tolaria/mcp-server/index.js'],
+        args: ['/mock/Sapientia/mcp-server/index.js'],
         env: {
           WS_UI_PORT: '9711',
         },
@@ -1503,7 +1503,7 @@ export const mockHandlers: Record<string, (args: any) => any> = {
     mcp: {
       tolaria: {
         type: 'local',
-        command: ['node', '/mock/Tolaria/mcp-server/index.js'],
+        command: ['node', '/mock/Sapientia/mcp-server/index.js'],
         enabled: true,
         environment: {
           WS_UI_PORT: '9711',

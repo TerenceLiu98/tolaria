@@ -29,7 +29,7 @@ export const APPIMAGE_FCITX_GCLIENT_LIBRARY_PATH =
 export const DEFAULT_APPIMAGE_PLUGIN_URL =
   'https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage'
 
-const WRAPPER_MARKER = 'Tolaria AppImage symlink launcher shim'
+const WRAPPER_MARKER = 'Sapientia AppImage symlink launcher shim'
 const REQUIRED_APPIMAGE_PATHS = [
   'AppRun',
   APPIMAGE_FCITX_GTK3_IM_MODULE_PATH,

@@ -1,6 +1,6 @@
-name: Tolaria
+name: Sapientia
 options:
-  bundleIdPrefix: club.refactoring.tolaria
+  bundleIdPrefix: cc.cklau.sapientia
   deploymentTarget:
     iOS: 14.0
 fileGroups: [../../src]
@@ -10,8 +10,8 @@ configs:
 settingGroups:
   app:
     base:
-      PRODUCT_NAME: Tolaria
-      PRODUCT_BUNDLE_IDENTIFIER: club.refactoring.tolaria
+      PRODUCT_NAME: Sapientia
+      PRODUCT_BUNDLE_IDENTIFIER: cc.cklau.sapientia
 targetTemplates:
   app:
     type: application

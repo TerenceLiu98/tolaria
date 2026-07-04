@@ -27,16 +27,19 @@ vi.mock('../components/NoteSurface', () => ({
     className,
     commentOptions,
     editable,
+    onChange,
     sourceEntry,
   }: {
     className?: string
     commentOptions?: NoteSurfaceCommentOptions
     editable?: boolean
+    onChange?: () => void
     sourceEntry?: VaultEntry | null
   }) => (
     <section
       data-testid="note-surface"
       className={className}
+      data-has-on-change={onChange ? 'true' : 'false'}
       data-readonly={!editable ? 'true' : 'false'}
       data-source-path={sourceEntry?.path}
     >
@@ -187,6 +190,7 @@ function renderPaperReader(overrides: Partial<PaperReaderShellProps> = {}) {
       editor={{} as PaperReaderShellProps['editor']}
       entries={[entry]}
       entry={entry}
+      onEditorChange={vi.fn()}
       onNavigateWikilink={vi.fn()}
       paperParserProvider="dev-fixture"
       vaultPath="/vault"
@@ -245,6 +249,7 @@ describe('PaperReaderShell', () => {
     expect(screen.queryByText('Metadata: ready')).not.toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-outline')).not.toBeInTheDocument()
     expect(screen.getByTestId('note-surface')).toHaveAttribute('data-readonly', 'false')
+    expect(screen.getByTestId('note-surface')).toHaveAttribute('data-has-on-change', 'true')
     expect(screen.getByTestId('note-surface')).toHaveAttribute('data-source-path', '/vault/papers/attention/paper.md')
     expect(screen.getByTestId('note-surface-comment-seam')).toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-source-preview')).not.toBeInTheDocument()

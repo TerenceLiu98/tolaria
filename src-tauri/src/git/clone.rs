@@ -148,7 +148,7 @@ mod tests {
             .output()
             .unwrap();
         StdCommand::new("git")
-            .args(["config", "user.name", "Tolaria App"])
+            .args(["config", "user.name", "Sapientia App"])
             .current_dir(path)
             .output()
             .unwrap();

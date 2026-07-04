@@ -7,7 +7,7 @@ const MANUAL_CONFIG = JSON.stringify({
     tolaria: {
       type: 'stdio',
       command: 'node',
-      args: ['/Applications/Tolaria.app/Contents/Resources/mcp-server/index.js'],
+      args: ['/Applications/Sapientia.app/Contents/Resources/mcp-server/index.js'],
       env: {
         WS_UI_PORT: '9711',
       },
@@ -20,7 +20,7 @@ const OPENCODE_CONFIG = JSON.stringify({
   mcp: {
     tolaria: {
       type: 'local',
-      command: ['node', '/Applications/Tolaria.app/Contents/Resources/mcp-server/index.js'],
+      command: ['node', '/Applications/Sapientia.app/Contents/Resources/mcp-server/index.js'],
       enabled: true,
       environment: {
         WS_UI_PORT: '9711',

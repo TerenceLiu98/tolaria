@@ -351,12 +351,12 @@ describe('requireVaultPath', () => {
     )
   })
 
-  it('loads active mounted vault paths from Tolaria config when env is vault-neutral', async () => {
+  it('loads active mounted vault paths from Sapientia config when env is vault-neutral', async () => {
     const configDir = await mkdtemp(path.join(os.tmpdir(), 'tolaria-mcp-config-'))
     const primaryVault = path.join(configDir, 'Primary Vault')
     const secondaryVault = path.join(configDir, 'Secondary Vault')
     const hiddenVault = path.join(configDir, 'Hidden Vault')
-    const configPath = path.join(configDir, 'com.tolaria.app', 'vaults.json')
+    const configPath = path.join(configDir, 'cc.cklau.sapientia', 'vaults.json')
 
     await mkdir(path.dirname(configPath), { recursive: true })
     await writeFile(configPath, JSON.stringify({
@@ -383,7 +383,7 @@ describe('requireVaultPath', () => {
     const files = ['settings.json', 'vaults.json']
 
     for (const fileName of files) {
-      const legacyPath = path.join(configDir, 'com.laputa.app', fileName)
+      const legacyPath = path.join(configDir, 'com.tolaria.app', fileName)
       await mkdir(path.dirname(legacyPath), { recursive: true })
       await writeFile(legacyPath, '{}', 'utf-8')
     }
@@ -392,7 +392,7 @@ describe('requireVaultPath', () => {
       for (const fileName of files) {
         assert.equal(
           appConfigFilePath(fileName, { configDir }),
-          path.join(configDir, 'com.laputa.app', fileName),
+          path.join(configDir, 'com.tolaria.app', fileName),
         )
       }
     } finally {
@@ -400,16 +400,16 @@ describe('requireVaultPath', () => {
     }
   })
 
-  it('loads macOS vault registry from the XDG-backed Tolaria config before Application Support', async () => {
+  it('loads macOS vault registry from the XDG-backed Sapientia config before Application Support', async () => {
     const homeDir = await mkdtemp(path.join(os.tmpdir(), 'tolaria-mcp-macos-home-'))
     const primaryVault = path.join(homeDir, 'Primary Vault')
     const legacyPlatformVault = path.join(homeDir, 'Legacy Platform Vault')
-    const xdgConfigPath = path.join(homeDir, '.config', 'com.tolaria.app', 'vaults.json')
+    const xdgConfigPath = path.join(homeDir, '.config', 'cc.cklau.sapientia', 'vaults.json')
     const platformConfigPath = path.join(
       homeDir,
       'Library',
       'Application Support',
-      'com.tolaria.app',
+      'cc.cklau.sapientia',
       'vaults.json',
     )
 

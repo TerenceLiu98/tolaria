@@ -96,6 +96,7 @@ interface PaperReaderShellProps {
   vaultPath?: string
   locale?: AppLocale
   onCopyFilePath?: (path: string) => void
+  onEditorChange?: () => void
   onOpenExternalFile?: (path: string) => void
   onNavigateWikilink: (target: string) => void
   onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
@@ -945,6 +946,7 @@ function PaperMarkdownNoteSurface({
   onCloseCommentThread,
   onCreateAnnotation,
   onDeleteAnnotation,
+  onEditorChange,
   onNavigateWikilink,
   onSelectedTextContextChange,
   onResetAnnotations,
@@ -974,6 +976,7 @@ function PaperMarkdownNoteSurface({
     text?: string
   }) => void
   onDeleteAnnotation: (annotationId: string) => void
+  onEditorChange?: () => void
   onNavigateWikilink: (target: string) => void
   onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   onResetAnnotations: () => void
@@ -1081,6 +1084,7 @@ function PaperMarkdownNoteSurface({
           editor={editor}
           entries={entries}
           locale={locale}
+          onChange={onEditorChange}
           onNavigateWikilink={onNavigateWikilink}
           onSelectedTextContextChange={onSelectedTextContextChange}
           sourceEntry={sourceEntry}
@@ -1146,6 +1150,7 @@ export function PaperReaderShell({
   vaultPath,
   locale = 'en',
   onCopyFilePath,
+  onEditorChange,
   onOpenExternalFile,
   onNavigateWikilink,
   onSelectedTextContextChange,
@@ -1397,6 +1402,7 @@ export function PaperReaderShell({
             onCloseCommentThread={closeCommentThread}
             onCreateAnnotation={createAnnotation}
             onDeleteAnnotation={deleteAnnotation}
+            onEditorChange={onEditorChange}
             onNavigateWikilink={onNavigateWikilink}
             onSelectedTextContextChange={onSelectedTextContextChange}
             onResetAnnotations={resetAnnotations}

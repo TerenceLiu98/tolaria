@@ -345,7 +345,7 @@ async function installFixtureVaultInitScript({ page, vaultPath, isGitRepo, folde
           tolaria: {
             type: 'stdio',
             command: 'node',
-            args: ['/fixture/Tolaria/mcp-server/index.js'],
+            args: ['/fixture/Sapientia/mcp-server/index.js'],
             env: {
               WS_UI_PORT: '9711',
             },

@@ -5,11 +5,11 @@ URL: /concepts/properties
 
 # Properties
 
-Properties are frontmatter fields that Tolaria can display, filter, and edit.
+Properties are frontmatter fields that Sapientia can display, filter, and edit.
 
 ## Suggested Properties
 
-Suggested properties are the fields Tolaria knows how to create quickly from the Properties panel. When a suggested property is missing, the panel shows a shortcut to add it with the right editor.
+Suggested properties are the fields Sapientia knows how to create quickly from the Properties panel. When a suggested property is missing, the panel shows a shortcut to add it with the right editor.
 
 | Field | Purpose |
 | --- | --- |
@@ -28,4 +28,4 @@ Examples include `_icon`, `_color`, `_order`, `_sidebar_label`, `_width`, and `_
 
 The Properties panel is the safest place to edit structured properties. Toggle it with `Cmd+Shift+I` on macOS or `Ctrl+Shift+I` on Windows and Linux.
 
-Date fields use Tolaria's picker, relationship fields can use wikilinks, and raw Markdown mode is available when you need direct control over YAML.
+Date fields use Sapientia's picker, relationship fields can use wikilinks, and raw Markdown mode is available when you need direct control over YAML.

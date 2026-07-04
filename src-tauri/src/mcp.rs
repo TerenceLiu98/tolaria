@@ -146,11 +146,11 @@ fn push_unique_path(paths: &mut Vec<PathBuf>, path: PathBuf) {
 
 fn linux_package_mcp_server_dirs(root: &Path) -> Vec<PathBuf> {
     vec![
-        root.join("Tolaria").join("mcp-server"),
-        root.join("Tolaria").join("resources").join("mcp-server"),
-        root.join("lib").join("Tolaria").join("mcp-server"),
+        root.join("Sapientia").join("mcp-server"),
+        root.join("Sapientia").join("resources").join("mcp-server"),
+        root.join("lib").join("Sapientia").join("mcp-server"),
         root.join("lib")
-            .join("Tolaria")
+            .join("Sapientia")
             .join("resources")
             .join("mcp-server"),
         root.join("lib").join("tolaria").join("mcp-server"),
@@ -303,7 +303,7 @@ pub fn mcp_config_snippet(vault_path: &str) -> Result<String, String> {
     let _ = vault_path;
     let runtime = find_mcp_runtime().map_err(|e| {
         format!(
-            "Node.js 18+ or Bun 1+ is required on PATH before Tolaria can build MCP config: {e}"
+            "Node.js 18+ or Bun 1+ is required on PATH before Sapientia can build MCP config: {e}"
         )
     })?;
     let server_dir = mcp_server_dir_for_registration()?;
@@ -319,7 +319,7 @@ pub fn opencode_mcp_config_snippet(vault_path: &str) -> Result<String, String> {
     let _ = vault_path;
     let runtime = find_mcp_runtime().map_err(|e| {
         format!(
-            "Node.js 18+ or Bun 1+ is required on PATH before Tolaria can build OpenCode MCP config: {e}"
+            "Node.js 18+ or Bun 1+ is required on PATH before Sapientia can build OpenCode MCP config: {e}"
         )
     })?;
     let server_dir = mcp_server_dir_for_registration()?;
@@ -344,12 +344,12 @@ fn register_mcp_to_configs(entry: &serde_json::Value, config_paths: &[PathBuf]) 
     status.to_string()
 }
 
-/// Register Tolaria as an MCP server in external AI tool config files.
+/// Register Sapientia as an MCP server in external AI tool config files.
 pub fn register_mcp(vault_path: &str) -> Result<String, String> {
     let _ = vault_path;
     let runtime = find_mcp_runtime().map_err(|e| {
         format!(
-            "Node.js 18+ or Bun 1+ is required on PATH before Tolaria can register MCP tools: {e}"
+            "Node.js 18+ or Bun 1+ is required on PATH before Sapientia can register MCP tools: {e}"
         )
     })?;
     let server_dir = mcp_server_dir_for_registration()?;
@@ -369,7 +369,7 @@ pub fn register_mcp(vault_path: &str) -> Result<String, String> {
     Ok(status)
 }
 
-/// Insert or update the Tolaria entry in an MCP config file.
+/// Insert or update the Sapientia entry in an MCP config file.
 fn upsert_mcp_config(config_path: &Path, entry: &serde_json::Value) -> Result<bool, String> {
     if let Some(parent) = config_path.parent() {
         std::fs::create_dir_all(parent)
@@ -489,7 +489,7 @@ pub fn remove_mcp() -> String {
 
 /// Check whether the MCP server is properly installed and registered.
 ///
-/// Returns `Installed` when the Tolaria entry exists for the active vault in
+/// Returns `Installed` when the Sapientia entry exists for the active vault in
 /// an external AI tool config and the referenced index.js file is present.
 /// Otherwise returns `NotInstalled`.
 pub fn check_mcp_status(vault_path: &str) -> McpStatus {
@@ -599,9 +599,9 @@ mod tests {
 
     #[test]
     fn build_mcp_entry_strips_windows_extended_length_script_prefix() {
-        let entry = build_mcp_entry("node", r"\\?\D:\Tolaria\mcp-server\index.js");
+        let entry = build_mcp_entry("node", r"\\?\D:\Sapientia\mcp-server\index.js");
 
-        assert_eq!(entry["args"][0], r"D:\Tolaria\mcp-server\index.js",);
+        assert_eq!(entry["args"][0], r"D:\Sapientia\mcp-server\index.js",);
     }
 
     #[test]
@@ -621,14 +621,14 @@ mod tests {
     fn mcp_server_dir_candidates_prefer_resource_root_before_linux_packages() {
         let dev_path = Path::new("/repo/mcp-server");
         let resource_roots = vec![PathBuf::from(
-            "/Applications/Tolaria.app/Contents/Resources",
+            "/Applications/Sapientia.app/Contents/Resources",
         )];
         let candidates = mcp_server_dir_candidates(dev_path, &resource_roots);
 
-        let resource_dir = PathBuf::from("/Applications/Tolaria.app/Contents/Resources/mcp-server");
+        let resource_dir = PathBuf::from("/Applications/Sapientia.app/Contents/Resources/mcp-server");
         let linux_pos = candidates
             .iter()
-            .position(|path| path == &PathBuf::from("/usr/local/Tolaria/mcp-server"))
+            .position(|path| path == &PathBuf::from("/usr/local/Sapientia/mcp-server"))
             .unwrap();
 
         assert_eq!(candidates[0], dev_path);
@@ -642,20 +642,20 @@ mod tests {
         let resource_roots = vec![PathBuf::from("/opt/tolaria")];
         let candidates = mcp_server_dir_candidates(dev_path, &resource_roots);
         let expected = vec![
-            PathBuf::from("/opt/tolaria/Tolaria/mcp-server"),
-            PathBuf::from("/opt/tolaria/Tolaria/resources/mcp-server"),
-            PathBuf::from("/opt/tolaria/lib/Tolaria/mcp-server"),
-            PathBuf::from("/opt/tolaria/lib/Tolaria/resources/mcp-server"),
+            PathBuf::from("/opt/tolaria/Sapientia/mcp-server"),
+            PathBuf::from("/opt/tolaria/Sapientia/resources/mcp-server"),
+            PathBuf::from("/opt/tolaria/lib/Sapientia/mcp-server"),
+            PathBuf::from("/opt/tolaria/lib/Sapientia/resources/mcp-server"),
             PathBuf::from("/opt/tolaria/lib/tolaria/mcp-server"),
             PathBuf::from("/opt/tolaria/lib/tolaria/resources/mcp-server"),
-            PathBuf::from("/usr/local/Tolaria/mcp-server"),
-            PathBuf::from("/usr/local/Tolaria/resources/mcp-server"),
-            PathBuf::from("/usr/local/lib/Tolaria/mcp-server"),
-            PathBuf::from("/usr/local/lib/Tolaria/resources/mcp-server"),
+            PathBuf::from("/usr/local/Sapientia/mcp-server"),
+            PathBuf::from("/usr/local/Sapientia/resources/mcp-server"),
+            PathBuf::from("/usr/local/lib/Sapientia/mcp-server"),
+            PathBuf::from("/usr/local/lib/Sapientia/resources/mcp-server"),
             PathBuf::from("/usr/local/lib/tolaria/mcp-server"),
             PathBuf::from("/usr/local/lib/tolaria/resources/mcp-server"),
-            PathBuf::from("/usr/lib/Tolaria/mcp-server"),
-            PathBuf::from("/usr/lib/Tolaria/resources/mcp-server"),
+            PathBuf::from("/usr/lib/Sapientia/mcp-server"),
+            PathBuf::from("/usr/lib/Sapientia/resources/mcp-server"),
             PathBuf::from("/usr/lib/tolaria/mcp-server"),
             PathBuf::from("/usr/lib/tolaria/resources/mcp-server"),
         ];
@@ -668,7 +668,7 @@ mod tests {
         let dev_path = Path::new("/repo/mcp-server");
         let candidates = mcp_server_dir_candidates(dev_path, &[]);
 
-        assert!(candidates.contains(&PathBuf::from("/usr/lib/Tolaria/mcp-server")));
+        assert!(candidates.contains(&PathBuf::from("/usr/lib/Sapientia/mcp-server")));
     }
 
     #[test]
@@ -701,14 +701,14 @@ mod tests {
     fn mcp_server_dir_candidates_include_macos_bundle_resources() {
         let dev_path = Path::new("/repo/mcp-server");
         let resource_roots = vec![PathBuf::from(
-            "/Applications/Tolaria.app/Contents/Resources",
+            "/Applications/Sapientia.app/Contents/Resources",
         )];
         let candidates = mcp_server_dir_candidates_for(dev_path, &resource_roots, None);
 
         assert_candidates_include(
             &candidates,
             &[PathBuf::from(
-                "/Applications/Tolaria.app/Contents/Resources/mcp-server",
+                "/Applications/Sapientia.app/Contents/Resources/mcp-server",
             )],
         );
     }

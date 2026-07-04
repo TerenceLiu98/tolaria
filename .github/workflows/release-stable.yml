@@ -129,11 +129,11 @@ jobs:
           }
 
           normalize_macos_artifacts aarch64 \
-            "updater-aarch64/Tolaria_${{ needs.version.outputs.version }}_macOS_Silicon.app.tar.gz" \
-            "dmg-aarch64/Tolaria_${{ needs.version.outputs.version }}_macOS_Silicon.dmg"
+            "updater-aarch64/Sapientia_${{ needs.version.outputs.version }}_macOS_Silicon.app.tar.gz" \
+            "dmg-aarch64/Sapientia_${{ needs.version.outputs.version }}_macOS_Silicon.dmg"
           normalize_macos_artifacts x86_64 \
-            "updater-x86_64/Tolaria_${{ needs.version.outputs.version }}_macOS_Intel.app.tar.gz" \
-            "dmg-x86_64/Tolaria_${{ needs.version.outputs.version }}_macOS_Intel.dmg"
+            "updater-x86_64/Sapientia_${{ needs.version.outputs.version }}_macOS_Intel.app.tar.gz" \
+            "dmg-x86_64/Sapientia_${{ needs.version.outputs.version }}_macOS_Intel.dmg"
 
       - name: Generate release notes
         run: |
@@ -169,7 +169,7 @@ jobs:
           TAG="${{ needs.version.outputs.tag }}"
           REPO="${GITHUB_REPOSITORY}"
           REPO_NAME="${REPO#*/}"
-          PAGES_URL="https://refactoringhq.github.io/${REPO_NAME}/"
+          PAGES_URL="https://TerenceLiu98.github.io/sapientia/"
 
           find_required() {
             local patterns=("$@")
@@ -243,7 +243,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: ${{ needs.version.outputs.tag }}
-          name: Tolaria ${{ needs.version.outputs.display_version }}
+          name: Sapientia ${{ needs.version.outputs.display_version }}
           body_path: release_notes.md
           draft: false
           prerelease: false

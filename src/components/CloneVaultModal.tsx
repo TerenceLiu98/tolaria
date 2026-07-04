@@ -185,7 +185,7 @@ export function CloneVaultModal({ open, onClose, onVaultCloned }: CloneVaultModa
         <DialogHeader>
           <DialogTitle>Clone Git Repo</DialogTitle>
           <DialogDescription>
-            Clone any remote repository into a local vault folder. Tolaria uses your existing system git
+            Clone any remote repository into a local vault folder. Sapientia uses your existing system git
             configuration for authentication.
           </DialogDescription>
         </DialogHeader>
@@ -217,7 +217,7 @@ export function CloneVaultModal({ open, onClose, onVaultCloned }: CloneVaultModa
 
           <p className="text-xs text-muted-foreground">
             {isCloning
-              ? 'Cloning repository… Tolaria will open the vault when git finishes.'
+              ? 'Cloning repository… Sapientia will open the vault when git finishes.'
               : 'SSH keys, the git credential manager, `gh auth`, and other system git auth methods all work.'}
           </p>
 

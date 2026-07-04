@@ -38,7 +38,7 @@ describe('FeedbackDialog', () => {
   it('renders the contribution paths when open', () => {
     render(<FeedbackDialog open={true} onClose={vi.fn()} buildNumber="b281" releaseChannel="alpha" />)
     expect(screen.getByTestId('feedback-dialog')).toBeInTheDocument()
-    expect(screen.getByText('Contribute to Tolaria')).toBeInTheDocument()
+    expect(screen.getByText('Contribute to Sapientia')).toBeInTheDocument()
     expect(screen.getByText('Pick the path that fits what you want to do! Any type of help is appreciated')).toBeInTheDocument()
     expect(screen.getByText('Newsletter')).toBeInTheDocument()
     expect(screen.getByText('Sponsors')).toBeInTheDocument()
@@ -47,7 +47,7 @@ describe('FeedbackDialog', () => {
     expect(screen.getByText('Contribute code')).toBeInTheDocument()
     expect(screen.getByText('Report a bug')).toBeInTheDocument()
     expect(screen.getByText(/Refactoring is my newsletter and community/i)).toBeInTheDocument()
-    expect(screen.getByText(/Tolaria is supported by a panel of tools/i)).toBeInTheDocument()
+    expect(screen.getByText(/Sapientia is supported by a panel of tools/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open Codacy' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open CodeScene' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open CircleCI' })).toBeInTheDocument()
@@ -62,11 +62,11 @@ describe('FeedbackDialog', () => {
   it('localizes the contribution dialog', () => {
     render(<FeedbackDialog open={true} onClose={vi.fn()} buildNumber="b281" locale="zh-CN" releaseChannel="alpha" />)
 
-    expect(screen.getByText('参与 Tolaria 贡献')).toBeInTheDocument()
+    expect(screen.getByText('参与 Sapientia 贡献')).toBeInTheDocument()
     expect(screen.getByText('功能请求')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '打开产品看板' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '复制已清理的诊断信息' })).toBeInTheDocument()
-    expect(screen.queryByText('Contribute to Tolaria')).not.toBeInTheDocument()
+    expect(screen.queryByText('Contribute to Sapientia')).not.toBeInTheDocument()
     expect(screen.queryByText('Feature requests')).not.toBeInTheDocument()
   })
 
@@ -117,7 +117,7 @@ describe('FeedbackDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy sanitized diagnostics' }))
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
-    expect(writeText.mock.calls[0]?.[0]).toContain('Tolaria sanitized diagnostics')
+    expect(writeText.mock.calls[0]?.[0]).toContain('Sapientia sanitized diagnostics')
     expect(writeText.mock.calls[0]?.[0]).toContain('Build: b281')
     expect(writeText.mock.calls[0]?.[0]).toContain('Release channel: alpha')
     expect(screen.getByText('Diagnostics copied.')).toBeInTheDocument()

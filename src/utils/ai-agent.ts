@@ -4,7 +4,7 @@ import type { AiAgentPermissionMode } from '../lib/aiAgentPermissionMode'
 /**
  * AI Agent utilities for app-managed CLI agent sessions.
  *
- * App-managed sessions can edit files in the active vault and use Tolaria-specific
+ * App-managed sessions can edit files in the active vault and use Sapientia-specific
  * MCP tools (search_notes, get_vault_context, get_note, open_note).
  * The frontend receives streaming events for text, tool calls, and completion.
  */
@@ -31,13 +31,13 @@ function permissionModeInstructions(
 ): string {
   if (mode === 'power_user') {
     if (agent === 'pi') {
-      return `Power User mode is selected, but Pi currently uses the same conservative Tolaria MCP configuration in both modes. Do not promise shell execution unless the Pi CLI exposes it directly in this run.`
+      return `Power User mode is selected, but Pi currently uses the same conservative Sapientia MCP configuration in both modes. Do not promise shell execution unless the Pi CLI exposes it directly in this run.`
     }
 
     return `Power User mode is active. Local shell commands are available for this vault where the selected CLI agent supports them. Keep commands scoped to the active vault, avoid destructive commands unless explicitly requested, and do not expose note content unnecessarily.`
   }
 
-  return `Vault Safe mode is active. Do not use shell, terminal, Bash, Python/Node script execution, git, or command-line tools. If the user asks whether shell commands are available, say they are not available in Vault Safe. Use file/search/edit tools and Tolaria MCP tools instead.`
+  return `Vault Safe mode is active. Do not use shell, terminal, Bash, Python/Node script execution, git, or command-line tools. If the user asks whether shell commands are available, say they are not available in Vault Safe. Use file/search/edit tools and Sapientia MCP tools instead.`
 }
 
 function agentDocsInstructions(
@@ -53,12 +53,12 @@ function agentDocsInstructions(
     : `Start with ${agentDocsPath}/index.md, then use the available file and search tools for specific concepts.`
 
   return `Read the vault's AGENTS.md when one exists before making vault-specific assumptions.
-For Tolaria product behavior, workflows, and user questions about how Tolaria works, search the bundled local docs at:
+For Sapientia product behavior, workflows, and user questions about how Sapientia works, search the bundled local docs at:
 ${agentDocsPath}
 
-${searchInstruction} Prefer bundled docs over guesses for Tolaria behavior.
+${searchInstruction} Prefer bundled docs over guesses for Sapientia behavior.
 
-When the user asks how to improve a knowledge base, make it better organized, choose better types, model relationships, or make the vault easier for humans and agents to use, treat Portent as Tolaria's default best-practice model. Read ${agentDocsPath}/pages/templates/portent.md and combine it with Tolaria concepts for types, relationships, properties, Inbox, archive, and custom views.`
+When the user asks how to improve a knowledge base, make it better organized, choose better types, model relationships, or make the vault easier for humans and agents to use, treat Portent as Sapientia's default best-practice model. Read ${agentDocsPath}/pages/templates/portent.md and combine it with Sapientia concepts for types, relationships, properties, Inbox, archive, and custom views.`
 }
 
 function vaultScopeInstructions(vaultPaths?: string[]): string {
@@ -68,22 +68,22 @@ function vaultScopeInstructions(vaultPaths?: string[]): string {
   }
 
   return [
-    `Multiple Tolaria vaults are active. You can read and edit markdown files in these vault roots:`,
+    `Multiple Sapientia vaults are active. You can read and edit markdown files in these vault roots:`,
     roots.map((path) => `- ${path}`).join('\n'),
-    `When using Tolaria MCP tools, pass the target vault path when a relative note path could be ambiguous.`,
+    `When using Sapientia MCP tools, pass the target vault path when a relative note path could be ambiguous.`,
   ].join('\n')
 }
 
-const AGENT_SYSTEM_PREAMBLE = `You are working inside Tolaria, a local-first Markdown knowledge base.
+const AGENT_SYSTEM_PREAMBLE = `You are working inside Sapientia, a local-first Markdown knowledge base.
 
 Notes are Markdown files with YAML frontmatter. Organization is primarily expressed through H1 titles, types, properties, wikilinks, and relationships, not folder structure.
 Prefer file edit tools for note changes.
 Use the provided MCP tools for: full-text search (search_notes), vault orientation (get_vault_context), parsed note reading (get_note), and opening notes in the UI (open_note).
 Use create_note(path, content, vaultPath?) for new Markdown notes when shell writes are unavailable.
 
-Paper-aware MCP tools are available when the vault contains Paper notes. Use search_papers for paper discovery; use read_paper_metadata before making bibliographic claims; use search_paper_blocks and read_paper_blocks for evidence; use get_block_citation when citing an exact parsed block. Resolve @block[...] citations before discussing cited evidence. Prefer exact paper block citations for paper-grounded claims, say when evidence is insufficient, and do not dump or read whole papers by default. Mounted Paper Vaults are read-only through Paper tools unless Tolaria explicitly exposes a write path.
+Paper-aware MCP tools are available when the vault contains Paper notes. Use search_papers for paper discovery; use read_paper_metadata before making bibliographic claims; use search_paper_blocks and read_paper_blocks for evidence; use get_block_citation when citing an exact parsed block. Resolve @block[...] citations before discussing cited evidence. Prefer exact paper block citations for paper-grounded claims, say when evidence is insufficient, and do not dump or read whole papers by default. Mounted Paper Vaults are read-only through Paper tools unless Sapientia explicitly exposes a write path.
 
-When you create or edit a note, call open_note(path) so the user sees it in Tolaria.
+When you create or edit a note, call open_note(path) so the user sees it in Sapientia.
 When you mention or reference a note by name, always use [[Note Title]] wikilink syntax so the user can click to open it.
 Be concise and helpful. When you've completed a task, briefly summarize what you did.`
 

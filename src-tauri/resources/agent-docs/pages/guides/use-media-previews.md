@@ -5,11 +5,11 @@ URL: /guides/use-media-previews
 
 # Use Media Previews
 
-Media previews let you inspect vault files without leaving Tolaria.
+Media previews let you inspect vault files without leaving Sapientia.
 
 ## Open A File
 
-Select an image, PDF, media file, or unsupported file from a folder or file list. Tolaria opens supported files in the app and offers an external-open action for files that should use the system default app.
+Select an image, PDF, media file, or unsupported file from a folder or file list. Sapientia opens supported files in the app and offers an external-open action for files that should use the system default app.
 
 ## All Notes Visibility
 
@@ -23,7 +23,7 @@ Folder browsing still shows files in their folders even when a category is hidde
 
 ## Attachments
 
-When you paste or drop an image into a note, Tolaria copies it into the vault and references the copied file from Markdown.
+When you paste or drop an image into a note, Sapientia copies it into the vault and references the copied file from Markdown.
 
 ## Troubleshooting
 

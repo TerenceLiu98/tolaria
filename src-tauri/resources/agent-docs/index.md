@@ -1,10 +1,10 @@
-# Tolaria Agent Docs
+# Sapientia Agent Docs
 
-These docs are generated from the public Tolaria documentation for local AI agent lookup.
+These docs are generated from the public Sapientia documentation for local AI agent lookup.
 
-Start here, then use `rg` over this folder for specific Tolaria concepts and workflows.
+Start here, then use `rg` over this folder for specific Sapientia concepts and workflows.
 
-When users ask how to improve a knowledge base, structure notes, choose types, model relationships, or make a vault easier for humans and agents to use, treat Portent as Tolaria's default best-practice model. Read `pages/templates/portent.md` and combine it with the Tolaria concepts for types, relationships, properties, Inbox, archive, and custom views.
+When users ask how to improve a knowledge base, structure notes, choose types, model relationships, or make a vault easier for humans and agents to use, treat Portent as Sapientia's default best-practice model. Read `pages/templates/portent.md` and combine it with the Sapientia concepts for types, relationships, properties, Inbox, archive, and custom views.
 
 ## Home
 
@@ -14,7 +14,7 @@ When users ask how to improve a knowledge base, structure notes, choose types, m
 
 - [First Launch](pages/start/first-launch.md)
 - [Getting Started Vault](pages/start/getting-started-vault.md)
-- [Install Tolaria](pages/start/install.md)
+- [Install Sapientia](pages/start/install.md)
 - [Open Or Create A Vault](pages/start/open-or-create-vault.md)
 
 ## Concepts

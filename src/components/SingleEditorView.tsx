@@ -119,7 +119,6 @@ const CONTAINER_CLICK_IGNORE_SELECTOR = [
 const TOOLBAR_MOUSE_DOWN_ALLOW_SELECTOR = [
   '[role="menu"]',
   '[role="dialog"]',
-  'button[aria-haspopup]',
   'input',
   'textarea',
   '[contenteditable="true"]',
@@ -374,6 +373,22 @@ function useSeedBlockNoteTableBridge(editor: ReturnType<typeof useCreateBlockNot
 
 function shouldIgnoreContainerClick(target: HTMLElement) {
   return Boolean(target.closest(CONTAINER_CLICK_IGNORE_SELECTOR))
+}
+
+function elementFromNode(node: Node): HTMLElement | null {
+  return node instanceof HTMLElement ? node : node.parentElement
+}
+
+function shouldIgnoreSelectedContextRefresh(container: HTMLElement, selection: Selection) {
+  const activeElement = container.ownerDocument.activeElement
+  if (activeElement instanceof HTMLElement && shouldIgnoreContainerClick(activeElement)) {
+    return true
+  }
+
+  if (selection.rangeCount === 0) return false
+  const range = selection.getRangeAt(0)
+  const rangeElement = elementFromNode(range.commonAncestorContainer)
+  return rangeElement !== null && shouldIgnoreContainerClick(rangeElement)
 }
 
 function normalizeSuggestionQuery(query: string, triggerCharacter: string): string {
@@ -993,6 +1008,9 @@ function useSuggestionMenuItems(options: {
 
 type EditorInteractionControllersProps = ReturnType<typeof useSuggestionMenuItems> & {
   locale: AppLocale
+  onAttachSelectedTextContext?: (text: string) => void
+  onToolbarInteractionEnd: () => void
+  onToolbarInteractionStart: () => void
   runEditorAction: (action: SuggestionAction) => void
   vaultPath?: string
 }
@@ -1003,12 +1021,22 @@ function EditorInteractionControllers({
   getSlashMenuItems,
   getWikilinkItems,
   locale,
+  onAttachSelectedTextContext,
+  onToolbarInteractionEnd,
+  onToolbarInteractionStart,
   runEditorAction,
   vaultPath,
 }: EditorInteractionControllersProps) {
   const sideMenu = useCallback((props: SideMenuProps) => (
     <TolariaSideMenu {...props} locale={locale} />
   ), [locale])
+  const handleToolbarPointerDownCapture = useCallback((event: Pick<React.MouseEvent<HTMLElement>, 'target' | 'preventDefault'>) => {
+    onToolbarInteractionStart()
+    handleToolbarMouseDownCapture(event)
+  }, [onToolbarInteractionStart])
+  const handleToolbarInteractionEnd = useCallback(() => {
+    onToolbarInteractionEnd()
+  }, [onToolbarInteractionEnd])
 
   return (
     <>
@@ -1016,11 +1044,19 @@ function EditorInteractionControllers({
       <SideMenuController sideMenu={sideMenu} />
       <TolariaFormattingToolbarController
         formattingToolbar={(props) => (
-          <TolariaFormattingToolbar {...props} locale={locale} vaultPath={vaultPath} />
+          <TolariaFormattingToolbar
+            {...props}
+            locale={locale}
+            onAttachSelectedTextContext={onAttachSelectedTextContext}
+            vaultPath={vaultPath}
+          />
         )}
         floatingUIOptions={{
           elementProps: {
-            onMouseDownCapture: handleToolbarMouseDownCapture,
+            onPointerDownCapture: handleToolbarPointerDownCapture,
+            onMouseDownCapture: handleToolbarPointerDownCapture,
+            onClickCapture: handleToolbarInteractionEnd,
+            onPointerUpCapture: handleToolbarInteractionEnd,
           },
         }}
       />
@@ -1030,7 +1066,10 @@ function EditorInteractionControllers({
         )}
         floatingUIOptions={{
           elementProps: {
-            onMouseDownCapture: handleToolbarMouseDownCapture,
+            onPointerDownCapture: handleToolbarPointerDownCapture,
+            onMouseDownCapture: handleToolbarPointerDownCapture,
+            onClickCapture: handleToolbarInteractionEnd,
+            onPointerUpCapture: handleToolbarInteractionEnd,
           },
         }}
       />
@@ -1184,6 +1223,7 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
   const previousThemeModeRef = useRef(themeMode)
   const containerRef = useRef<HTMLDivElement>(null)
   const selectedImageContextRef = useRef<AiSelectedTextContext | null>(null)
+  const suppressSelectedContextRefreshRef = useRef(false)
   const suppressNextContainerClickRef = useRef(false)
   const handleContainerClick = useEditorContainerClickHandler({
     editable,
@@ -1288,10 +1328,12 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
   }, [editor])
   const handleSelectionContextRefresh = useCallback(() => {
     if (!sourceEntry || !onSelectedTextContextChange) return
+    if (suppressSelectedContextRefreshRef.current) return
 
     const container = containerRef.current
     const selection = window.getSelection()
     if (!container || !selection || selection.rangeCount === 0) return
+    if (shouldIgnoreSelectedContextRefresh(container, selection)) return
 
     const range = selection.getRangeAt(0)
     if (!container.contains(range.commonAncestorContainer)) {
@@ -1301,9 +1343,7 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
       const selectedImageContext = selectedImageContextRef.current
       if (selectedImageContext) {
         onSelectedTextContextChange(selectedImageContext)
-        return
       }
-      onSelectedTextContextChange(null)
       return
     }
 
@@ -1312,19 +1352,9 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
       const selectedImageContext = selectedImageContextRef.current
       if (selectedImageContext) {
         onSelectedTextContextChange(selectedImageContext)
-        return
       }
-      onSelectedTextContextChange(null)
       return
     }
-
-    selectedImageContextRef.current = null
-    onSelectedTextContextChange({
-      kind: 'text',
-      entryPath: sourceEntry.path,
-      entryTitle: sourceEntry.title,
-      text,
-    })
   }, [onSelectedTextContextChange, sourceEntry])
   useEffect(() => {
     const container = containerRef.current
@@ -1345,6 +1375,25 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
     document.addEventListener('selectionchange', handleSelectionChange)
     return () => document.removeEventListener('selectionchange', handleSelectionChange)
   }, [handleSelectionContextRefresh, onSelectedTextContextChange])
+  const handleToolbarInteractionStart = useCallback(() => {
+    suppressSelectedContextRefreshRef.current = true
+  }, [])
+  const handleToolbarInteractionEnd = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      suppressSelectedContextRefreshRef.current = false
+    })
+  }, [])
+  const handleAttachSelectedTextContext = useCallback((text: string) => {
+    if (!sourceEntry || !onSelectedTextContextChange) return
+
+    selectedImageContextRef.current = null
+    onSelectedTextContextChange({
+      kind: 'text',
+      entryPath: sourceEntry.path,
+      entryTitle: sourceEntry.title,
+      text,
+    })
+  }, [onSelectedTextContextChange, sourceEntry])
 
   const insertWikilink = useInsertWikilink(editor, runEditorAction)
   const suggestionMenuItems = useSuggestionMenuItems({
@@ -1396,6 +1445,9 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
             <EditorInteractionControllers
               {...suggestionMenuItems}
               locale={locale}
+              onAttachSelectedTextContext={handleAttachSelectedTextContext}
+              onToolbarInteractionEnd={handleToolbarInteractionEnd}
+              onToolbarInteractionStart={handleToolbarInteractionStart}
               runEditorAction={runEditorAction}
               vaultPath={vaultPath}
             />

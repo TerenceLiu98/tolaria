@@ -5,7 +5,7 @@ URL: /concepts/files-and-media
 
 # Files And Media
 
-Tolaria starts with Markdown notes, but a vault can also contain images, PDFs, media files, whiteboards, and other local files.
+Sapientia starts with Markdown notes, but a vault can also contain images, PDFs, media files, whiteboards, and other local files.
 
 ## Mermaid Diagrams
 
@@ -18,7 +18,7 @@ flowchart LR
 ```
 ````
 
-Tolaria renders Mermaid diagrams in the editor while keeping the source in Markdown.
+Sapientia renders Mermaid diagrams in the editor while keeping the source in Markdown.
 
 ## Attachments
 
@@ -26,7 +26,7 @@ Images pasted into the editor are saved into the vault as normal files. They rem
 
 ## Previews
 
-Tolaria can preview common image files, PDFs, and supported media files in the app. Files without an in-app preview can still be opened in the default system app.
+Sapientia can preview common image files, PDFs, and supported media files in the app. Files without an in-app preview can still be opened in the default system app.
 
 Settings control whether PDFs, images, and unsupported files appear in All Notes. Folder browsing still shows files in their folders.
 
@@ -36,4 +36,4 @@ Whiteboards use tldraw in the editor, but their durable representation stays in 
 
 ## Git Boundary
 
-If generated or local-only files are ignored by Git, Tolaria can hide them from notes, search, quick open, and folders. Use this when build artifacts or private local files should not behave like vault content.
+If generated or local-only files are ignored by Git, Sapientia can hide them from notes, search, quick open, and folders. Use this when build artifacts or private local files should not behave like vault content.

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * WebSocket bridge for Tolaria MCP tools.
+ * WebSocket bridge for Sapientia MCP tools.
  *
- * Exposes vault operations over WebSocket so the Tolaria app frontend
+ * Exposes vault operations over WebSocket so the Sapientia app frontend
  * can invoke MCP tools in real-time without going through stdio.
  *
  * Port 9710: Tool bridge — Claude/AI clients call vault tools here.
@@ -164,7 +164,7 @@ function verifyBridgeRequest(bridgeType) {
 /**
  * Attempt to start the UI bridge WebSocket server.
  * Returns a Promise that resolves to the WebSocketServer or null if the port
- * is unavailable (e.g. another Tolaria instance owns it).
+ * is unavailable (e.g. another Sapientia instance owns it).
  */
 export function startUiBridge(port = WS_UI_PORT) {
   return new Promise((resolve) => {

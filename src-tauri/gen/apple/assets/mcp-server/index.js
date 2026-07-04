@@ -3099,12 +3099,15 @@ var require_data = __commonJS({
   }
 });
 
-// node_modules/.pnpm/fast-uri@3.1.0/node_modules/fast-uri/lib/utils.js
+// node_modules/.pnpm/fast-uri@3.1.2/node_modules/fast-uri/lib/utils.js
 var require_utils = __commonJS({
-  "node_modules/.pnpm/fast-uri@3.1.0/node_modules/fast-uri/lib/utils.js"(exports2, module2) {
+  "node_modules/.pnpm/fast-uri@3.1.2/node_modules/fast-uri/lib/utils.js"(exports2, module2) {
     "use strict";
     var isUUID = RegExp.prototype.test.bind(/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu);
     var isIPv4 = RegExp.prototype.test.bind(/^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)$/u);
+    var isHexPair = RegExp.prototype.test.bind(/^[\da-f]{2}$/iu);
+    var isUnreserved = RegExp.prototype.test.bind(/^[\da-z\-._~]$/iu);
+    var isPathCharacter = RegExp.prototype.test.bind(/^[\da-z\-._~!$&'()*+,;=:@/]$/iu);
     function stringArrayToHexStripped(input) {
       let acc = "";
       let code = 0;
@@ -3222,8 +3225,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path2) {
-      let input = path2;
+    function removeDotSegments(path5) {
+      let input = path5;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3297,27 +3300,77 @@ var require_utils = __commonJS({
       }
       return output.join("");
     }
-    function normalizeComponentEncoding(component, esc2) {
-      const func = esc2 !== true ? escape : unescape;
-      if (component.scheme !== void 0) {
-        component.scheme = func(component.scheme);
+    var HOST_DELIMS = { "@": "%40", "/": "%2F", "?": "%3F", "#": "%23", ":": "%3A" };
+    var HOST_DELIM_RE = /[@/?#:]/g;
+    var HOST_DELIM_NO_COLON_RE = /[@/?#]/g;
+    function reescapeHostDelimiters(host, isIP) {
+      const re = isIP ? HOST_DELIM_NO_COLON_RE : HOST_DELIM_RE;
+      re.lastIndex = 0;
+      return host.replace(re, (ch) => HOST_DELIMS[ch]);
+    }
+    function normalizePercentEncoding(input, decodeUnreserved = false) {
+      if (input.indexOf("%") === -1) {
+        return input;
       }
-      if (component.userinfo !== void 0) {
-        component.userinfo = func(component.userinfo);
+      let output = "";
+      for (let i = 0; i < input.length; i++) {
+        if (input[i] === "%" && i + 2 < input.length) {
+          const hex3 = input.slice(i + 1, i + 3);
+          if (isHexPair(hex3)) {
+            const normalizedHex = hex3.toUpperCase();
+            const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
+            if (decodeUnreserved && isUnreserved(decoded)) {
+              output += decoded;
+            } else {
+              output += "%" + normalizedHex;
+            }
+            i += 2;
+            continue;
+          }
+        }
+        output += input[i];
       }
-      if (component.host !== void 0) {
-        component.host = func(component.host);
+      return output;
+    }
+    function normalizePathEncoding(input) {
+      let output = "";
+      for (let i = 0; i < input.length; i++) {
+        if (input[i] === "%" && i + 2 < input.length) {
+          const hex3 = input.slice(i + 1, i + 3);
+          if (isHexPair(hex3)) {
+            const normalizedHex = hex3.toUpperCase();
+            const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
+            if (decoded !== "." && isUnreserved(decoded)) {
+              output += decoded;
+            } else {
+              output += "%" + normalizedHex;
+            }
+            i += 2;
+            continue;
+          }
+        }
+        if (isPathCharacter(input[i])) {
+          output += input[i];
+        } else {
+          output += escape(input[i]);
+        }
       }
-      if (component.path !== void 0) {
-        component.path = func(component.path);
+      return output;
+    }
+    function escapePreservingEscapes(input) {
+      let output = "";
+      for (let i = 0; i < input.length; i++) {
+        if (input[i] === "%" && i + 2 < input.length) {
+          const hex3 = input.slice(i + 1, i + 3);
+          if (isHexPair(hex3)) {
+            output += "%" + hex3.toUpperCase();
+            i += 2;
+            continue;
+          }
+        }
+        output += escape(input[i]);
       }
-      if (component.query !== void 0) {
-        component.query = func(component.query);
-      }
-      if (component.fragment !== void 0) {
-        component.fragment = func(component.fragment);
-      }
-      return component;
+      return output;
     }
     function recomposeAuthority(component) {
       const uriTokens = [];
@@ -3332,7 +3385,7 @@ var require_utils = __commonJS({
           if (ipV6res.isIPV6 === true) {
             host = `[${ipV6res.escapedHost}]`;
           } else {
-            host = component.host;
+            host = reescapeHostDelimiters(host, false);
           }
         }
         uriTokens.push(host);
@@ -3346,7 +3399,10 @@ var require_utils = __commonJS({
     module2.exports = {
       nonSimpleDomain,
       recomposeAuthority,
-      normalizeComponentEncoding,
+      reescapeHostDelimiters,
+      normalizePercentEncoding,
+      normalizePathEncoding,
+      escapePreservingEscapes,
       removeDotSegments,
       isIPv4,
       isUUID,
@@ -3356,9 +3412,9 @@ var require_utils = __commonJS({
   }
 });
 
-// node_modules/.pnpm/fast-uri@3.1.0/node_modules/fast-uri/lib/schemes.js
+// node_modules/.pnpm/fast-uri@3.1.2/node_modules/fast-uri/lib/schemes.js
 var require_schemes = __commonJS({
-  "node_modules/.pnpm/fast-uri@3.1.0/node_modules/fast-uri/lib/schemes.js"(exports2, module2) {
+  "node_modules/.pnpm/fast-uri@3.1.2/node_modules/fast-uri/lib/schemes.js"(exports2, module2) {
     "use strict";
     var { isUUID } = require_utils();
     var URN_REG = /([\da-z][\d\-a-z]{0,31}):((?:[\w!$'()*+,\-.:;=@]|%[\da-f]{2})+)/iu;
@@ -3422,8 +3478,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path2, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path2 && path2 !== "/" ? path2 : void 0;
+        const [path5, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path5 && path5 !== "/" ? path5 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -3566,16 +3622,16 @@ var require_schemes = __commonJS({
   }
 });
 
-// node_modules/.pnpm/fast-uri@3.1.0/node_modules/fast-uri/index.js
+// node_modules/.pnpm/fast-uri@3.1.2/node_modules/fast-uri/index.js
 var require_fast_uri = __commonJS({
-  "node_modules/.pnpm/fast-uri@3.1.0/node_modules/fast-uri/index.js"(exports2, module2) {
+  "node_modules/.pnpm/fast-uri@3.1.2/node_modules/fast-uri/index.js"(exports2, module2) {
     "use strict";
-    var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizeComponentEncoding, isIPv4, nonSimpleDomain } = require_utils();
+    var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, escapePreservingEscapes, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils();
     var { SCHEMES, getSchemeHandler } = require_schemes();
     function normalize(uri, options2) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
-        serialize(parse4(uri, options2), options2);
+        normalizeString(uri, options2);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
         parse4(serialize(uri, options2), options2);
@@ -3642,19 +3698,9 @@ var require_fast_uri = __commonJS({
       return target;
     }
     function equal(uriA, uriB, options2) {
-      if (typeof uriA === "string") {
-        uriA = unescape(uriA);
-        uriA = serialize(normalizeComponentEncoding(parse4(uriA, options2), true), { ...options2, skipEscape: true });
-      } else if (typeof uriA === "object") {
-        uriA = serialize(normalizeComponentEncoding(uriA, true), { ...options2, skipEscape: true });
-      }
-      if (typeof uriB === "string") {
-        uriB = unescape(uriB);
-        uriB = serialize(normalizeComponentEncoding(parse4(uriB, options2), true), { ...options2, skipEscape: true });
-      } else if (typeof uriB === "object") {
-        uriB = serialize(normalizeComponentEncoding(uriB, true), { ...options2, skipEscape: true });
-      }
-      return uriA.toLowerCase() === uriB.toLowerCase();
+      const normalizedA = normalizeComparableURI(uriA, options2);
+      const normalizedB = normalizeComparableURI(uriB, options2);
+      return normalizedA !== void 0 && normalizedB !== void 0 && normalizedA.toLowerCase() === normalizedB.toLowerCase();
     }
     function serialize(cmpts, opts) {
       const component = {
@@ -3679,12 +3725,12 @@ var require_fast_uri = __commonJS({
       if (schemeHandler && schemeHandler.serialize) schemeHandler.serialize(component, options2);
       if (component.path !== void 0) {
         if (!options2.skipEscape) {
-          component.path = escape(component.path);
+          component.path = escapePreservingEscapes(component.path);
           if (component.scheme !== void 0) {
             component.path = component.path.split("%3A").join(":");
           }
         } else {
-          component.path = unescape(component.path);
+          component.path = normalizePercentEncoding(component.path);
         }
       }
       if (options2.reference !== "suffix" && component.scheme) {
@@ -3719,7 +3765,16 @@ var require_fast_uri = __commonJS({
       return uriTokens.join("");
     }
     var URI_PARSE = /^(?:([^#/:?]+):)?(?:\/\/((?:([^#/?@]*)@)?(\[[^#/?\]]+\]|[^#/:?]*)(?::(\d*))?))?([^#?]*)(?:\?([^#]*))?(?:#((?:.|[\n\r])*))?/u;
-    function parse4(uri, opts) {
+    function getParseError(parsed, matches) {
+      if (matches[2] !== void 0 && parsed.path && parsed.path[0] !== "/") {
+        return 'URI path must start with "/" when authority is present.';
+      }
+      if (typeof parsed.port === "number" && (parsed.port < 0 || parsed.port > 65535)) {
+        return "URI port is malformed.";
+      }
+      return void 0;
+    }
+    function parseWithStatus(uri, opts) {
       const options2 = Object.assign({}, opts);
       const parsed = {
         scheme: void 0,
@@ -3730,6 +3785,7 @@ var require_fast_uri = __commonJS({
         query: void 0,
         fragment: void 0
       };
+      let malformedAuthorityOrPort = false;
       let isIP = false;
       if (options2.reference === "suffix") {
         if (options2.scheme) {
@@ -3749,6 +3805,11 @@ var require_fast_uri = __commonJS({
         parsed.fragment = matches[8];
         if (isNaN(parsed.port)) {
           parsed.port = matches[5];
+        }
+        const parseError = getParseError(parsed, matches);
+        if (parseError !== void 0) {
+          parsed.error = parsed.error || parseError;
+          malformedAuthorityOrPort = true;
         }
         if (parsed.host) {
           const ipv4result = isIPv4(parsed.host);
@@ -3788,14 +3849,18 @@ var require_fast_uri = __commonJS({
               parsed.scheme = unescape(parsed.scheme);
             }
             if (parsed.host !== void 0) {
-              parsed.host = unescape(parsed.host);
+              parsed.host = reescapeHostDelimiters(unescape(parsed.host), isIP);
             }
           }
           if (parsed.path) {
-            parsed.path = escape(unescape(parsed.path));
+            parsed.path = normalizePathEncoding(parsed.path);
           }
           if (parsed.fragment) {
-            parsed.fragment = encodeURI(decodeURIComponent(parsed.fragment));
+            try {
+              parsed.fragment = encodeURI(decodeURIComponent(parsed.fragment));
+            } catch {
+              parsed.error = parsed.error || "URI malformed";
+            }
           }
         }
         if (schemeHandler && schemeHandler.parse) {
@@ -3804,7 +3869,29 @@ var require_fast_uri = __commonJS({
       } else {
         parsed.error = parsed.error || "URI can not be parsed.";
       }
-      return parsed;
+      return { parsed, malformedAuthorityOrPort };
+    }
+    function parse4(uri, opts) {
+      return parseWithStatus(uri, opts).parsed;
+    }
+    function normalizeString(uri, opts) {
+      return normalizeStringWithStatus(uri, opts).normalized;
+    }
+    function normalizeStringWithStatus(uri, opts) {
+      const { parsed, malformedAuthorityOrPort } = parseWithStatus(uri, opts);
+      return {
+        normalized: malformedAuthorityOrPort ? uri : serialize(parsed, opts),
+        malformedAuthorityOrPort
+      };
+    }
+    function normalizeComparableURI(uri, opts) {
+      if (typeof uri === "string") {
+        const { normalized, malformedAuthorityOrPort } = normalizeStringWithStatus(uri, opts);
+        return malformedAuthorityOrPort ? void 0 : normalized;
+      }
+      if (typeof uri === "object") {
+        return serialize(uri, opts);
+      }
     }
     var fastUri = {
       SCHEMES,
@@ -6785,12 +6872,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs2, exportName) {
+    function addFormats(ajv, list, fs, exportName) {
       var _a2;
       var _b;
       (_a2 = (_b = ajv.opts.code).formats) !== null && _a2 !== void 0 ? _a2 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs2[f]);
+        ajv.addFormat(f, fs[f]);
     }
     module2.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -6798,9 +6885,9 @@ var require_dist = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/constants.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/constants.js
 var require_constants = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/constants.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/constants.js"(exports2, module2) {
     "use strict";
     var BINARY_TYPES = ["nodebuffer", "arraybuffer", "fragments"];
     var hasBlob = typeof Blob !== "undefined";
@@ -6821,9 +6908,9 @@ var require_constants = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/buffer-util.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/buffer-util.js
 var require_buffer_util = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/buffer-util.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/buffer-util.js"(exports2, module2) {
     "use strict";
     var { EMPTY_BUFFER } = require_constants();
     var FastBuffer = Buffer[Symbol.species];
@@ -6896,9 +6983,9 @@ var require_buffer_util = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/limiter.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/limiter.js
 var require_limiter = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/limiter.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/limiter.js"(exports2, module2) {
     "use strict";
     var kDone = /* @__PURE__ */ Symbol("kDone");
     var kRun = /* @__PURE__ */ Symbol("kRun");
@@ -6946,9 +7033,9 @@ var require_limiter = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/permessage-deflate.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/permessage-deflate.js
 var require_permessage_deflate = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/permessage-deflate.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/permessage-deflate.js"(exports2, module2) {
     "use strict";
     var zlib = require("zlib");
     var bufferUtil = require_buffer_util();
@@ -6962,7 +7049,7 @@ var require_permessage_deflate = __commonJS({
     var kBuffers = /* @__PURE__ */ Symbol("buffers");
     var kError = /* @__PURE__ */ Symbol("error");
     var zlibLimiter;
-    var PerMessageDeflate = class {
+    var PerMessageDeflate2 = class {
       /**
        * Creates a PerMessageDeflate instance.
        *
@@ -6973,6 +7060,9 @@ var require_permessage_deflate = __commonJS({
        *     acknowledge disabling of client context takeover
        * @param {Number} [options.concurrencyLimit=10] The number of concurrent
        *     calls to zlib
+       * @param {Boolean} [options.isServer=false] Create the instance in either
+       *     server or client mode
+       * @param {Number} [options.maxPayload=0] The maximum allowed message length
        * @param {(Boolean|Number)} [options.serverMaxWindowBits] Request/confirm the
        *     use of a custom server window size
        * @param {Boolean} [options.serverNoContextTakeover=false] Request/accept
@@ -6983,15 +7073,12 @@ var require_permessage_deflate = __commonJS({
        *     deflate
        * @param {Object} [options.zlibInflateOptions] Options to pass to zlib on
        *     inflate
-       * @param {Boolean} [isServer=false] Create the instance in either server or
-       *     client mode
-       * @param {Number} [maxPayload=0] The maximum allowed message length
        */
-      constructor(options2, isServer, maxPayload) {
-        this._maxPayload = maxPayload | 0;
+      constructor(options2) {
         this._options = options2 || {};
         this._threshold = this._options.threshold !== void 0 ? this._options.threshold : 1024;
-        this._isServer = !!isServer;
+        this._maxPayload = this._options.maxPayload | 0;
+        this._isServer = !!this._options.isServer;
         this._deflate = null;
         this._inflate = null;
         this.params = null;
@@ -7300,7 +7387,7 @@ var require_permessage_deflate = __commonJS({
         });
       }
     };
-    module2.exports = PerMessageDeflate;
+    module2.exports = PerMessageDeflate2;
     function deflateOnData(chunk) {
       this[kBuffers].push(chunk);
       this[kTotalLength] += chunk.length;
@@ -7329,9 +7416,9 @@ var require_permessage_deflate = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/validation.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/validation.js
 var require_validation2 = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/validation.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/validation.js"(exports2, module2) {
     "use strict";
     var { isUtf8 } = require("buffer");
     var { hasBlob } = require_constants();
@@ -7530,12 +7617,12 @@ var require_validation2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/receiver.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/receiver.js
 var require_receiver = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/receiver.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/receiver.js"(exports2, module2) {
     "use strict";
     var { Writable } = require("stream");
-    var PerMessageDeflate = require_permessage_deflate();
+    var PerMessageDeflate2 = require_permessage_deflate();
     var {
       BINARY_TYPES,
       EMPTY_BUFFER,
@@ -7565,6 +7652,10 @@ var require_receiver = __commonJS({
        *     extensions
        * @param {Boolean} [options.isServer=false] Specifies whether to operate in
        *     client or server mode
+       * @param {Number} [options.maxBufferedChunks=0] The maximum number of
+       *     buffered data chunks
+       * @param {Number} [options.maxFragments=0] The maximum number of message
+       *     fragments
        * @param {Number} [options.maxPayload=0] The maximum allowed message length
        * @param {Boolean} [options.skipUTF8Validation=false] Specifies whether or
        *     not to skip UTF-8 validation for text and close messages
@@ -7575,6 +7666,8 @@ var require_receiver = __commonJS({
         this._binaryType = options2.binaryType || BINARY_TYPES[0];
         this._extensions = options2.extensions || {};
         this._isServer = !!options2.isServer;
+        this._maxBufferedChunks = options2.maxBufferedChunks | 0;
+        this._maxFragments = options2.maxFragments | 0;
         this._maxPayload = options2.maxPayload | 0;
         this._skipUTF8Validation = !!options2.skipUTF8Validation;
         this[kWebSocket] = void 0;
@@ -7604,6 +7697,18 @@ var require_receiver = __commonJS({
        */
       _write(chunk, encoding, cb) {
         if (this._opcode === 8 && this._state == GET_INFO) return cb();
+        if (this._maxBufferedChunks > 0 && this._buffers.length >= this._maxBufferedChunks) {
+          cb(
+            this.createError(
+              RangeError,
+              "Too many buffered chunks",
+              false,
+              1008,
+              "WS_ERR_TOO_MANY_BUFFERED_PARTS"
+            )
+          );
+          return;
+        }
         this._bufferedBytes += chunk.length;
         this._buffers.push(chunk);
         this.startLoop(cb);
@@ -7702,7 +7807,7 @@ var require_receiver = __commonJS({
           return;
         }
         const compressed = (buf[0] & 64) === 64;
-        if (compressed && !this._extensions[PerMessageDeflate.extensionName]) {
+        if (compressed && !this._extensions[PerMessageDeflate2.extensionName]) {
           const error2 = this.createError(
             RangeError,
             "RSV1 must be clear",
@@ -7933,6 +8038,17 @@ var require_receiver = __commonJS({
           return;
         }
         if (data.length) {
+          if (this._maxFragments > 0 && this._fragments.length >= this._maxFragments) {
+            const error2 = this.createError(
+              RangeError,
+              "Too many message fragments",
+              false,
+              1008,
+              "WS_ERR_TOO_MANY_BUFFERED_PARTS"
+            );
+            cb(error2);
+            return;
+          }
           this._messageLength = this._totalPayloadLength;
           this._fragments.push(data);
         }
@@ -7946,7 +8062,7 @@ var require_receiver = __commonJS({
        * @private
        */
       decompress(data, cb) {
-        const perMessageDeflate = this._extensions[PerMessageDeflate.extensionName];
+        const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
         perMessageDeflate.decompress(data, this._fin, (err, buf) => {
           if (err) return cb(err);
           if (buf.length) {
@@ -7958,6 +8074,17 @@ var require_receiver = __commonJS({
                 false,
                 1009,
                 "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH"
+              );
+              cb(error2);
+              return;
+            }
+            if (this._maxFragments > 0 && this._fragments.length >= this._maxFragments) {
+              const error2 = this.createError(
+                RangeError,
+                "Too many message fragments",
+                false,
+                1008,
+                "WS_ERR_TOO_MANY_BUFFERED_PARTS"
               );
               cb(error2);
               return;
@@ -8122,13 +8249,16 @@ var require_receiver = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/sender.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/sender.js
 var require_sender = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/sender.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/sender.js"(exports2, module2) {
     "use strict";
     var { Duplex } = require("stream");
     var { randomFillSync } = require("crypto");
-    var PerMessageDeflate = require_permessage_deflate();
+    var {
+      types: { isUint8Array }
+    } = require("util");
+    var PerMessageDeflate2 = require_permessage_deflate();
     var { EMPTY_BUFFER, kWebSocket, NOOP } = require_constants();
     var { isBlob, isValidStatusCode } = require_validation2();
     var { mask: applyMask, toBuffer } = require_buffer_util();
@@ -8281,8 +8411,10 @@ var require_sender = __commonJS({
           buf.writeUInt16BE(code, 0);
           if (typeof data === "string") {
             buf.write(data, 2);
-          } else {
+          } else if (isUint8Array(data)) {
             buf.set(data, 2);
+          } else {
+            throw new TypeError("Second argument must be a string or a Uint8Array");
           }
         }
         const options2 = {
@@ -8412,7 +8544,7 @@ var require_sender = __commonJS({
        * @public
        */
       send(data, options2, cb) {
-        const perMessageDeflate = this._extensions[PerMessageDeflate.extensionName];
+        const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
         let opcode = options2.binary ? 2 : 1;
         let rsv1 = options2.compress;
         let byteLength;
@@ -8536,7 +8668,7 @@ var require_sender = __commonJS({
           this.sendFrame(_Sender.frame(data, options2), cb);
           return;
         }
-        const perMessageDeflate = this._extensions[PerMessageDeflate.extensionName];
+        const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
         this._bufferedBytes += options2[kByteLength];
         this._state = DEFLATING;
         perMessageDeflate.compress(data, options2.fin, (_, buf) => {
@@ -8610,9 +8742,9 @@ var require_sender = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/event-target.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/event-target.js
 var require_event_target = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/event-target.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/event-target.js"(exports2, module2) {
     "use strict";
     var { kForOnEventAttribute, kListener } = require_constants();
     var kCode = /* @__PURE__ */ Symbol("kCode");
@@ -8839,9 +8971,9 @@ var require_event_target = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/extension.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/extension.js
 var require_extension = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/extension.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/extension.js"(exports2, module2) {
     "use strict";
     var { tokenChars } = require_validation2();
     function push(dest, name, elem) {
@@ -8974,11 +9106,11 @@ var require_extension = __commonJS({
       return offers;
     }
     function format(extensions) {
-      return Object.keys(extensions).map((extension) => {
-        let configurations = extensions[extension];
+      return Object.keys(extensions).map((extension2) => {
+        let configurations = extensions[extension2];
         if (!Array.isArray(configurations)) configurations = [configurations];
         return configurations.map((params) => {
-          return [extension].concat(
+          return [extension2].concat(
             Object.keys(params).map((k) => {
               let values = params[k];
               if (!Array.isArray(values)) values = [values];
@@ -8992,9 +9124,9 @@ var require_extension = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/websocket.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/websocket.js
 var require_websocket = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/websocket.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/websocket.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("events");
     var https = require("https");
@@ -9004,7 +9136,7 @@ var require_websocket = __commonJS({
     var { randomBytes, createHash } = require("crypto");
     var { Duplex, Readable } = require("stream");
     var { URL: URL2 } = require("url");
-    var PerMessageDeflate = require_permessage_deflate();
+    var PerMessageDeflate2 = require_permessage_deflate();
     var Receiver2 = require_receiver();
     var Sender2 = require_sender();
     var { isBlob } = require_validation2();
@@ -9163,6 +9295,10 @@ var require_websocket = __commonJS({
        *     multiple times in the same tick
        * @param {Function} [options.generateMask] The function used to generate the
        *     masking key
+       * @param {Number} [options.maxBufferedChunks=0] The maximum number of
+       *     buffered data chunks
+       * @param {Number} [options.maxFragments=0] The maximum number of message
+       *     fragments
        * @param {Number} [options.maxPayload=0] The maximum allowed message size
        * @param {Boolean} [options.skipUTF8Validation=false] Specifies whether or
        *     not to skip UTF-8 validation for text and close messages
@@ -9174,6 +9310,8 @@ var require_websocket = __commonJS({
           binaryType: this.binaryType,
           extensions: this._extensions,
           isServer: this._isServer,
+          maxBufferedChunks: options2.maxBufferedChunks,
+          maxFragments: options2.maxFragments,
           maxPayload: options2.maxPayload,
           skipUTF8Validation: options2.skipUTF8Validation
         });
@@ -9212,8 +9350,8 @@ var require_websocket = __commonJS({
           this.emit("close", this._closeCode, this._closeMessage);
           return;
         }
-        if (this._extensions[PerMessageDeflate.extensionName]) {
-          this._extensions[PerMessageDeflate.extensionName].cleanup();
+        if (this._extensions[PerMessageDeflate2.extensionName]) {
+          this._extensions[PerMessageDeflate2.extensionName].cleanup();
         }
         this._receiver.removeAllListeners();
         this._readyState = _WebSocket.CLOSED;
@@ -9375,7 +9513,7 @@ var require_websocket = __commonJS({
           fin: true,
           ...options2
         };
-        if (!this._extensions[PerMessageDeflate.extensionName]) {
+        if (!this._extensions[PerMessageDeflate2.extensionName]) {
           opts.compress = false;
         }
         this._sender.send(data || EMPTY_BUFFER, opts, cb);
@@ -9473,6 +9611,8 @@ var require_websocket = __commonJS({
         autoPong: true,
         closeTimeout: CLOSE_TIMEOUT,
         protocolVersion: protocolVersions[1],
+        maxBufferedChunks: 1024 * 1024,
+        maxFragments: 128 * 1024,
         maxPayload: 100 * 1024 * 1024,
         skipUTF8Validation: false,
         perMessageDeflate: true,
@@ -9501,7 +9641,7 @@ var require_websocket = __commonJS({
       } else {
         try {
           parsedUrl = new URL2(address);
-        } catch (e) {
+        } catch {
           throw new SyntaxError(`Invalid URL: ${address}`);
         }
       }
@@ -9549,13 +9689,13 @@ var require_websocket = __commonJS({
       opts.path = parsedUrl.pathname + parsedUrl.search;
       opts.timeout = opts.handshakeTimeout;
       if (opts.perMessageDeflate) {
-        perMessageDeflate = new PerMessageDeflate(
-          opts.perMessageDeflate !== true ? opts.perMessageDeflate : {},
-          false,
-          opts.maxPayload
-        );
+        perMessageDeflate = new PerMessageDeflate2({
+          ...opts.perMessageDeflate,
+          isServer: false,
+          maxPayload: opts.maxPayload
+        });
         opts.headers["Sec-WebSocket-Extensions"] = format({
-          [PerMessageDeflate.extensionName]: perMessageDeflate.offer()
+          [PerMessageDeflate2.extensionName]: perMessageDeflate.offer()
         });
       }
       if (protocols.length) {
@@ -9698,23 +9838,25 @@ var require_websocket = __commonJS({
             return;
           }
           const extensionNames = Object.keys(extensions);
-          if (extensionNames.length !== 1 || extensionNames[0] !== PerMessageDeflate.extensionName) {
+          if (extensionNames.length !== 1 || extensionNames[0] !== PerMessageDeflate2.extensionName) {
             const message = "Server indicated an extension that was not requested";
             abortHandshake(websocket, socket, message);
             return;
           }
           try {
-            perMessageDeflate.accept(extensions[PerMessageDeflate.extensionName]);
+            perMessageDeflate.accept(extensions[PerMessageDeflate2.extensionName]);
           } catch (err) {
             const message = "Invalid Sec-WebSocket-Extensions header";
             abortHandshake(websocket, socket, message);
             return;
           }
-          websocket._extensions[PerMessageDeflate.extensionName] = perMessageDeflate;
+          websocket._extensions[PerMessageDeflate2.extensionName] = perMessageDeflate;
         }
         websocket.setSocket(socket, head, {
           allowSynchronousEvents: opts.allowSynchronousEvents,
           generateMask: opts.generateMask,
+          maxBufferedChunks: opts.maxBufferedChunks,
+          maxFragments: opts.maxFragments,
           maxPayload: opts.maxPayload,
           skipUTF8Validation: opts.skipUTF8Validation
         });
@@ -9878,9 +10020,9 @@ var require_websocket = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/stream.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/stream.js
 var require_stream = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/stream.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/stream.js"(exports2, module2) {
     "use strict";
     var WebSocket2 = require_websocket();
     var { Duplex } = require("stream");
@@ -9940,7 +10082,7 @@ var require_stream = __commonJS({
       };
       duplex._final = function(callback) {
         if (ws.readyState === ws.CONNECTING) {
-          ws.once("open", function open() {
+          ws.once("open", function open2() {
             duplex._final(callback);
           });
           return;
@@ -9961,7 +10103,7 @@ var require_stream = __commonJS({
       };
       duplex._write = function(chunk, encoding, callback) {
         if (ws.readyState === ws.CONNECTING) {
-          ws.once("open", function open() {
+          ws.once("open", function open2() {
             duplex._write(chunk, encoding, callback);
           });
           return;
@@ -9976,9 +10118,9 @@ var require_stream = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/subprotocol.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/subprotocol.js
 var require_subprotocol = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/subprotocol.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/subprotocol.js"(exports2, module2) {
     "use strict";
     var { tokenChars } = require_validation2();
     function parse4(header) {
@@ -10021,17 +10163,17 @@ var require_subprotocol = __commonJS({
   }
 });
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/websocket-server.js
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/websocket-server.js
 var require_websocket_server = __commonJS({
-  "node_modules/.pnpm/ws@8.19.0/node_modules/ws/lib/websocket-server.js"(exports2, module2) {
+  "node_modules/.pnpm/ws@8.21.0/node_modules/ws/lib/websocket-server.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("events");
     var http = require("http");
     var { Duplex } = require("stream");
     var { createHash } = require("crypto");
-    var extension = require_extension();
-    var PerMessageDeflate = require_permessage_deflate();
-    var subprotocol = require_subprotocol();
+    var extension2 = require_extension();
+    var PerMessageDeflate2 = require_permessage_deflate();
+    var subprotocol2 = require_subprotocol();
     var WebSocket2 = require_websocket();
     var { CLOSE_TIMEOUT, GUID, kWebSocket } = require_constants();
     var keyRegex = /^[+/0-9A-Za-z]{22}==$/;
@@ -10057,6 +10199,10 @@ var require_websocket_server = __commonJS({
        *     called
        * @param {Function} [options.handleProtocols] A hook to handle protocols
        * @param {String} [options.host] The hostname where to bind the server
+       * @param {Number} [options.maxBufferedChunks=1048576] The maximum number of
+       *     buffered data chunks
+       * @param {Number} [options.maxFragments=131072] The maximum number of message
+       *     fragments
        * @param {Number} [options.maxPayload=104857600] The maximum allowed message
        *     size
        * @param {Boolean} [options.noServer=false] Enable no server mode
@@ -10078,6 +10224,8 @@ var require_websocket_server = __commonJS({
         options2 = {
           allowSynchronousEvents: true,
           autoPong: true,
+          maxBufferedChunks: 1024 * 1024,
+          maxFragments: 128 * 1024,
           maxPayload: 100 * 1024 * 1024,
           skipUTF8Validation: false,
           perMessageDeflate: false,
@@ -10254,7 +10402,7 @@ var require_websocket_server = __commonJS({
         let protocols = /* @__PURE__ */ new Set();
         if (secWebSocketProtocol !== void 0) {
           try {
-            protocols = subprotocol.parse(secWebSocketProtocol);
+            protocols = subprotocol2.parse(secWebSocketProtocol);
           } catch (err) {
             const message = "Invalid Sec-WebSocket-Protocol header";
             abortHandshakeOrEmitwsClientError(this, req, socket, 400, message);
@@ -10264,16 +10412,16 @@ var require_websocket_server = __commonJS({
         const secWebSocketExtensions = req.headers["sec-websocket-extensions"];
         const extensions = {};
         if (this.options.perMessageDeflate && secWebSocketExtensions !== void 0) {
-          const perMessageDeflate = new PerMessageDeflate(
-            this.options.perMessageDeflate,
-            true,
-            this.options.maxPayload
-          );
+          const perMessageDeflate = new PerMessageDeflate2({
+            ...this.options.perMessageDeflate,
+            isServer: true,
+            maxPayload: this.options.maxPayload
+          });
           try {
-            const offers = extension.parse(secWebSocketExtensions);
-            if (offers[PerMessageDeflate.extensionName]) {
-              perMessageDeflate.accept(offers[PerMessageDeflate.extensionName]);
-              extensions[PerMessageDeflate.extensionName] = perMessageDeflate;
+            const offers = extension2.parse(secWebSocketExtensions);
+            if (offers[PerMessageDeflate2.extensionName]) {
+              perMessageDeflate.accept(offers[PerMessageDeflate2.extensionName]);
+              extensions[PerMessageDeflate2.extensionName] = perMessageDeflate;
             }
           } catch (err) {
             const message = "Invalid or unacceptable Sec-WebSocket-Extensions header";
@@ -10344,10 +10492,10 @@ var require_websocket_server = __commonJS({
             ws._protocol = protocol;
           }
         }
-        if (extensions[PerMessageDeflate.extensionName]) {
-          const params = extensions[PerMessageDeflate.extensionName].params;
-          const value = extension.format({
-            [PerMessageDeflate.extensionName]: [params]
+        if (extensions[PerMessageDeflate2.extensionName]) {
+          const params = extensions[PerMessageDeflate2.extensionName].params;
+          const value = extension2.format({
+            [PerMessageDeflate2.extensionName]: [params]
           });
           headers.push(`Sec-WebSocket-Extensions: ${value}`);
           ws._extensions = extensions;
@@ -10357,6 +10505,8 @@ var require_websocket_server = __commonJS({
         socket.removeListener("error", socketOnError);
         ws.setSocket(socket, head, {
           allowSynchronousEvents: this.options.allowSynchronousEvents,
+          maxBufferedChunks: this.options.maxBufferedChunks,
+          maxFragments: this.options.maxFragments,
           maxPayload: this.options.maxPayload,
           skipUTF8Validation: this.options.skipUTF8Validation
         });
@@ -13683,12 +13833,12 @@ var require_stringify = __commonJS({
         throw new TypeError('expected "' + language + '.stringify" to be a function');
       }
       data = Object.assign({}, file2.data, data);
-      const open = opts.delimiters[0];
+      const open2 = opts.delimiters[0];
       const close = opts.delimiters[1];
-      const matter2 = engine.stringify(data, options2).trim();
+      const matter3 = engine.stringify(data, options2).trim();
       let buf = "";
-      if (matter2 !== "{}") {
-        buf = newline(open) + newline(matter2) + newline(close);
+      if (matter3 !== "{}") {
+        buf = newline(open2) + newline(matter3) + newline(close);
       }
       if (typeof file2.excerpt === "string" && file2.excerpt !== "") {
         if (str2.indexOf(file2.excerpt.trim()) === -1) {
@@ -13785,7 +13935,7 @@ var require_parse = __commonJS({
 var require_gray_matter = __commonJS({
   "node_modules/.pnpm/gray-matter@4.0.3/node_modules/gray-matter/index.js"(exports2, module2) {
     "use strict";
-    var fs2 = require("fs");
+    var fs = require("fs");
     var sections = require_section_matter();
     var defaults = require_defaults2();
     var stringify = require_stringify();
@@ -13794,41 +13944,41 @@ var require_gray_matter = __commonJS({
     var toFile = require_to_file();
     var parse4 = require_parse();
     var utils = require_utils2();
-    function matter2(input, options2) {
+    function matter3(input, options2) {
       if (input === "") {
         return { data: {}, content: input, excerpt: "", orig: input };
       }
       let file2 = toFile(input);
-      const cached2 = matter2.cache[file2.content];
+      const cached2 = matter3.cache[file2.content];
       if (!options2) {
         if (cached2) {
           file2 = Object.assign({}, cached2);
           file2.orig = cached2.orig;
           return file2;
         }
-        matter2.cache[file2.content] = file2;
+        matter3.cache[file2.content] = file2;
       }
       return parseMatter(file2, options2);
     }
     function parseMatter(file2, options2) {
       const opts = defaults(options2);
-      const open = opts.delimiters[0];
+      const open2 = opts.delimiters[0];
       const close = "\n" + opts.delimiters[1];
       let str2 = file2.content;
       if (opts.language) {
         file2.language = opts.language;
       }
-      const openLen = open.length;
-      if (!utils.startsWith(str2, open, openLen)) {
+      const openLen = open2.length;
+      if (!utils.startsWith(str2, open2, openLen)) {
         excerpt(file2, opts);
         return file2;
       }
-      if (str2.charAt(openLen) === open.slice(-1)) {
+      if (str2.charAt(openLen) === open2.slice(-1)) {
         return file2;
       }
       str2 = str2.slice(openLen);
       const len = str2.length;
-      const language = matter2.language(str2, opts);
+      const language = matter3.language(str2, opts);
       if (language.name) {
         file2.language = language.name;
         str2 = str2.slice(language.raw.length);
@@ -13863,25 +14013,25 @@ var require_gray_matter = __commonJS({
       }
       return file2;
     }
-    matter2.engines = engines2;
-    matter2.stringify = function(file2, data, options2) {
-      if (typeof file2 === "string") file2 = matter2(file2, options2);
+    matter3.engines = engines2;
+    matter3.stringify = function(file2, data, options2) {
+      if (typeof file2 === "string") file2 = matter3(file2, options2);
       return stringify(file2, data, options2);
     };
-    matter2.read = function(filepath, options2) {
-      const str2 = fs2.readFileSync(filepath, "utf8");
-      const file2 = matter2(str2, options2);
+    matter3.read = function(filepath, options2) {
+      const str2 = fs.readFileSync(filepath, "utf8");
+      const file2 = matter3(str2, options2);
       file2.path = filepath;
       return file2;
     };
-    matter2.test = function(str2, options2) {
+    matter3.test = function(str2, options2) {
       return utils.startsWith(str2, defaults(options2).delimiters[0]);
     };
-    matter2.language = function(str2, options2) {
+    matter3.language = function(str2, options2) {
       const opts = defaults(options2);
-      const open = opts.delimiters[0];
-      if (matter2.test(str2)) {
-        str2 = str2.slice(open.length);
+      const open2 = opts.delimiters[0];
+      if (matter3.test(str2)) {
+        str2 = str2.slice(open2.length);
       }
       const language = str2.slice(0, str2.search(/\r?\n/));
       return {
@@ -13889,11 +14039,11 @@ var require_gray_matter = __commonJS({
         name: language ? language.trim() : ""
       };
     };
-    matter2.cache = {};
-    matter2.clearCache = function() {
-      matter2.cache = {};
+    matter3.cache = {};
+    matter3.clearCache = function() {
+      matter3.cache = {};
     };
-    module2.exports = matter2;
+    module2.exports = matter3;
   }
 });
 
@@ -14256,8 +14406,8 @@ function getErrorMap() {
 
 // node_modules/.pnpm/zod@4.3.6/node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path2, errorMaps, issueData } = params;
-  const fullPath = [...path2, ...issueData.path || []];
+  const { data, path: path5, errorMaps, issueData } = params;
+  const fullPath = [...path5, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -14372,11 +14522,11 @@ var errorUtil;
 
 // node_modules/.pnpm/zod@4.3.6/node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path2, key) {
+  constructor(parent, value, path5, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path2;
+    this._path = path5;
     this._key = key;
   }
   get path() {
@@ -18020,10 +18170,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path2) {
-  if (!path2)
+function getElementAtPath(obj, path5) {
+  if (!path5)
     return obj;
-  return path2.reduce((acc, key) => acc?.[key], obj);
+  return path5.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -18406,11 +18556,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path2, issues) {
+function prefixIssues(path5, issues) {
   return issues.map((iss) => {
     var _a2;
     (_a2 = iss).path ?? (_a2.path = []);
-    iss.path.unshift(path2);
+    iss.path.unshift(path5);
     return iss;
   });
 }
@@ -27906,40 +28056,66 @@ var StdioServerTransport = class {
   }
 };
 
-// node_modules/.pnpm/ws@8.19.0/node_modules/ws/wrapper.mjs
+// node_modules/.pnpm/ws@8.21.0/node_modules/ws/wrapper.mjs
 var import_stream = __toESM(require_stream(), 1);
+var import_extension = __toESM(require_extension(), 1);
+var import_permessage_deflate = __toESM(require_permessage_deflate(), 1);
 var import_receiver = __toESM(require_receiver(), 1);
 var import_sender = __toESM(require_sender(), 1);
+var import_subprotocol = __toESM(require_subprotocol(), 1);
 var import_websocket = __toESM(require_websocket(), 1);
 var import_websocket_server = __toESM(require_websocket_server(), 1);
 var wrapper_default = import_websocket.default;
 
+// mcp-server/tool-service.js
+var import_node_path5 = __toESM(require("node:path"), 1);
+
 // mcp-server/vault.js
-var import_promises = __toESM(require("node:fs/promises"), 1);
+var import_promises = require("node:fs/promises");
 var import_node_path = __toESM(require("node:path"), 1);
 var import_gray_matter = __toESM(require_gray_matter(), 1);
+var ACTIVE_VAULT_ERROR = "Note path must stay inside the active vault";
 async function findMarkdownFiles(dir) {
   const results = [];
-  const items = await import_promises.default.readdir(dir, { withFileTypes: true });
-  for (const item of items) {
-    if (item.name.startsWith(".")) continue;
-    const full = import_node_path.default.join(dir, item.name);
-    if (item.isDirectory()) {
-      results.push(...await findMarkdownFiles(full));
-    } else if (item.name.endsWith(".md")) {
-      results.push(full);
-    }
+  const items = await (0, import_promises.opendir)(dir);
+  for await (const item of items) {
+    await collectMarkdownFile(results, dir, item);
   }
   return results;
 }
-async function getNote(vaultPath, notePath) {
-  const absPath = import_node_path.default.isAbsolute(notePath) ? notePath : import_node_path.default.join(vaultPath, notePath);
-  const raw = await import_promises.default.readFile(absPath, "utf-8");
-  const parsed = (0, import_gray_matter.default)(raw);
+async function resolveVaultNotePath(vaultPath, notePath) {
+  const vaultRoot = await (0, import_promises.realpath)(vaultPath);
+  const requestedPath = resolveRequestedNotePath(vaultRoot, notePath);
+  const noteRealPath = await (0, import_promises.realpath)(requestedPath);
+  const relativePath = import_node_path.default.relative(vaultRoot, noteRealPath);
+  if (!isVaultRelativePath(relativePath)) {
+    throw new Error(ACTIVE_VAULT_ERROR);
+  }
   return {
-    path: import_node_path.default.relative(vaultPath, absPath),
+    vaultRoot,
+    noteRealPath,
+    relativePath
+  };
+}
+async function getNote(vaultPath, notePath) {
+  const {
+    noteRealPath,
+    relativePath
+  } = await resolveVaultNotePath(vaultPath, notePath);
+  const raw = await readUtf8File(noteRealPath);
+  const parsed = parseMarkdownNote(raw);
+  return {
+    path: relativePath,
     frontmatter: parsed.data,
     content: parsed.content.trim()
+  };
+}
+async function createNote(vaultPath, notePath, content) {
+  const { requestedPath, relativePath } = await resolveNewVaultNotePath(vaultPath, notePath);
+  await writeNewUtf8File(requestedPath, content);
+  return {
+    path: relativePath,
+    absolutePath: requestedPath
   };
 }
 async function searchNotes(vaultPath, query, limit = 10) {
@@ -27948,18 +28124,16 @@ async function searchNotes(vaultPath, query, limit = 10) {
   const results = [];
   for (const filePath of files) {
     if (results.length >= limit) break;
-    const content = await import_promises.default.readFile(filePath, "utf-8");
+    const content = await readUtf8File(filePath);
     const filename = import_node_path.default.basename(filePath, ".md");
     const titleMatch = extractTitle(content, filename);
-    const matches = titleMatch.toLowerCase().includes(q) || content.toLowerCase().includes(q);
-    if (matches) {
-      const snippet = extractSnippet(content, q);
-      results.push({
-        path: import_node_path.default.relative(vaultPath, filePath),
-        title: titleMatch,
-        snippet
-      });
-    }
+    if (!matchesSearchQuery(titleMatch, content, q)) continue;
+    const snippet = extractSnippet(content, q);
+    results.push({
+      path: import_node_path.default.relative(vaultPath, filePath),
+      title: titleMatch,
+      snippet
+    });
   }
   return results;
 }
@@ -27969,38 +28143,263 @@ async function vaultContext(vaultPath) {
   const foldersSet = /* @__PURE__ */ new Set();
   const notesWithMtime = [];
   for (const filePath of files) {
-    const raw = await import_promises.default.readFile(filePath, "utf-8");
-    const parsed = (0, import_gray_matter.default)(raw);
-    const type = parsed.data.type || parsed.data.is_a || null;
+    const { topFolder, note, type } = await readVaultContextNote(vaultPath, filePath);
     if (type) typesSet.add(type);
-    const rel = import_node_path.default.relative(vaultPath, filePath);
-    const topFolder = rel.split(import_node_path.default.sep)[0];
-    if (topFolder !== rel) foldersSet.add(topFolder + "/");
-    const stat = await import_promises.default.stat(filePath);
-    notesWithMtime.push({
-      path: rel,
-      title: parsed.data.title || extractTitle(raw, import_node_path.default.basename(filePath, ".md")),
-      type,
-      mtime: stat.mtimeMs
-    });
+    if (topFolder) foldersSet.add(topFolder);
+    notesWithMtime.push(note);
   }
   notesWithMtime.sort((a, b) => b.mtime - a.mtime);
-  const recentNotes = notesWithMtime.slice(0, 20).map(({ mtime: _mtime, ...rest }) => rest);
-  const configFiles = {};
-  try {
-    const agentsPath = import_node_path.default.join(vaultPath, "config", "agents.md");
-    const agentsContent = await import_promises.default.readFile(agentsPath, "utf-8");
-    configFiles.agents = agentsContent;
-  } catch {
-  }
+  const recentNotes = notesWithMtime.slice(0, 20).map(contextNoteWithoutMtime);
   return {
     types: [...typesSet].sort(),
     noteCount: files.length,
     folders: [...foldersSet].sort(),
     recentNotes,
-    configFiles,
+    configFiles: await readConfigFiles(vaultPath),
     vaultPath
   };
+}
+async function collectMarkdownFile(results, dir, item) {
+  if (item.name.startsWith(".")) return;
+  const full = resolveInside(dir, item.name);
+  if (!full) return;
+  if (item.isDirectory()) {
+    results.push(...await findMarkdownFiles(full));
+    return;
+  }
+  if (item.name.endsWith(".md")) {
+    results.push(full);
+  }
+}
+function resolveRequestedNotePath(vaultRoot, notePath) {
+  if (import_node_path.default.isAbsolute(notePath)) return notePath;
+  const resolved = resolveInside(vaultRoot, notePath);
+  if (!resolved) throw new Error(ACTIVE_VAULT_ERROR);
+  return resolved;
+}
+async function resolveNewVaultNotePath(vaultPath, notePath) {
+  const requestedNotePath = validateNewNotePath(notePath);
+  const vaultRoot = await (0, import_promises.realpath)(vaultPath);
+  const requestedPath = resolveRequestedNotePath(vaultRoot, requestedNotePath);
+  const relativePath = relativeNotePathInsideVault(vaultRoot, requestedPath);
+  await ensureWritableParentInsideVault(vaultRoot, requestedPath);
+  return { requestedPath, relativePath };
+}
+function validateNewNotePath(notePath) {
+  const trimmedPath = typeof notePath === "string" ? notePath.trim() : "";
+  if (!trimmedPath) {
+    throw new Error("Note path is required");
+  }
+  if (!trimmedPath.endsWith(".md")) {
+    throw new Error("New notes must be markdown files ending in .md");
+  }
+  return trimmedPath;
+}
+async function ensureWritableParentInsideVault(vaultRoot, requestedPath) {
+  const parentPath = import_node_path.default.dirname(requestedPath);
+  const existingAncestor = await nearestExistingAncestor(parentPath);
+  assertInsideVault(vaultRoot, existingAncestor);
+  await (0, import_promises.mkdir)(parentPath, { recursive: true });
+  assertInsideVault(vaultRoot, await (0, import_promises.realpath)(parentPath));
+}
+async function nearestExistingAncestor(targetPath) {
+  let currentPath = targetPath;
+  while (currentPath && currentPath !== import_node_path.default.dirname(currentPath)) {
+    try {
+      return await (0, import_promises.realpath)(currentPath);
+    } catch (error2) {
+      if (error2?.code !== "ENOENT") throw error2;
+      currentPath = import_node_path.default.dirname(currentPath);
+    }
+  }
+  return (0, import_promises.realpath)(currentPath);
+}
+function assertInsideVault(vaultRoot, targetPath) {
+  if (!isVaultRelativePath(import_node_path.default.relative(vaultRoot, targetPath))) {
+    throw new Error(ACTIVE_VAULT_ERROR);
+  }
+}
+function relativeNotePathInsideVault(vaultRoot, requestedPath) {
+  const relativePath = import_node_path.default.relative(vaultRoot, requestedPath);
+  if (!isVaultRelativePath(relativePath) || !relativePath) {
+    throw new Error(ACTIVE_VAULT_ERROR);
+  }
+  return relativePath;
+}
+function resolveInside(root, target) {
+  const resolved = import_node_path.default.resolve(root, target);
+  const relative = import_node_path.default.relative(root, resolved);
+  if (isVaultRelativePath(relative)) return resolved;
+  return null;
+}
+function isVaultRelativePath(relativePath) {
+  return !relativePath.startsWith("..") && !import_node_path.default.isAbsolute(relativePath);
+}
+function matchesSearchQuery(title, content, query) {
+  return title.toLowerCase().includes(query) || content.toLowerCase().includes(query);
+}
+function contextNoteWithoutMtime(note) {
+  return {
+    path: note.path,
+    title: note.title,
+    type: note.type
+  };
+}
+async function readVaultContextNote(vaultPath, filePath) {
+  const raw = await readUtf8File(filePath);
+  const parsed = parseMarkdownNote(raw);
+  const rel = import_node_path.default.relative(vaultPath, filePath);
+  const topFolder = extractTopFolder(rel);
+  const stat = await statFile(filePath);
+  const type = parsed.data.type || parsed.data.is_a || null;
+  return {
+    topFolder,
+    type,
+    note: {
+      path: rel,
+      title: parsed.data.title || extractTitle(raw, import_node_path.default.basename(filePath, ".md")),
+      type,
+      mtime: stat.mtimeMs
+    }
+  };
+}
+function parseMarkdownNote(raw) {
+  try {
+    const parsed = (0, import_gray_matter.default)(raw);
+    const fallback = parseFrontmatterFallback(raw);
+    return shouldUseFallbackFrontmatter(parsed, fallback) ? fallback : parsed;
+  } catch {
+    return parseFrontmatterFallback(raw);
+  }
+}
+function shouldUseFallbackFrontmatter(parsed, fallback) {
+  return Object.keys(parsed.data).length === 0 && Object.keys(fallback.data).length > 0;
+}
+function parseFrontmatterFallback(raw) {
+  const split = splitFrontmatter(raw);
+  if (!split) return { data: {}, content: raw };
+  return {
+    data: parseFrontmatterBlock(split.frontmatter),
+    content: split.content
+  };
+}
+function splitFrontmatter(raw) {
+  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)([\s\S]*)$/);
+  if (!match) return null;
+  return { frontmatter: match[1], content: match[2] };
+}
+function parseFrontmatterBlock(frontmatter) {
+  const data = {};
+  let listKey = null;
+  for (const line of frontmatter.split(/\r?\n/)) {
+    const item = parseYamlListItem(line);
+    if (listKey && item !== null) {
+      data[listKey].push(parseYamlScalar(item));
+      continue;
+    }
+    listKey = null;
+    const field = parseTopLevelYamlField(line);
+    if (!field) continue;
+    data[field.key] = field.value ? parseYamlValue(field.value) : [];
+    listKey = field.value ? null : field.key;
+  }
+  return data;
+}
+function parseTopLevelYamlField(line) {
+  if (!line || line.trimStart() !== line || line.trimStart().startsWith("#")) return null;
+  const separatorIndex = line.indexOf(":");
+  if (separatorIndex <= 0) return null;
+  return {
+    key: stripMatchingQuotes(line.slice(0, separatorIndex).trim()),
+    value: line.slice(separatorIndex + 1).trim()
+  };
+}
+function parseYamlValue(value) {
+  if (value.startsWith("[") && value.endsWith("]")) {
+    return splitInlineYamlArray(value).map(parseYamlScalar);
+  }
+  return parseYamlScalar(value);
+}
+function splitInlineYamlArray(value) {
+  const inner = value.slice(1, -1);
+  const items = [];
+  let current = "";
+  let quote = null;
+  for (const char of inner) {
+    if (quote) {
+      current += char;
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (char === ",") {
+      items.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) items.push(current.trim());
+  return items;
+}
+function parseYamlListItem(line) {
+  const match = line.match(/^\s+-\s*(.*)$/);
+  return match ? match[1].trim() : null;
+}
+function parseYamlScalar(value) {
+  const unquoted = stripMatchingQuotes(value.trim());
+  if (unquoted !== value.trim()) return unquoted;
+  if (/^(true|yes)$/i.test(unquoted)) return true;
+  if (/^(false|no)$/i.test(unquoted)) return false;
+  if (/^(null|~)$/i.test(unquoted)) return null;
+  if (/^-?\d+(\.\d+)?$/.test(unquoted)) return Number(unquoted);
+  return unquoted;
+}
+function stripMatchingQuotes(value) {
+  const first = value[0];
+  const last = value[value.length - 1];
+  return (first === '"' || first === "'") && first === last ? value.slice(1, -1) : value;
+}
+function extractTopFolder(relativePath) {
+  const topFolder = relativePath.split(import_node_path.default.sep)[0];
+  return topFolder === relativePath ? null : `${topFolder}/`;
+}
+async function readConfigFiles(vaultPath) {
+  const configFiles = {};
+  try {
+    const agentsPath = resolveInside(vaultPath, "config/agents.md");
+    if (agentsPath) configFiles.agents = await readUtf8File(agentsPath);
+  } catch {
+  }
+  return configFiles;
+}
+async function readUtf8File(filePath) {
+  const handle = await (0, import_promises.open)(filePath, "r");
+  try {
+    return await handle.readFile("utf-8");
+  } finally {
+    await handle.close();
+  }
+}
+async function writeNewUtf8File(filePath, content) {
+  const handle = await (0, import_promises.open)(filePath, "wx");
+  try {
+    await handle.writeFile(content, "utf-8");
+  } finally {
+    await handle.close();
+  }
+}
+async function statFile(filePath) {
+  const handle = await (0, import_promises.open)(filePath, "r");
+  try {
+    return await handle.stat();
+  } finally {
+    await handle.close();
+  }
 }
 function extractTitle(content, fallback) {
   const h1Match = content.match(/^#\s+(.+)$/m);
@@ -28018,38 +28417,823 @@ function extractSnippet(content, query) {
   return (start > 0 ? "..." : "") + body.slice(start, end) + (end < body.length ? "..." : "");
 }
 
+// mcp-server/paper-tools.js
+var import_promises2 = require("node:fs/promises");
+var import_node_path2 = __toESM(require("node:path"), 1);
+var import_gray_matter2 = __toESM(require_gray_matter(), 1);
+var PAPER_NOTE_RE = /(^|[/\\])papers[/\\]([^/\\]+)[/\\]paper\.md$/u;
+var MAX_SEARCH_RESULTS = 20;
+var DEFAULT_SEARCH_RESULTS = 10;
+var MAX_READ_BLOCKS = 25;
+var DEFAULT_READ_BLOCKS = 10;
+async function listPaperCatalog(vaultPath) {
+  const files = await findMarkdownFiles(vaultPath);
+  const entries = [];
+  for (const filePath of files) {
+    const relativePath = import_node_path2.default.relative(vaultPath, filePath);
+    if (!PAPER_NOTE_RE.test(relativePath)) continue;
+    const entry = await readPaperEntry(vaultPath, relativePath);
+    if (entry) entries.push(entry);
+  }
+  return entries.sort((left, right) => paperSortKey(left).localeCompare(paperSortKey(right)));
+}
+async function searchPaperCatalog(vaultPath, args = {}) {
+  const query = stringArg(args.query).toLowerCase();
+  const limit = limitArg(args.limit, DEFAULT_SEARCH_RESULTS, MAX_SEARCH_RESULTS);
+  const entries = await listPaperCatalog(vaultPath);
+  const filtered = filterPaperEntries(entries, args.filters ?? {}, query);
+  return filtered.slice(0, limit).map(compactPaperEntry);
+}
+async function readPaperMetadata(vaultPath, args = {}) {
+  const paper = await findPaperById(vaultPath, requiredStringArg(args.paperId, "paperId"));
+  return {
+    ...paperProvenance(paper),
+    metadata: paper.metadata,
+    frontmatter: compactPaperFrontmatter(paper.frontmatter)
+  };
+}
+async function readPaperOutline(vaultPath, args = {}) {
+  const paper = await findPaperById(vaultPath, requiredStringArg(args.paperId, "paperId"));
+  const blocks = await readPaperBlocksForEntry(vaultPath, paper);
+  return {
+    ...paperProvenance(paper),
+    outline: blocks.filter((block) => ["title", "heading"].includes(String(block.kind ?? "").toLowerCase())).map((block) => blockProvenance(paper, block))
+  };
+}
+async function searchPaperBlocks(vaultPath, args = {}) {
+  const query = requiredStringArg(args.query, "query").toLowerCase();
+  const limit = limitArg(args.limit, DEFAULT_SEARCH_RESULTS, MAX_SEARCH_RESULTS);
+  const papers = args.paperId ? [await findPaperById(vaultPath, requiredStringArg(args.paperId, "paperId"))] : await listPaperCatalog(vaultPath);
+  const results = [];
+  for (const paper of papers) {
+    const blocks = await readPaperBlocksForEntry(vaultPath, paper);
+    for (const block of blocks) {
+      const haystack = blockSearchText(block).toLowerCase();
+      if (!haystack.includes(query)) continue;
+      results.push({
+        ...blockProvenance(paper, block),
+        snippet: blockSnippet(block, query)
+      });
+      if (results.length >= limit) return { query, results, truncated: true };
+    }
+  }
+  return { query, results, truncated: false };
+}
+async function readPaperBlocks(vaultPath, args = {}) {
+  const paper = await findPaperById(vaultPath, requiredStringArg(args.paperId, "paperId"));
+  const blocks = await readPaperBlocksForEntry(vaultPath, paper);
+  const selected = selectBlocks(blocks, args);
+  const truncated = selected.length > MAX_READ_BLOCKS;
+  const returnedBlocks = selected.slice(0, MAX_READ_BLOCKS);
+  return {
+    ...paperProvenance(paper),
+    blocks: returnedBlocks.map((block) => ({
+      ...blockProvenance(paper, block),
+      kind: block.kind,
+      text: block.text ?? null,
+      caption: block.caption ?? null,
+      section: block.section ?? null
+    })),
+    truncated: truncated ? { returned: returnedBlocks.length, requested: selected.length, max: MAX_READ_BLOCKS } : null
+  };
+}
+async function getPaperCitation(vaultPath, args = {}) {
+  const paper = await findPaperById(vaultPath, requiredStringArg(args.paperId, "paperId"));
+  return {
+    ...paperProvenance(paper),
+    citation: bibliographicCitation(paper),
+    wikilink: `[[${paper.title}]]`
+  };
+}
+async function getBlockCitation(vaultPath, args = {}) {
+  const paper = await findPaperById(vaultPath, requiredStringArg(args.paperId, "paperId"));
+  const blockId = requiredStringArg(args.blockId, "blockId");
+  const block = (await readPaperBlocksForEntry(vaultPath, paper)).find((candidate) => candidate.id === blockId);
+  if (!block) throw new Error(`Paper block not found: ${paper.paperId}#${blockId}`);
+  return blockProvenance(paper, block);
+}
+async function readPaperEntry(vaultPath, relativePath) {
+  const absolutePath2 = import_node_path2.default.join(vaultPath, relativePath);
+  const raw = await (0, import_promises2.readFile)(absolutePath2, "utf-8");
+  const parsed = (0, import_gray_matter2.default)(raw);
+  if (parsed.data.type !== "Paper") return null;
+  const slug = relativePath.match(PAPER_NOTE_RE)?.[2] ?? import_node_path2.default.basename(import_node_path2.default.dirname(relativePath));
+  const paperId = stringValue(parsed.data.paper_id) ?? slug;
+  const paperDir = import_node_path2.default.dirname(relativePath);
+  const metadata = await readOptionalJson(import_node_path2.default.join(vaultPath, paperDir, "metadata.json"));
+  const title = firstString(metadata?.title, parsed.data.title, parsed.data.display_name, extractTitle2(parsed.content), paperId);
+  return {
+    paperId,
+    path: relativePath,
+    paperPath: relativePath,
+    paperDir,
+    vaultPath,
+    vaultLabel: vaultLabel(vaultPath),
+    title,
+    authors: stringArray(firstDefined(metadata?.authors, parsed.data.authors)),
+    year: numberValue(firstDefined(metadata?.year, parsed.data.year)),
+    venue: stringValue(firstDefined(metadata?.venue, parsed.data.venue)),
+    venueType: stringValue(firstDefined(metadata?.venueType, metadata?.venue_type, parsed.data.venue_type)),
+    doi: stringValue(firstDefined(metadata?.doi, parsed.data.doi)),
+    arxivId: stringValue(firstDefined(metadata?.arxivId, metadata?.arxiv_id, parsed.data.arxiv_id)),
+    openalexId: stringValue(firstDefined(metadata?.openalexId, metadata?.openalex_id, parsed.data.openalex_id, metadata?.ids?.openalex)),
+    semanticScholarId: stringValue(firstDefined(metadata?.semanticScholarId, metadata?.semantic_scholar_id, parsed.data.semantic_scholar_id)),
+    parseStatus: stringValue(parsed.data.parse_status),
+    metadataStatus: stringValue(firstDefined(metadata?.status, parsed.data.metadata_status)),
+    metadataConfidence: numberValue(firstDefined(metadata?.confidence, parsed.data.metadata_confidence)),
+    sourcePdfState: await fileExists(import_node_path2.default.join(vaultPath, paperDir, "source.pdf")) ? "present" : "missing",
+    metadata,
+    frontmatter: parsed.data
+  };
+}
+async function findPaperById(vaultPath, paperId) {
+  const papers = await listPaperCatalog(vaultPath);
+  const matches = papers.filter((paper) => paper.paperId === paperId || paper.path === paperId || paper.title === paperId);
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) throw new Error(`Paper identifier is ambiguous in vault ${vaultPath}: ${paperId}`);
+  throw new Error(`Paper not found: ${paperId}`);
+}
+async function readPaperBlocksForEntry(vaultPath, paper) {
+  const blocksPath = import_node_path2.default.join(vaultPath, paper.paperDir, "blocks.jsonl");
+  const content = await (0, import_promises2.readFile)(blocksPath, "utf-8").catch((error2) => {
+    if (error2?.code === "ENOENT") throw new Error(`Paper blocks are missing for ${paper.paperId}`);
+    throw error2;
+  });
+  return parseBlocksJsonl(content, paper.paperId);
+}
+function parseBlocksJsonl(content, paperId) {
+  const blocks = [];
+  const errors = [];
+  for (const [index, line] of content.split(/\r?\n/u).entries()) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const block = JSON.parse(trimmed);
+      const missing = ["id", "kind", "hash"].find((field) => !stringValue(block[field]));
+      if (missing || !Number.isInteger(block.page) || block.page <= 0) {
+        errors.push(`line ${index + 1}: invalid SourceBlock`);
+        continue;
+      }
+      blocks.push({ paper_id: paperId, ...block });
+    } catch (error2) {
+      errors.push(`line ${index + 1}: ${error2.message}`);
+    }
+  }
+  if (errors.length) throw new Error(`blocks.jsonl contains malformed SourceBlock lines: ${errors.join("; ")}`);
+  return blocks;
+}
+function selectBlocks(blocks, args = {}) {
+  if (Array.isArray(args.blockIds) && args.blockIds.length > 0) {
+    const requestedIds = new Set(args.blockIds.map(String));
+    return blocks.filter((block) => requestedIds.has(block.id));
+  }
+  const range = typeof args.range === "object" && args.range !== null ? args.range : null;
+  if (range) {
+    const start = Math.max(0, Number(range.start ?? 0));
+    const count = Math.max(1, Number(range.count ?? DEFAULT_READ_BLOCKS));
+    return blocks.slice(start, start + count);
+  }
+  return blocks.slice(0, DEFAULT_READ_BLOCKS);
+}
+function filterPaperEntries(entries, filters, query) {
+  return entries.filter((entry) => {
+    if (query && !paperSearchText(entry).includes(query)) return false;
+    if (filters.venueType && entry.venueType !== filters.venueType) return false;
+    if (filters.metadataStatus && entry.metadataStatus !== filters.metadataStatus) return false;
+    if (filters.parseStatus && entry.parseStatus !== filters.parseStatus) return false;
+    if (filters.year && entry.year !== Number(filters.year)) return false;
+    if (filters.author && !entry.authors.some((author) => author.toLowerCase().includes(String(filters.author).toLowerCase()))) return false;
+    return true;
+  });
+}
+function compactPaperEntry(entry) {
+  const {
+    metadata,
+    frontmatter,
+    ...compact
+  } = entry;
+  return {
+    ...compact,
+    wikilink: `[[${entry.title}]]`
+  };
+}
+function compactPaperFrontmatter(frontmatter) {
+  return {
+    title: frontmatter.title ?? null,
+    authors: frontmatter.authors ?? null,
+    year: frontmatter.year ?? null,
+    venue: frontmatter.venue ?? null,
+    venue_type: frontmatter.venue_type ?? null,
+    doi: frontmatter.doi ?? null,
+    arxiv_id: frontmatter.arxiv_id ?? null,
+    metadata_status: frontmatter.metadata_status ?? null,
+    metadata_confidence: frontmatter.metadata_confidence ?? null,
+    parse_status: frontmatter.parse_status ?? null
+  };
+}
+function paperProvenance(paper) {
+  return {
+    paperId: paper.paperId,
+    title: paper.title,
+    path: paper.path,
+    vaultPath: paper.vaultPath,
+    vaultLabel: paper.vaultLabel,
+    wikilink: `[[${paper.title}]]`
+  };
+}
+function blockProvenance(paper, block) {
+  return {
+    ...paperProvenance(paper),
+    blockId: block.id,
+    page: Number.isInteger(block.page) ? block.page : null,
+    blockCitation: `@block[${paper.paperId}#${block.id}]`,
+    text: oneLine(block.text ?? block.caption ?? "")
+  };
+}
+function bibliographicCitation(paper) {
+  const authorPart = paper.authors.length > 0 ? paper.authors.join(", ") : paper.title;
+  const yearPart = paper.year ? ` (${paper.year})` : "";
+  const venuePart = paper.venue ? `. ${paper.venue}` : "";
+  return `${authorPart}${yearPart}. ${paper.title}${venuePart}.`;
+}
+function paperSearchText(entry) {
+  return [
+    entry.title,
+    ...entry.authors,
+    entry.year,
+    entry.venue,
+    entry.venueType,
+    entry.doi,
+    entry.arxivId,
+    entry.openalexId,
+    entry.semanticScholarId
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+function blockSearchText(block) {
+  return [block.text, block.caption, block.section].filter(Boolean).join("\n");
+}
+function blockSnippet(block, query) {
+  const text = oneLine(blockSearchText(block));
+  const index = text.toLowerCase().indexOf(query);
+  if (index === -1) return text.slice(0, 240);
+  const start = Math.max(0, index - 80);
+  const end = Math.min(text.length, index + query.length + 160);
+  return `${start > 0 ? "..." : ""}${text.slice(start, end)}${end < text.length ? "..." : ""}`;
+}
+function oneLine(value) {
+  return String(value).replace(/\s+/gu, " ").trim().slice(0, 600);
+}
+async function readOptionalJson(filePath) {
+  try {
+    return JSON.parse(await (0, import_promises2.readFile)(filePath, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+async function fileExists(filePath) {
+  try {
+    await (0, import_promises2.access)(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function requiredStringArg(value, name) {
+  const result = stringValue(value);
+  if (!result) throw new Error(`${name} is required`);
+  return result;
+}
+function stringArg(value) {
+  return stringValue(value) ?? "";
+}
+function stringValue(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+function firstString(...values) {
+  for (const value of values) {
+    const string3 = stringValue(value);
+    if (string3) return string3;
+  }
+  return "Untitled Paper";
+}
+function firstDefined(...values) {
+  return values.find((value) => value !== void 0 && value !== null);
+}
+function numberValue(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+function stringArray(value) {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  const scalar = stringValue(value);
+  return scalar ? scalar.split(/;|\n|\sand\s/iu).map((item) => item.trim()).filter(Boolean) : [];
+}
+function limitArg(value, fallback, max) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(Math.floor(parsed), max) : fallback;
+}
+function extractTitle2(content) {
+  return content.match(/^#\s+(.+)$/mu)?.[1]?.trim() ?? null;
+}
+function paperSortKey(entry) {
+  return `${entry.year ?? "9999"}:${entry.title}`.toLowerCase();
+}
+function vaultLabel(vaultPath) {
+  return import_node_path2.default.basename(vaultPath) || vaultPath;
+}
+
+// mcp-server/vault-path.js
+var import_node_fs = require("node:fs");
+var import_node_os = require("node:os");
+var import_node_path3 = require("node:path");
+
+// mcp-server/app-config-policy.json
+var app_config_policy_default = {
+  current_namespace: "cc.cklau.sapientia",
+  legacy_namespace: "com.tolaria.app",
+  namespace_read_order: ["current", "legacy"],
+  files: {
+    settings: "settings.json",
+    vaults: "vaults.json",
+    last_vault: "last-vault.txt",
+    ai_workspace_sessions: "ai-workspace-sessions.json",
+    window_state: "window-state.json",
+    ai_provider_secrets: "ai-provider-secrets.json"
+  },
+  read_order: [
+    "preferred config root/current namespace",
+    "preferred config root/legacy namespace",
+    "platform config root/current namespace when different",
+    "platform config root/legacy namespace when different"
+  ],
+  write_target: "preferred config root/current namespace"
+};
+
+// mcp-server/vault-path.js
+var APP_CONFIG_DIR = app_config_policy_default.current_namespace;
+var APP_CONFIG_FILES = Object.freeze(app_config_policy_default.files);
+function parseVaultPathList(rawValue) {
+  if (!rawValue?.trim()) return [];
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (Array.isArray(parsed)) return parsed.filter((value) => typeof value === "string");
+  } catch {
+  }
+  return [];
+}
+function uniqueVaultPaths(paths) {
+  const seen = /* @__PURE__ */ new Set();
+  const unique = [];
+  for (const path5 of paths) {
+    const trimmed = path5.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    unique.push(trimmed);
+  }
+  return unique;
+}
+function absolutePath(path5) {
+  return typeof path5 === "string" && (0, import_node_path3.isAbsolute)(path5) ? path5 : null;
+}
+function defaultXdgConfigHome(platformName, homeDir) {
+  if (platformName === "win32") return null;
+  return absolutePath(homeDir) ? (0, import_node_path3.join)(homeDir, ".config") : null;
+}
+function platformConfigDir(env, platformName, homeDir) {
+  if (platformName === "darwin") return (0, import_node_path3.join)(homeDir, "Library", "Application Support");
+  if (platformName === "win32") return absolutePath(env.APPDATA) || (0, import_node_path3.join)(homeDir, "AppData", "Roaming");
+  return absolutePath(env.XDG_CONFIG_HOME) || defaultXdgConfigHome(platformName, homeDir);
+}
+function appConfigBaseDirs({
+  env = process.env,
+  homeDir = (0, import_node_os.homedir)(),
+  platformName = (0, import_node_os.platform)(),
+  platformDir = platformConfigDir(env, platformName, homeDir)
+} = {}) {
+  const primary = absolutePath(env.XDG_CONFIG_HOME) || defaultXdgConfigHome(platformName, homeDir) || platformDir;
+  const dirs = primary ? [primary] : [];
+  if (platformDir && platformDir !== primary) dirs.push(platformDir);
+  return dirs;
+}
+function namespaceDir(namespace) {
+  if (namespace === "current") return APP_CONFIG_DIR;
+  if (namespace === "legacy") return app_config_policy_default.legacy_namespace;
+  throw new Error(`Unknown app config namespace: ${namespace}`);
+}
+function preferredAppConfigPath(configDir, fileName) {
+  return (0, import_node_path3.join)(configDir, APP_CONFIG_DIR, fileName);
+}
+function existingOrPreferredAppConfigPath(configDirs, fileName) {
+  for (const configDir of configDirs) {
+    for (const namespace of app_config_policy_default.namespace_read_order) {
+      const candidate = (0, import_node_path3.join)(configDir, namespaceDir(namespace), fileName);
+      if ((0, import_node_fs.existsSync)(candidate)) return candidate;
+    }
+  }
+  return preferredAppConfigPath(configDirs[0], fileName);
+}
+function vaultsJsonPath({
+  configDir,
+  configDirs = configDir ? [configDir] : appConfigBaseDirs()
+} = {}) {
+  return existingOrPreferredAppConfigPath(configDirs, APP_CONFIG_FILES.vaults);
+}
+function pushUniquePath(paths, value) {
+  const path5 = typeof value === "string" ? value.trim() : "";
+  if (!path5 || paths.includes(path5)) return;
+  paths.push(path5);
+}
+function activeVaultPathsFromList(list) {
+  const paths = [];
+  pushUniquePath(paths, list?.active_vault);
+  for (const vault of list?.vaults ?? []) {
+    if (vault?.mounted === false) continue;
+    pushUniquePath(paths, vault?.path);
+  }
+  return paths;
+}
+function configuredVaultPaths(options2 = {}) {
+  const filePath = vaultsJsonPath(options2);
+  if (!(0, import_node_fs.existsSync)(filePath)) return [];
+  return activeVaultPathsFromList(JSON.parse((0, import_node_fs.readFileSync)(filePath, "utf-8")));
+}
+function requireVaultPaths(env = process.env, options2 = {}) {
+  const vaultPaths = uniqueVaultPaths([
+    env.VAULT_PATH?.trim() ?? "",
+    ...parseVaultPathList(env.VAULT_PATHS)
+  ]);
+  if (vaultPaths.length === 0) {
+    const configuredPaths = configuredVaultPaths(options2);
+    if (configuredPaths.length > 0) return configuredPaths;
+    throw new Error("VAULT_PATH is required. Open a vault in Sapientia before starting MCP tools.");
+  }
+  return vaultPaths;
+}
+
+// mcp-server/agent-instructions.js
+var import_promises3 = require("node:fs/promises");
+var import_node_path4 = __toESM(require("node:path"), 1);
+async function readAgentInstructions(vaultPath) {
+  const instructionsPath = import_node_path4.default.join(vaultPath, "AGENTS.md");
+  try {
+    return {
+      path: instructionsPath,
+      content: await (0, import_promises3.readFile)(instructionsPath, "utf8")
+    };
+  } catch (error2) {
+    if (error2?.code === "ENOENT") return null;
+    throw error2;
+  }
+}
+async function vaultContextWithInstructions(vaultPath) {
+  return {
+    ...await vaultContext(vaultPath),
+    agentInstructions: await readAgentInstructions(vaultPath)
+  };
+}
+
+// mcp-server/tool-service.js
+function createMcpToolService({
+  resolveVaultPaths = () => requireVaultPaths(),
+  emitUiAction = () => {
+  }
+} = {}) {
+  function activeVaultPaths() {
+    return resolveVaultPaths();
+  }
+  function requestedVaultPath(args = {}) {
+    const requested = typeof args.vaultPath === "string" ? args.vaultPath.trim() : "";
+    if (!requested) return null;
+    if (!activeVaultPaths().includes(requested)) {
+      throw new Error(`Vault is not active in Sapientia: ${requested}`);
+    }
+    return requested;
+  }
+  function resolveUiPath(args = {}) {
+    const notePath = typeof args.path === "string" ? args.path : "";
+    if (import_node_path5.default.isAbsolute(notePath)) return notePath;
+    const roots = activeVaultPaths();
+    const vaultPath = requestedVaultPath(args) ?? (roots.length === 1 ? roots[0] : "");
+    return vaultPath ? import_node_path5.default.join(vaultPath, notePath) : notePath;
+  }
+  async function readNote(args = {}) {
+    return getNoteFromActiveVaults(notePathArg(args), requestedVaultPath(args));
+  }
+  async function searchNotes2(args = {}) {
+    const requestedLimit = Number.isFinite(args.limit) && args.limit > 0 ? args.limit : 10;
+    const results = [];
+    for (const vaultPath of activeVaultPaths()) {
+      const vaultResults = await searchNotes(vaultPath, args.query, requestedLimit);
+      results.push(...vaultResults.map((result) => withVaultMetadata(result, vaultPath)));
+      if (results.length >= requestedLimit) break;
+    }
+    return results.slice(0, requestedLimit);
+  }
+  async function listPapers(args = {}) {
+    const results = [];
+    for (const vaultPath of readableVaultPaths(args)) {
+      results.push(...await listPaperCatalog(vaultPath));
+    }
+    return results.map(compactPaperToolResult);
+  }
+  async function searchPapers(args = {}) {
+    const results = [];
+    const requestedLimit = Number.isFinite(args.limit) && args.limit > 0 ? args.limit : 10;
+    for (const vaultPath of readableVaultPaths(args)) {
+      results.push(...await searchPaperCatalog(vaultPath, args));
+      if (results.length >= requestedLimit) break;
+    }
+    return results.slice(0, requestedLimit);
+  }
+  async function readPaperMetadata2(args = {}) {
+    return readPaperFromActiveVaults(args, readPaperMetadata);
+  }
+  async function readPaperOutline2(args = {}) {
+    return readPaperFromActiveVaults(args, readPaperOutline);
+  }
+  async function searchPaperBlocks2(args = {}) {
+    const results = [];
+    const errors = [];
+    for (const vaultPath of readableVaultPaths(args)) {
+      try {
+        const result = await searchPaperBlocks(vaultPath, args);
+        results.push(...result.results);
+      } catch (error2) {
+        errors.push(error2);
+      }
+    }
+    if (results.length === 0 && errors.length > 0) throw errors[0];
+    return { query: args.query, results };
+  }
+  async function readPaperBlocks2(args = {}) {
+    return readPaperFromActiveVaults(args, readPaperBlocks);
+  }
+  async function getPaperCitation2(args = {}) {
+    return readPaperFromActiveVaults(args, getPaperCitation);
+  }
+  async function getBlockCitation2(args = {}) {
+    return readPaperFromActiveVaults(args, getBlockCitation);
+  }
+  async function vaultContext2(args = {}) {
+    const targetVaultPath = requestedVaultPath(args);
+    const roots = activeVaultPaths();
+    if (targetVaultPath) return vaultContextWithInstructions(targetVaultPath);
+    if (roots.length === 1) return vaultContextWithInstructions(roots[0]);
+    return {
+      vaults: await Promise.all(roots.map(vaultContextWithInstructions))
+    };
+  }
+  async function listVaults() {
+    const vaults = await Promise.all(activeVaultPaths().map(async (vaultPath) => {
+      const agentInstructions = await readAgentInstructions(vaultPath);
+      return {
+        path: vaultPath,
+        label: vaultLabel2(vaultPath),
+        agentInstructionsPath: agentInstructions?.path ?? null,
+        hasAgentInstructions: agentInstructions !== null
+      };
+    }));
+    return { vaults };
+  }
+  async function createNote2(args = {}) {
+    const vaultPath = writableVaultPath(args);
+    const notePath = writableNotePath(args, vaultPath);
+    const note = await createNote(vaultPath, notePath, createNoteContent(args));
+    const targetPath = resolveUiPath({ ...args, path: note.path, vaultPath });
+    emitUiAction("vault_changed", { path: targetPath });
+    emitUiAction("open_tab", { path: targetPath });
+    return { path: note.path, absolutePath: note.absolutePath, vaultPath };
+  }
+  function openNoteAsTab(args = {}) {
+    const targetPath = resolveUiPath(args);
+    emitUiAction("vault_changed", { path: targetPath });
+    emitUiAction("open_tab", { path: targetPath });
+    return { targetPath };
+  }
+  function openNoteInEditor(args = {}) {
+    const targetPath = resolveUiPath(args);
+    emitUiAction("vault_changed", { path: targetPath });
+    emitUiAction("open_note", { path: targetPath });
+    return { targetPath };
+  }
+  function highlightEditor(args = {}) {
+    emitUiAction("highlight", { element: args.element, path: args.path });
+  }
+  function setFilter(args = {}) {
+    emitUiAction("set_filter", { filterType: args.type });
+  }
+  function refreshVault(args = {}) {
+    emitUiAction("vault_changed", { path: resolveUiPath(args) });
+  }
+  async function getNoteFromActiveVaults(notePath, vaultPath = null) {
+    const candidates = vaultPath ? [vaultPath] : activeVaultPaths();
+    const matches = [];
+    const errors = [];
+    for (const candidate of candidates) {
+      try {
+        matches.push(withVaultMetadata(await getNote(candidate, notePath), candidate));
+      } catch (error2) {
+        errors.push(error2);
+      }
+    }
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1) {
+      throw new Error(`Note path is ambiguous across active vaults. Pass vaultPath for ${notePath}.`);
+    }
+    throw errors[0] ?? new Error(`Note not found: ${notePath}`);
+  }
+  async function readPaperFromActiveVaults(args, reader) {
+    const vaults = readableVaultPaths(args);
+    const matches = [];
+    const errors = [];
+    for (const vaultPath of vaults) {
+      try {
+        matches.push(await reader(vaultPath, args));
+      } catch (error2) {
+        errors.push(error2);
+      }
+    }
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1) {
+      throw new Error(`Paper identifier is ambiguous across active vaults. Pass vaultPath for ${args.paperId}.`);
+    }
+    throw errors[0] ?? new Error(`Paper not found: ${args.paperId}`);
+  }
+  function readableVaultPaths(args = {}) {
+    const requested = requestedVaultPath(args);
+    return requested ? [requested] : activeVaultPaths();
+  }
+  function writableVaultPath(args = {}) {
+    const requested = requestedVaultPath(args);
+    if (requested) return requested;
+    const roots = activeVaultPaths();
+    const notePath = notePathArg(args);
+    if (import_node_path5.default.isAbsolute(notePath)) {
+      const root = roots.find((vaultPath) => isInsideVaultRoot(vaultPath, notePath));
+      if (root) return root;
+    }
+    if (roots.length === 1) return roots[0];
+    throw new Error(`Note path is ambiguous across active vaults. Pass vaultPath for ${notePath}.`);
+  }
+  return {
+    activeVaultPaths,
+    createNote: createNote2,
+    highlightEditor,
+    listVaults,
+    getBlockCitation: getBlockCitation2,
+    getPaperCitation: getPaperCitation2,
+    openNoteAsTab,
+    openNoteInEditor,
+    listPapers,
+    readPaperBlocks: readPaperBlocks2,
+    readPaperMetadata: readPaperMetadata2,
+    readPaperOutline: readPaperOutline2,
+    readNote,
+    refreshVault,
+    requestedVaultPath,
+    resolveUiPath,
+    searchPaperBlocks: searchPaperBlocks2,
+    searchPapers,
+    searchNotes: searchNotes2,
+    setFilter,
+    vaultContext: vaultContext2
+  };
+}
+function writableNotePath(args, vaultPath) {
+  const notePath = notePathArg(args);
+  if (!import_node_path5.default.isAbsolute(notePath) || !isInsideVaultRoot(vaultPath, notePath)) return notePath;
+  return import_node_path5.default.relative(vaultPath, notePath);
+}
+function withVaultMetadata(note, vaultPath) {
+  return {
+    ...note,
+    vaultPath,
+    vaultLabel: vaultLabel2(vaultPath)
+  };
+}
+function compactPaperToolResult(entry) {
+  const {
+    metadata,
+    frontmatter,
+    ...compact
+  } = entry;
+  return {
+    ...compact,
+    wikilink: `[[${entry.title}]]`
+  };
+}
+function vaultLabel2(vaultPath) {
+  return import_node_path5.default.basename(vaultPath) || vaultPath;
+}
+function isInsideVaultRoot(vaultPath, notePath) {
+  const relative = import_node_path5.default.relative(vaultPath, notePath);
+  return Boolean(relative) && !relative.startsWith("..") && !import_node_path5.default.isAbsolute(relative);
+}
+function notePathArg(args = {}) {
+  const notePath = typeof args.path === "string" ? args.path.trim() : "";
+  if (!notePath) throw new Error("Note path is required");
+  return notePath;
+}
+function yamlScalar(value) {
+  return JSON.stringify(value);
+}
+function fallbackCreateNoteContent(args = {}) {
+  const title = typeof args.title === "string" && args.title.trim() ? args.title.trim() : import_node_path5.default.basename(notePathArg(args), ".md");
+  const type = typeof args.type === "string" && args.type.trim() ? args.type.trim() : typeof args.is_a === "string" && args.is_a.trim() ? args.is_a.trim() : "Note";
+  return `---
+type: ${yamlScalar(type)}
+---
+
+# ${title}
+`;
+}
+function createNoteContent(args = {}) {
+  return typeof args.content === "string" && args.content.trim() ? args.content : fallbackCreateNoteContent(args);
+}
+
 // mcp-server/index.js
-var VAULT_PATH = process.env.VAULT_PATH || process.env.HOME + "/Laputa";
 var WS_UI_PORT = parseInt(process.env.WS_UI_PORT || "9711", 10);
 var WS_UI_URL = `ws://localhost:${WS_UI_PORT}`;
+var LOCAL_READ_ONLY_TOOL_ANNOTATIONS = Object.freeze({
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false
+});
+var LOCAL_CREATE_TOOL_ANNOTATIONS = Object.freeze({
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false
+});
 var uiSocket = null;
+var reconnectTimer = null;
+var shutdownStarted = false;
 var RECONNECT_INTERVAL_MS = 3e3;
 function connectUiBridge() {
+  if (shutdownStarted) return;
   try {
     const ws = new wrapper_default(WS_UI_URL);
+    uiSocket = ws;
     ws.on("open", () => {
-      uiSocket = ws;
+      if (shutdownStarted) {
+        closeUiSocket();
+        return;
+      }
       console.error(`[mcp] Connected to UI bridge at ${WS_UI_URL}`);
     });
     ws.on("close", () => {
-      uiSocket = null;
-      setTimeout(connectUiBridge, RECONNECT_INTERVAL_MS);
+      if (uiSocket === ws) uiSocket = null;
+      scheduleUiReconnect();
     });
     ws.on("error", () => {
     });
   } catch {
-    setTimeout(connectUiBridge, RECONNECT_INTERVAL_MS);
+    scheduleUiReconnect();
   }
 }
-connectUiBridge();
+function scheduleUiReconnect() {
+  if (shutdownStarted) return;
+  clearUiReconnectTimer();
+  reconnectTimer = setTimeout(connectUiBridge, RECONNECT_INTERVAL_MS);
+  reconnectTimer.unref?.();
+}
+function clearUiReconnectTimer() {
+  if (!reconnectTimer) return;
+  clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+}
+function closeUiSocket() {
+  const socket = uiSocket;
+  uiSocket = null;
+  if (!socket) return;
+  socket.removeAllListeners();
+  socket.on("error", () => {
+  });
+  if (socket.readyState === wrapper_default.CONNECTING) {
+    socket.terminate?.();
+    return;
+  }
+  try {
+    socket.close();
+  } catch {
+  }
+  socket.terminate?.();
+}
 function broadcastUiAction(action, payload) {
   if (!uiSocket || uiSocket.readyState !== wrapper_default.OPEN) return;
   uiSocket.send(JSON.stringify({ type: "ui_action", action, ...payload }));
 }
+var toolService = createMcpToolService({ emitUiAction: broadcastUiAction });
 var TOOLS = [
   {
     name: "search_notes",
     description: "Full-text search across vault notes by title or content. Returns matching paths, titles, and snippets.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: "object",
       properties: {
@@ -28061,34 +29245,195 @@ var TOOLS = [
   },
   {
     name: "get_vault_context",
-    description: "Get vault orientation: entity types, total note count, top-level folders, and 20 most recently modified notes.",
-    inputSchema: { type: "object", properties: {} }
+    description: "Get vault orientation for the active Sapientia vaults: entity types, AGENTS.md instructions, note count, folders, and recent notes.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: "object",
+      properties: {
+        vaultPath: { type: "string", description: "Optional target vault root. Omit to inspect all active vaults." }
+      }
+    }
+  },
+  {
+    name: "list_vaults",
+    description: "List the current active Sapientia vaults available to MCP tools, including whether each vault has AGENTS.md instructions.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: "object",
+      properties: {}
+    }
   },
   {
     name: "get_note",
     description: "Read a note with parsed YAML frontmatter and markdown content. Returns {path, frontmatter, content}.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: "object",
       properties: {
-        path: { type: "string", description: 'Relative path to the note (e.g. "project/my-project.md")' }
+        path: { type: "string", description: 'Relative path to the note (e.g. "project/my-project.md")' },
+        vaultPath: { type: "string", description: "Optional target vault root when multiple vaults are active." }
+      },
+      required: ["path"]
+    }
+  },
+  {
+    name: "list_papers",
+    description: "Use for a compact overview of available Paper notes before choosing a target. Lists active Sapientia vault Papers with bibliographic metadata, vault provenance, and wikilinks. Does not return full paper text. Read-only.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: "object",
+      properties: {
+        vaultPath: { type: "string", description: "Optional target vault root. Omit to inspect all active vaults." }
+      }
+    }
+  },
+  {
+    name: "search_papers",
+    description: "Use for paper discovery by title, authors, venue, year, DOI, arXiv, OpenAlex, or Semantic Scholar identifiers. Returns compact ranked metadata with vault provenance and wikilinks, not full paper content. Read-only.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Metadata search query." },
+        limit: { type: "number", description: "Maximum number of results (default: 10, max: 20)." },
+        filters: {
+          type: "object",
+          properties: {
+            author: { type: "string" },
+            year: { type: "number" },
+            venueType: { type: "string" },
+            parseStatus: { type: "string" },
+            metadataStatus: { type: "string" }
+          }
+        },
+        vaultPath: { type: "string", description: "Optional target vault root when multiple vaults are active." }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "read_paper_metadata",
+    description: "Use before making bibliographic claims about one Paper. Reads frontmatter plus metadata.json provenance/candidates/errors for paperId and optional vaultPath. Read-only.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: "object",
+      properties: {
+        paperId: { type: "string", description: "Paper id, Paper note path, or exact Paper title." },
+        vaultPath: { type: "string", description: "Optional target vault root when multiple vaults are active." }
+      },
+      required: ["paperId"]
+    }
+  },
+  {
+    name: "read_paper_outline",
+    description: "Use to orient within one parsed Paper before reading evidence. Returns title/heading SourceBlocks from blocks.jsonl with page provenance and @block citations. Read-only.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: "object",
+      properties: {
+        paperId: { type: "string", description: "Paper id, Paper note path, or exact Paper title." },
+        vaultPath: { type: "string", description: "Optional target vault root when multiple vaults are active." }
+      },
+      required: ["paperId"]
+    }
+  },
+  {
+    name: "search_paper_blocks",
+    description: "Use to find evidence inside Papers by text, caption, or section. Returns compact snippets with paper title, vault provenance, page number, and canonical @block citations. Does not dump full papers. Read-only.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Block text search query." },
+        paperId: { type: "string", description: "Optional Paper id. Omit to search all Papers in active vaults." },
+        limit: { type: "number", description: "Maximum number of results (default: 10, max: 20)." },
+        vaultPath: { type: "string", description: "Optional target vault root when multiple vaults are active." }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "read_paper_blocks",
+    description: "Use after search_paper_blocks or read_paper_outline to read exact evidence. Requires paperId and blockIds or a range; returns compact SourceBlocks with citation/page provenance and structured truncation if too large. Read-only.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: "object",
+      properties: {
+        paperId: { type: "string", description: "Paper id, Paper note path, or exact Paper title." },
+        blockIds: { type: "array", items: { type: "string" }, description: "Specific block ids to read." },
+        range: {
+          type: "object",
+          properties: {
+            start: { type: "number", description: "Zero-based start index." },
+            count: { type: "number", description: "Number of blocks to read." }
+          }
+        },
+        vaultPath: { type: "string", description: "Optional target vault root when multiple vaults are active." }
+      },
+      required: ["paperId"]
+    }
+  },
+  {
+    name: "get_paper_citation",
+    description: "Use when the user needs a bibliographic citation for one Paper. Returns a compact citation, paper id, vault provenance, and Sapientia wikilink. Read-only.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: "object",
+      properties: {
+        paperId: { type: "string", description: "Paper id, Paper note path, or exact Paper title." },
+        vaultPath: { type: "string", description: "Optional target vault root when multiple vaults are active." }
+      },
+      required: ["paperId"]
+    }
+  },
+  {
+    name: "get_block_citation",
+    description: "Use when citing an exact claim or resolving an @block target. Returns canonical @block[paper_id#block_id] syntax plus paper title, vault provenance, page number, and wikilink. Read-only.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: "object",
+      properties: {
+        paperId: { type: "string", description: "Paper id, Paper note path, or exact Paper title." },
+        blockId: { type: "string", description: "SourceBlock id." },
+        vaultPath: { type: "string", description: "Optional target vault root when multiple vaults are active." }
+      },
+      required: ["paperId", "blockId"]
+    }
+  },
+  {
+    name: "create_note",
+    description: "Create a new markdown note inside an active Sapientia vault. Does not overwrite existing files. Use content for the full markdown including YAML frontmatter and H1.",
+    annotations: LOCAL_CREATE_TOOL_ANNOTATIONS,
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Relative path inside the vault, or an absolute path inside an active vault. Must end in .md." },
+        content: { type: "string", description: "Full markdown note content, including YAML frontmatter when needed." },
+        title: { type: "string", description: "Optional title used only when content is omitted." },
+        type: { type: "string", description: "Optional note type used only when content is omitted." },
+        is_a: { type: "string", description: "Legacy alias for type, used only when content is omitted." },
+        vaultPath: { type: "string", description: "Optional target vault root when multiple vaults are active." }
       },
       required: ["path"]
     }
   },
   {
     name: "open_note",
-    description: "Open a note in the Tolaria UI as a new tab. Use after creating or editing a note so the user can see it.",
+    description: "Open a note in the Sapientia UI as a new tab. Use after creating or editing a note so the user can see it.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Relative path to the note" }
+        path: { type: "string", description: "Relative path to the note" },
+        vaultPath: { type: "string", description: "Optional target vault root when opening a note outside the default vault." }
       },
       required: ["path"]
     }
   },
   {
     name: "highlight_editor",
-    description: "Visually highlight a UI element in Tolaria (editor, tab, properties panel, or note list). The highlight auto-clears after a short delay.",
+    description: "Visually highlight a UI element in Sapientia (editor, tab, properties panel, or note list). The highlight auto-clears after a short delay.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: "object",
       properties: {
@@ -28100,49 +29445,101 @@ var TOOLS = [
   },
   {
     name: "refresh_vault",
-    description: "Trigger a vault rescan so new or modified files appear immediately in the Tolaria note list.",
+    description: "Trigger a vault rescan so new or modified files appear immediately in the Sapientia note list.",
+    annotations: LOCAL_READ_ONLY_TOOL_ANNOTATIONS,
     inputSchema: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Optional specific note path that changed" }
+        path: { type: "string", description: "Optional specific note path that changed" },
+        vaultPath: { type: "string", description: "Optional target vault root when refreshing a note outside the default vault." }
       }
     }
   }
 ];
-var TOOL_HANDLERS = {
-  search_notes: handleSearchNotes,
-  get_vault_context: handleVaultContext,
-  get_note: handleGetNote,
-  open_note: handleOpenNote,
-  highlight_editor: handleHighlightEditor,
-  refresh_vault: handleRefreshVault
-};
 async function handleSearchNotes(args) {
-  const results = await searchNotes(VAULT_PATH, args.query, args.limit);
-  const text = results.length === 0 ? "No matching notes found." : results.map((r) => `**${r.title}** (${r.path})
+  const results = await toolService.searchNotes(args);
+  const text = results.length === 0 ? "No matching notes found." : results.map((r) => `**${r.title}** (${r.vaultLabel} / ${r.path})
 ${r.snippet}`).join("\n\n");
   return { content: [{ type: "text", text }] };
 }
-async function handleVaultContext() {
-  const ctx = await vaultContext(VAULT_PATH);
+async function handleVaultContext(args = {}) {
+  const ctx = await toolService.vaultContext(args);
   return { content: [{ type: "text", text: JSON.stringify(ctx, null, 2) }] };
 }
+async function handleListVaults() {
+  return { content: [{ type: "text", text: JSON.stringify(await toolService.listVaults(), null, 2) }] };
+}
 async function handleGetNote(args) {
-  const note = await getNote(VAULT_PATH, args.path);
+  const note = await toolService.readNote(args);
   return { content: [{ type: "text", text: JSON.stringify(note, null, 2) }] };
 }
+async function handleListPapers(args) {
+  return { content: [{ type: "text", text: JSON.stringify(await toolService.listPapers(args), null, 2) }] };
+}
+async function handleSearchPapers(args) {
+  return { content: [{ type: "text", text: JSON.stringify(await toolService.searchPapers(args), null, 2) }] };
+}
+async function handleReadPaperMetadata(args) {
+  return { content: [{ type: "text", text: JSON.stringify(await toolService.readPaperMetadata(args), null, 2) }] };
+}
+async function handleReadPaperOutline(args) {
+  return { content: [{ type: "text", text: JSON.stringify(await toolService.readPaperOutline(args), null, 2) }] };
+}
+async function handleSearchPaperBlocks(args) {
+  return { content: [{ type: "text", text: JSON.stringify(await toolService.searchPaperBlocks(args), null, 2) }] };
+}
+async function handleReadPaperBlocks(args) {
+  return { content: [{ type: "text", text: JSON.stringify(await toolService.readPaperBlocks(args), null, 2) }] };
+}
+async function handleGetPaperCitation(args) {
+  return { content: [{ type: "text", text: JSON.stringify(await toolService.getPaperCitation(args), null, 2) }] };
+}
+async function handleGetBlockCitation(args) {
+  return { content: [{ type: "text", text: JSON.stringify(await toolService.getBlockCitation(args), null, 2) }] };
+}
+async function handleCreateNote(args = {}) {
+  const note = await toolService.createNote(args);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(note, null, 2)
+    }]
+  };
+}
 function handleOpenNote(args) {
-  broadcastUiAction("vault_changed", { path: args.path });
-  broadcastUiAction("open_tab", { path: args.path });
-  return { content: [{ type: "text", text: `Opening ${args.path} in Tolaria` }] };
+  const { targetPath } = toolService.openNoteAsTab(args);
+  return { content: [{ type: "text", text: `Opening ${targetPath} in Sapientia` }] };
 }
 function handleHighlightEditor(args) {
-  broadcastUiAction("highlight", { element: args.element, path: args.path });
+  toolService.highlightEditor(args);
   return { content: [{ type: "text", text: `Highlighting ${args.element}` }] };
 }
 function handleRefreshVault(args) {
-  broadcastUiAction("vault_changed", { path: args?.path });
+  toolService.refreshVault(args);
   return { content: [{ type: "text", text: "Vault refresh triggered" }] };
+}
+var TOOL_HANDLERS = /* @__PURE__ */ new Map([
+  ["search_notes", handleSearchNotes],
+  ["get_vault_context", handleVaultContext],
+  ["list_vaults", handleListVaults],
+  ["get_note", handleGetNote],
+  ["list_papers", handleListPapers],
+  ["search_papers", handleSearchPapers],
+  ["read_paper_metadata", handleReadPaperMetadata],
+  ["read_paper_outline", handleReadPaperOutline],
+  ["search_paper_blocks", handleSearchPaperBlocks],
+  ["read_paper_blocks", handleReadPaperBlocks],
+  ["get_paper_citation", handleGetPaperCitation],
+  ["get_block_citation", handleGetBlockCitation],
+  ["create_note", handleCreateNote],
+  ["open_note", handleOpenNote],
+  ["highlight_editor", handleHighlightEditor],
+  ["refresh_vault", handleRefreshVault]
+]);
+function callToolHandler(name, args) {
+  const handler = TOOL_HANDLERS.get(name);
+  if (!handler) throw new Error(`Unknown tool: ${name}`);
+  return handler(args);
 }
 var server = new Server(
   { name: "tolaria-mcp-server", version: "0.3.0" },
@@ -28153,12 +29550,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 }));
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  const handler = TOOL_HANDLERS[name];
-  if (!handler) {
-    throw new Error(`Unknown tool: ${name}`);
-  }
   try {
-    return await handler(args);
+    return await callToolHandler(name, args);
   } catch (error2) {
     return {
       content: [{ type: "text", text: `Error: ${error2.message}` }],
@@ -28166,12 +29559,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 });
+async function shutdown(exitCode = 0) {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
+  clearUiReconnectTimer();
+  closeUiSocket();
+  try {
+    await server.close();
+  } catch (error2) {
+    console.error(`[mcp] Error while closing server: ${error2.message}`);
+  }
+  process.exitCode = exitCode;
+  setImmediate(() => process.exit(exitCode));
+}
 async function main() {
   const transport = new StdioServerTransport();
+  server.onclose = () => {
+    void shutdown(0);
+  };
+  process.stdin.once("end", () => {
+    void shutdown(0);
+  });
+  process.stdin.once("close", () => {
+    void shutdown(0);
+  });
+  process.once("SIGINT", () => {
+    void shutdown(0);
+  });
+  process.once("SIGTERM", () => {
+    void shutdown(0);
+  });
+  connectUiBridge();
   await server.connect(transport);
-  console.error(`Tolaria MCP server running (vault: ${VAULT_PATH})`);
+  console.error("Sapientia MCP server running (vaults resolved per call)");
 }
-main().catch(console.error);
+main().catch((error2) => {
+  console.error(error2);
+  void shutdown(1);
+});
 /*! Bundled license information:
 
 is-extendable/index.js:

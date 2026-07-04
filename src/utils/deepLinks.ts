@@ -2,7 +2,7 @@ import type { VaultEntry } from '../types'
 import { joinVaultPath, normalizeNotePathForCollision, normalizeNotePathForIdentity, normalizeNotePathSeparators } from './notePathIdentity'
 import { workspaceAliasFromOption } from './workspaces'
 
-export const TOLARIA_DEEP_LINK_SCHEME = 'tolaria'
+export const TOLARIA_DEEP_LINK_SCHEME = 'sapientia'
 
 export interface DeepLinkVault {
   alias?: string | null
@@ -139,7 +139,7 @@ function decodeRelativePath({ path }: VaultRelativePathInput): string | null {
 }
 
 function rawPathnameForTolariaUrl({ rawUrl }: TolariaDeepLinkInput): string | null {
-  return rawUrl.match(/^tolaria:\/\/[^/?#]+(\/[^?#]*)/iu)?.[1] ?? null
+  return rawUrl.match(/^(?:sapientia|tolaria):\/\/[^/?#]+(\/[^?#]*)/iu)?.[1] ?? null
 }
 
 function isSafePathSegment({ segment }: { segment: string }): boolean {

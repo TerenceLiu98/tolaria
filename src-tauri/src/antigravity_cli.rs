@@ -32,7 +32,7 @@ where
 
 fn format_antigravity_error(stderr_output: &str, status: &str) -> String {
     if is_auth_or_setup_error(stderr_output) {
-        return "Antigravity CLI is not ready. Run `agy` in your terminal to finish install and sign-in, then retry in Tolaria.".into();
+        return "Antigravity CLI is not ready. Run `agy` in your terminal to finish install and sign-in, then retry in Sapientia.".into();
     }
 
     let stderr = stderr_output.trim();
@@ -68,7 +68,7 @@ mod tests {
     fn request(vault_path: String) -> AgentStreamRequest {
         AgentStreamRequest {
             message: "Summarize".into(),
-            system_prompt: Some("Use Tolaria conventions".into()),
+            system_prompt: Some("Use Sapientia conventions".into()),
             vault_path,
             vault_paths: Vec::new(),
             permission_mode: AiAgentPermissionMode::Safe,

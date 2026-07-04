@@ -5,7 +5,7 @@ URL: /reference/release-channels
 
 # Release Channels
 
-Tolaria publishes Stable and Alpha release metadata to GitHub Pages.
+Sapientia publishes Stable and Alpha release metadata to GitHub Pages.
 
 ## Stable
 

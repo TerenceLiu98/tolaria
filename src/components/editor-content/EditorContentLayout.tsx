@@ -410,6 +410,7 @@ function EditorCanvas({
           entries={entries}
           vaultPath={vaultPath}
           locale={locale}
+          onEditorChange={onEditorChange}
           onNavigateWikilink={onNavigateWikilink}
           onSelectedTextContextChange={onSelectedTextContextChange}
           onCopyFilePath={onCopyFilePath}

@@ -687,7 +687,7 @@ describe('App', () => {
     fireEvent.click(screen.getByTestId('status-build-number'))
 
     await waitFor(() => {
-      expect(screen.getByText('Tolaria 2026.4.25 is available')).toBeInTheDocument()
+      expect(screen.getByText('Sapientia 2026.4.25 is available')).toBeInTheDocument()
     })
   })
 
@@ -866,7 +866,7 @@ describe('App', () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText('Help improve Tolaria')).toBeInTheDocument()
+      expect(screen.getByText('Help improve Sapientia')).toBeInTheDocument()
     }, { timeout: SLOW_APP_READY_TIMEOUT_MS })
 
     fireEvent.click(screen.getByTestId('telemetry-accept'))
@@ -895,7 +895,7 @@ describe('App', () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText('Help improve Tolaria')).toBeInTheDocument()
+      expect(screen.getByText('Help improve Sapientia')).toBeInTheDocument()
     }, { timeout: SLOW_APP_READY_TIMEOUT_MS })
 
     fireEvent.click(screen.getByTestId(buttonTestId))
@@ -975,7 +975,7 @@ describe('App', () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText('Welcome to Tolaria')).toBeInTheDocument()
+      expect(screen.getByText('Welcome to Sapientia')).toBeInTheDocument()
     })
     expect(screen.getByTestId('welcome-open-folder')).toHaveTextContent('Open existing vault')
   })

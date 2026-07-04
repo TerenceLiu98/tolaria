@@ -193,12 +193,12 @@ mod tests {
     }
 
     #[test]
-    fn preferred_path_uses_tolaria_namespace() {
+    fn preferred_path_uses_sapientia_namespace() {
         let config_dir = absolute_temp_dir("tolaria-config-root");
         let path = preferred_path_in(&config_dir, "settings.json");
         assert_eq!(
             path,
-            config_dir.join("com.tolaria.app").join("settings.json")
+            config_dir.join("cc.cklau.sapientia").join("settings.json")
         );
     }
 

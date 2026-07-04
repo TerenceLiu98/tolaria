@@ -670,11 +670,11 @@ mod tests {
         let command_override = args
             .iter()
             .find(|arg| arg.starts_with("mcp_servers.tolaria.command="))
-            .expect("Codex should receive a transient Tolaria MCP command");
+            .expect("Codex should receive a transient Sapientia MCP command");
 
         assert!(
             !command_override.ends_with(r#""node""#),
-            "Codex MCP command should use Tolaria's resolved Node path, got {command_override}"
+            "Codex MCP command should use Sapientia's resolved Node path, got {command_override}"
         );
         assert!(
             command_override.contains('/'),

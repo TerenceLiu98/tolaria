@@ -1,155 +1,71 @@
-![Latest stable](https://img.shields.io/github/v/release/refactoringhq/tolaria?display_name=tag) [![CI](https://github.com/refactoringhq/tolaria/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/refactoringhq/tolaria/actions/workflows/ci.yml) [![Codecov](https://codecov.io/gh/refactoringhq/tolaria/graph/badge.svg?branch=main)](https://codecov.io/gh/refactoringhq/tolaria) [![CodeScene Hotspot Code Health](https://codescene.io/projects/76865/status-badges/hotspot-code-health)](https://codescene.io/projects/76865)
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="demo/logo-dark.svg">
+    <img alt="Sapientia" src="demo/logo-light.svg" width="120" height="120">
+  </picture>
 
-# 💧 Tolaria
+  <h1>Sapientia</h1>
 
-Tolaria is a desktop app for macOS, Windows, and Linux for managing **markdown knowledge bases**. People use it for a variety of use cases:
+  <p><strong>Human do Marginalia, AIs do Zettelkasten</strong></p>
 
-* Operate second brains and personal knowledge
-* Organize company docs as context for AI
-* Store OpenClaw/assistants memory and procedures
+  <p>
+    Sapientia is a local-first desktop research workspace. PDFs become Markdown Paper notes, comments stay beside the text, citations keep block-level provenance, and ordinary notes remain plain files you can read outside the app.
+  </p>
+</div>
 
-Personally, I use it to **run my life** (hey 👋 [Luca here](http://x.com/lucaronin)). I have a massive workspace of 10,000+ notes, which are the result of my [Refactoring](https://refactoring.fm/) work + a ton of personal journaling and *second braining*.
+## What Sapientia Is
 
-<img width="1000" height="656" alt="1776506856823-CleanShot_2026-04-18_at_12 06 57_2x" src="https://github.com/user-attachments/assets/8aeafb0a-b236-43c2-a083-ec111f903c38" />
+Sapientia builds on the Tolaria file-first desktop foundation and focuses it on research reading and writing:
 
-## Sponsors
+- **Paper as Note**: imported PDFs parse into readable Markdown Paper notes, not a separate proprietary reader format.
+- **Source provenance**: `source.pdf` remains immutable, while `paper.md`, `blocks.jsonl`, `annotations.jsonl`, and `metadata.json` keep derived state explicit and rebuildable.
+- **Block citations**: `@block[paper_id#block_id]` gives notes durable references back to exact Paper blocks.
+- **Comments outside source text**: comments attach to Paper block anchors and persist in `annotations.jsonl`; they do not rewrite the paper body.
+- **Metadata-aware library**: Paper metadata is extracted into frontmatter and sidecars so Papers can be searched, filtered, and deduplicated.
+- **AI with provenance**: paper-aware AI tools can search Papers, read exact blocks, and return compact evidence with citations.
 
-Tolaria is supported by a small panel of tools that help keep the project healthy, tested, and ready for AI-assisted development. I use these tools every day.
+## Philosophy
 
-<table>
-  <tr>
-    <td align="center" width="25%">
-      <a href="https://www.codacy.com/">
-        <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/refactoringhq/tolaria/main/site/public/landing/sponsors/codacy-light.svg">
-          <img src="https://raw.githubusercontent.com/refactoringhq/tolaria/main/site/public/landing/sponsors/codacy-dark.svg" alt="Codacy" height="32">
-        </picture>
-      </a>
-    </td>
-    <td align="center" width="25%">
-      <a href="https://codescene.com/">
-        <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/refactoringhq/tolaria/main/site/public/landing/sponsors/codescene-light.svg">
-          <img src="https://raw.githubusercontent.com/refactoringhq/tolaria/main/site/public/landing/sponsors/codescene-dark.svg" alt="CodeScene" height="32">
-        </picture>
-      </a>
-    </td>
-    <td align="center" width="25%">
-      <a href="https://circleci.com/">
-        <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/refactoringhq/tolaria/main/site/public/landing/sponsors/circleci-light.svg">
-          <img src="https://raw.githubusercontent.com/refactoringhq/tolaria/main/site/public/landing/sponsors/circleci-dark.svg" alt="CircleCI" height="32">
-        </picture>
-      </a>
-    </td>
-    <td align="center" width="25%">
-      <a href="https://getunblocked.com/">
-        <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/refactoringhq/tolaria/main/site/public/landing/sponsors/unblocked-light.svg">
-          <img src="https://raw.githubusercontent.com/refactoringhq/tolaria/main/site/public/landing/sponsors/unblocked-dark.svg" alt="Unblocked" height="32">
-        </picture>
-      </a>
-    </td>
-  </tr>
-</table>
+Sapientia keeps the parts of Tolaria that matter most:
 
-## Walkthroughs
+- **Files are the source of truth**. Markdown, YAML frontmatter, JSON sidecars, PDFs, and attachments live in your vault.
+- **Git is the sync/history layer**. Sapientia does not require a proprietary cloud service.
+- **Types are lenses, not schemas**. Types help browse and filter notes without locking your knowledge into a database.
+- **Research notes are normal notes**. Use ordinary `Note` files, wikilinks, backlinks, and block citations to connect ideas to Papers.
 
-You can find some Loom walkthroughs below — they are short and to the point:
-- [How I Organize My Own Tolaria Workspace](https://www.loom.com/share/bb3aaffa238b4be0bd62e4464bca2528)
-- [My Inbox Workflow](https://www.loom.com/share/dffda263317b4fa8b47b59cdf9330571)
-- [How I Save Web Resources to Tolaria](https://www.loom.com/share/8a3c1776f801402ebbf4d7b0f31e9882)
-
-## Principles
-
-- 📑 **Files-first** — Your notes are plain markdown files. They're portable, work with any editor, and require no export step. Your data belongs to you, not to any app.
-- 🔌 **Git-first** — Every vault is a git repository. You get full version history, the ability to use any git remote, and zero dependency on Tolaria servers.
-- 🛜 **Offline-first, zero lock-in** — No accounts, no subscriptions, no cloud dependencies. Your vault works completely offline and always will. If you stop using Tolaria, you lose nothing.
-- 🔬 **Open source** — Tolaria is free and open source. I built this for [myself](https://x.com/lucaronin) and for sharing it with others.
-- 📋 **Standards-based** — Notes are markdown files with YAML frontmatter. No proprietary formats, no locked-in data. Everything works with standard tools if you decide to move away from Tolaria.
-- 🔍 **Types as lenses, not schemas** — Types in Tolaria are navigation aids, not enforcement mechanisms. There's no required fields, no validation, just helpful categories for finding notes.
-- 🪄**AI-first but not AI-only** — A vault of files works very well with AI agents, but you are free to use whatever you want. We support Claude Code, Codex CLI, and Gemini CLI setup paths, but you can edit the vault with any AI you want. We provide an AGENTS file for your agents to figure out.
-- ⌨️ **Keyboard-first** — Tolaria is designed for power-users who want to use keyboard as much as possible. A lot of how we designed the Editor and the Command Palette is based on this.
-- 💪 **Built from real use** — Tolaria was created for manage my personal vault of 10,000+ notes, and I use it every day. Every feature exists because it solved a real problem.
-
-## Installation
-
-### Homebrew
-
-Install via Homebrew on macOS:
-
-```batch
-brew install --cask tolaria
-```
-
-### Download from releases
-
-Download the [latest release here](https://refactoringhq.github.io/tolaria/download/) for macOS, Windows, or Linux. Windows installers are Authenticode-signed; company-managed devices may still require IT approval of the Tolaria publisher before first install.
-
-## Getting started
-
-When you open Tolaria for the first time you get the chance of cloning the [getting started vault](https://github.com/refactoringhq/tolaria-getting-started) — which gives you a walkthrough of the whole app.
-
-The public user docs live in [`site/`](site/) and are published to GitHub Pages. Start with [Install Tolaria](site/start/install.md), then [First Launch](site/start/first-launch.md).
-
-## Open source and local setup
-
-Tolaria is open source and built with Tauri, React, and TypeScript. If you want to run or contribute to the app locally, here is [how to get started](https://github.com/refactoringhq/tolaria/blob/main/docs/GETTING-STARTED.md). You can also find the gist below 👇
-
-### Prerequisites
-
-- Node.js 20+
-- pnpm 8+
-- Rust stable
-- macOS or Linux for development
-
-#### Linux system dependencies
-
-Tauri 2 on Linux requires WebKit2GTK 4.1 and GTK 3:
-
-- Arch / Manjaro:
-  ```bash
-  sudo pacman -S --needed webkit2gtk-4.1 base-devel curl wget file openssl \
-    appmenu-gtk-module libappindicator-gtk3 librsvg
-  ```
-- Debian / Ubuntu (22.04+):
-  ```bash
-  sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
-    libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
-    libsoup-3.0-dev patchelf
-  ```
-- Fedora 38+:
-  ```bash
-  sudo dnf install webkit2gtk4.1-devel openssl-devel curl wget file \
-    libappindicator-gtk3-devel librsvg2-devel
-  ```
-
-The bundled MCP server still spawns the system `node` binary at runtime on Linux, so install Node from your distro package manager if you want the external AI tooling flow.
-
-### Quick start
+## Local Development
 
 ```bash
 pnpm install
-pnpm dev
-```
-
-Open `http://localhost:5173` for the browser-based mock mode, or run the native desktop app with:
-
-```bash
 pnpm tauri dev
 ```
 
-## Tech Docs
+Useful checks:
 
-- 📐 [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System design, tech stack, data flow
-- 🧩 [ABSTRACTIONS.md](docs/ABSTRACTIONS.md) — Core abstractions and models
-- 🚀 [GETTING-STARTED.md](docs/GETTING-STARTED.md) — How to navigate the codebase
-- 📚 [ADRs](docs/adr) — Architecture Decision Records
+```bash
+pnpm lint
+pnpm build
+pnpm test
+cargo test --manifest-path src-tauri/Cargo.toml
+```
 
-## Security
+## Repository Layout
 
-If you believe you have found a security issue, please report it privately as described in [SECURITY.md](./SECURITY.md).
+- `src/`: React frontend and shared TypeScript logic.
+- `src-tauri/`: Tauri shell, Rust commands, parser/storage helpers, and bundled resources.
+- `docs/`: architecture notes, ADRs, and product design notes.
+- `site/`: public documentation site.
+- `mcp-server/`: MCP tools for vault and paper-aware AI access.
 
-## License
+## License And Upstream Attribution
 
-Tolaria is licensed under AGPL-3.0-or-later. The Tolaria name and logo remain covered by the project’s trademark policy.
+Sapientia is licensed under **AGPL-3.0-or-later**, the same license used by Tolaria. The full license text is in [LICENSE](LICENSE), and upstream attribution is recorded in [NOTICE.md](NOTICE.md).
+
+In practical terms, keep these obligations in mind when distributing Sapientia or modified versions:
+
+- Preserve the AGPL license text and copyright/license notices.
+- Make the corresponding source code available under AGPL-3.0-or-later when you distribute the app.
+- If the software is modified and offered over a network, AGPL source-availability obligations still apply.
+- Keep the upstream Tolaria attribution, but do not reuse Tolaria's name or logo as Sapientia branding.
+
+This section is a practical engineering summary, not legal advice.

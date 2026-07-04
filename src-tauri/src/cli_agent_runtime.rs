@@ -427,7 +427,7 @@ fn with_stdin_write_error(mut stderr_output: String, stdin_write_error: Option<S
 fn format_spawn_error(process_name: &str, error: &std::io::Error) -> String {
     if error.kind() == std::io::ErrorKind::NotFound {
         return format!(
-            "Failed to start {process_name}: the CLI or one of its runtime dependencies was not found. If it was installed with Homebrew, make sure /opt/homebrew/bin or /usr/local/bin contains the CLI and Node.js, then restart Tolaria. Details: {error}"
+            "Failed to start {process_name}: the CLI or one of its runtime dependencies was not found. If it was installed with Homebrew, make sure /opt/homebrew/bin or /usr/local/bin contains the CLI and Node.js, then restart Sapientia. Details: {error}"
         );
     }
 

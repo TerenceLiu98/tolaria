@@ -56,7 +56,7 @@ impl RemoteConnection {
 
     fn pushed_history_message(&self) -> String {
         format!(
-            "Remote connected. Tolaria pushed your local commits and is now tracking {}.",
+            "Remote connected. Sapientia pushed your local commits and is now tracking {}.",
             self.remote_branch
         )
     }
@@ -103,7 +103,7 @@ pub fn git_add_remote(vault_path: &str, remote_url: &str) -> Result<GitAddRemote
     if branch.is_empty() {
         return Ok(connect_result(
             ConnectStatus::Error,
-            "Tolaria could not determine the current branch for this vault.",
+            "Sapientia could not determine the current branch for this vault.",
         ));
     }
     let connection = RemoteConnection::new(branch);
@@ -163,7 +163,7 @@ fn finish_remote_connection(vault: &Path, connection: &RemoteConnection) -> GitA
         return connect_result(
             ConnectStatus::IncompatibleHistory,
             format!(
-                "This repository already has commits on '{}' that are not in this vault. Tolaria will not connect it automatically.",
+                "This repository already has commits on '{}' that are not in this vault. Sapientia will not connect it automatically.",
                 connection.branch
             ),
         );

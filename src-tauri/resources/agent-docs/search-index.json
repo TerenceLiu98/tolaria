@@ -13,7 +13,7 @@
     "section": "start",
     "headings": [
       "What You Choose",
-      "What Tolaria Creates",
+      "What Sapientia Creates",
       "First Commands To Try",
       "AI Setup Prompt"
     ]
@@ -31,7 +31,7 @@
     ]
   },
   {
-    "title": "Install Tolaria",
+    "title": "Install Sapientia",
     "path": "pages/start/install.md",
     "url": "/start/install",
     "section": "start",
@@ -98,7 +98,7 @@
     "url": "/concepts/git",
     "section": "concepts",
     "headings": [
-      "What Tolaria Uses Git For",
+      "What Sapientia Uses Git For",
       "History And Diffs",
       "Local Commits",
       "Remotes"
@@ -459,7 +459,7 @@
     "section": "reference",
     "headings": [
       "Basic Syntax",
-      "Tolaria Cross-Sheet References",
+      "Sapientia Cross-Sheet References",
       "Autocomplete Functions",
       "Logical",
       "Math and trigonometry",

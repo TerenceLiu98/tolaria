@@ -499,7 +499,7 @@ fn resolve_openalex_metadata(
         })?;
     let response = client
         .get(&request.url)
-        .header("User-Agent", "Tolaria Paper Metadata Resolver")
+        .header("User-Agent", "Sapientia Paper Metadata Resolver")
         .send()
         .map_err(|error| PaperMetadataError {
             provider: "openalex".to_string(),

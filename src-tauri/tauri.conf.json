@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Tolaria",
+  "productName": "Sapientia",
   "version": "0.1.0",
-  "identifier": "club.refactoring.tolaria",
+  "identifier": "cc.cklau.sapientia",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5202",
@@ -14,7 +14,7 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "Tolaria",
+        "title": "Sapientia",
         "width": 1400,
         "height": 900,
         "minWidth": 480,
@@ -77,12 +77,12 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["tolaria"]
+        "schemes": ["sapientia"]
       }
     },
     "updater": {
       "endpoints": [
-        "https://refactoringhq.github.io/tolaria/stable/latest.json"
+        "https://github.com/TerenceLiu98/sapientia/releases/latest/download/stable-latest.json"
       ],
       "windows": {
         "installMode": "passive"

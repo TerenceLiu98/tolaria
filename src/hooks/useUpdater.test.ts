@@ -306,7 +306,7 @@ describe('useUpdater', () => {
     })
 
     expect(mockOpenExternalUrl).toHaveBeenCalledWith(
-      'https://tolaria.md/releases/'
+      'https://github.com/TerenceLiu98/sapientia/releases'
     )
   })
 

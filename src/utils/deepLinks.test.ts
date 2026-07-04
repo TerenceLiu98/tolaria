@@ -18,7 +18,7 @@ const personalVault: DeepLinkVault = {
   path: '/Users/luca/Personal Vault',
 }
 
-describe('Tolaria deep links', () => {
+describe('Sapientia deep links', () => {
   it('builds readable links with extensions and encoded path segments', () => {
     const result = buildTolariaDeepLinkForEntry({
       entry: { path: '/Users/luca/Work Vault/sponsorships/Acme call #1.md' },
@@ -28,12 +28,12 @@ describe('Tolaria deep links', () => {
 
     expect(result).toEqual({
       ok: true,
-      url: 'tolaria://work-vault/sponsorships/Acme%20call%20%231.md',
+      url: 'sapientia://work-vault/sponsorships/Acme%20call%20%231.md',
     })
   })
 
   it('round-trips unicode and URL-reserved path characters', () => {
-    const url = 'tolaria://work-vault/books/Caf%C3%A9%20%26%20notes%3F%25.md'
+    const url = 'sapientia://work-vault/books/Caf%C3%A9%20%26%20notes%3F%25.md'
     expect(parseTolariaDeepLink({ rawUrl: url })).toEqual({
       ok: true,
       relativePath: 'books/Café & notes?%.md',
@@ -59,7 +59,7 @@ describe('Tolaria deep links', () => {
     const second = { label: 'Work', path: '/Users/luca/Two' }
     const slug = vaultDeepLinkSlug(second, [first, second])
 
-    expect(resolveTolariaDeepLink({ rawUrl: `tolaria://${slug}/note.md`, vaults: [first, second] })).toEqual({
+    expect(resolveTolariaDeepLink({ rawUrl: `sapientia://${slug}/note.md`, vaults: [first, second] })).toEqual({
       ok: true,
       absolutePath: '/Users/luca/Two/note.md',
       relativePath: 'note.md',
@@ -71,19 +71,19 @@ describe('Tolaria deep links', () => {
     const first = { label: 'Work', path: '/Users/luca/One' }
     const second = { label: 'Work', path: '/Users/luca/Two' }
 
-    expect(resolveTolariaDeepLink({ rawUrl: 'tolaria://work/note.md', vaults: [first, second] })).toEqual({
+    expect(resolveTolariaDeepLink({ rawUrl: 'sapientia://work/note.md', vaults: [first, second] })).toEqual({
       ok: false,
       error: 'ambiguous_vault',
     })
   })
 
   it('rejects unknown and unavailable vaults', () => {
-    expect(resolveTolariaDeepLink({ rawUrl: 'tolaria://missing/note.md', vaults: [workVault] })).toEqual({
+    expect(resolveTolariaDeepLink({ rawUrl: 'sapientia://missing/note.md', vaults: [workVault] })).toEqual({
       ok: false,
       error: 'unknown_vault',
     })
     expect(resolveTolariaDeepLink({
-      rawUrl: 'tolaria://work-vault/note.md',
+      rawUrl: 'sapientia://work-vault/note.md',
       vaults: [{ ...workVault, available: false }],
     })).toEqual({
       ok: false,
@@ -92,11 +92,11 @@ describe('Tolaria deep links', () => {
   })
 
   it('rejects path traversal and encoded separators', () => {
-    expect(parseTolariaDeepLink({ rawUrl: 'tolaria://work-vault/../secret.md' })).toEqual({
+    expect(parseTolariaDeepLink({ rawUrl: 'sapientia://work-vault/../secret.md' })).toEqual({
       ok: false,
       error: 'unsafe_path',
     })
-    expect(parseTolariaDeepLink({ rawUrl: 'tolaria://work-vault/folder%2Fsecret.md' })).toEqual({
+    expect(parseTolariaDeepLink({ rawUrl: 'sapientia://work-vault/folder%2Fsecret.md' })).toEqual({
       ok: false,
       error: 'unsafe_path',
     })

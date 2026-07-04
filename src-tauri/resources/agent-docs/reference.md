@@ -5,15 +5,15 @@ URL: /reference/contribute
 
 # Contribute
 
-Tolaria is free and open source, and any kind of help is useful. Pick the path that matches what you want to do.
+Sapientia is free and open source, and any kind of help is useful. Pick the path that matches what you want to do.
 
 ## Newsletter
 
-[Refactoring](https://refactoring.fm/) is Luca's newsletter and community for engineers building better teams and software with AI. Subscribing is the best way to support Tolaria.
+[Refactoring](https://refactoring.fm/) is Luca's newsletter and community for engineers building better teams and software with AI. Subscribing is the best way to support Sapientia.
 
 ## Sponsors
 
-Tolaria is supported by a panel of tools Luca uses every day to keep the project healthy, tested, and ready for AI-assisted development:
+Sapientia is supported by a panel of tools Luca uses every day to keep the project healthy, tested, and ready for AI-assisted development:
 
 - [Codacy](https://www.codacy.com/)
 - [CodeScene](https://codescene.com/)
@@ -26,15 +26,15 @@ Use the [product board](https://tolaria.canny.io/) for feature ideas. Search fir
 
 ## Discussions
 
-Use [GitHub Discussions](https://github.com/refactoringhq/tolaria/discussions) for questions, conversations, show and tell, and broader community context.
+Use [GitHub Discussions](https://github.com/TerenceLiu98/sapientia/discussions) for questions, conversations, show and tell, and broader community context.
 
 ## Contribute Code
 
-Small, focused pull requests are welcome. Check the product board first so you build the right thing, then open a PR on [GitHub](https://github.com/refactoringhq/tolaria/pulls). The [contributing guide](https://github.com/refactoringhq/tolaria/blob/main/CONTRIBUTING.md) explains the local workflow.
+Small, focused pull requests are welcome. Check the product board first so you build the right thing, then open a PR on [GitHub](https://github.com/TerenceLiu98/sapientia/pulls). The [contributing guide](https://github.com/TerenceLiu98/sapientia/blob/main/CONTRIBUTING.md) explains the local workflow.
 
 ## Report A Bug
 
-Use [GitHub Issues](https://github.com/refactoringhq/tolaria/issues) for bugs. Include what happened, what you expected, and clear reproduction steps. If you are reporting from inside Tolaria, use the Contribute panel to copy sanitized diagnostics and attach them to the issue.
+Use [GitHub Issues](https://github.com/TerenceLiu98/sapientia/issues) for bugs. Include what happened, what you expected, and clear reproduction steps. If you are reporting from inside Sapientia, use the Contribute panel to copy sanitized diagnostics and attach them to the issue.
 
 ---
 
@@ -91,7 +91,7 @@ URL: /reference/file-layout
 
 # File Layout
 
-Tolaria is not opinionated about folder structure. It finds notes recursively across the whole vault, stores new notes in the root by default, and uses types and relationships for real organization.
+Sapientia is not opinionated about folder structure. It finds notes recursively across the whole vault, stores new notes in the root by default, and uses types and relationships for real organization.
 
 ```txt
 my-vault/
@@ -110,9 +110,9 @@ my-vault/
 
 ## Root Notes
 
-Tolaria works well with a flat vault. Folders are optional and can be useful for compatibility with other tools, but they are not required for people, projects, topics, or any other note category.
+Sapientia works well with a flat vault. Folders are optional and can be useful for compatibility with other tools, but they are not required for people, projects, topics, or any other note category.
 
-Type is not inferred from folder location. It comes from frontmatter, and relationships are expressed with wikilinks in fields. That is what Tolaria uses for the sidebar, Properties panel, search, custom views, and neighborhood navigation.
+Type is not inferred from folder location. It comes from frontmatter, and relationships are expressed with wikilinks in fields. That is what Sapientia uses for the sidebar, Properties panel, search, custom views, and neighborhood navigation.
 
 ## Special Folders
 
@@ -131,7 +131,7 @@ Type definitions are Markdown notes with `type: Type` in frontmatter. New type d
 
 ## Git Files
 
-If the vault is a Git repository, `.git/` belongs to Git. Tolaria reads Git state but does not treat `.git/` as notes.
+If the vault is a Git repository, `.git/` belongs to Git. Sapientia reads Git state but does not treat `.git/` as notes.
 
 ---
 
@@ -142,7 +142,7 @@ URL: /reference/frontmatter-fields
 
 # Frontmatter Fields
 
-Tolaria uses conventions instead of a required schema.
+Sapientia uses conventions instead of a required schema.
 
 | Field | Meaning |
 | --- | --- |
@@ -163,7 +163,7 @@ Tolaria uses conventions instead of a required schema.
 
 ## Custom Fields
 
-You can add your own fields. If a field contains wikilinks, Tolaria can treat it as a relationship.
+You can add your own fields. If a field contains wikilinks, Sapientia can treat it as a relationship.
 
 ## System Fields
 
@@ -212,7 +212,7 @@ URL: /reference/release-channels
 
 # Release Channels
 
-Tolaria publishes Stable and Alpha release metadata to GitHub Pages.
+Sapientia publishes Stable and Alpha release metadata to GitHub Pages.
 
 ## Stable
 
@@ -294,7 +294,7 @@ The frontmatter stores note metadata. The body stores rows and cells. There is n
 
 ## Frontmatter
 
-All ordinary Tolaria fields remain available:
+All ordinary Sapientia fields remain available:
 
 - `type`
 - `status`
@@ -305,7 +305,7 @@ All ordinary Tolaria fields remain available:
 
 The `_display: sheet` field is the display-as marker. Omit it for ordinary text notes.
 
-The `_sheet` key is reserved for spreadsheet presentation metadata. It follows the same system-field convention as other underscore-prefixed Tolaria fields: hidden from normal property editing, but visible and editable in raw source.
+The `_sheet` key is reserved for spreadsheet presentation metadata. It follows the same system-field convention as other underscore-prefixed Sapientia fields: hidden from normal property editing, but visible and editable in raw source.
 
 ## Body
 
@@ -321,7 +321,7 @@ Any cell whose input starts with `=` is treated as a formula. Other cells are tr
 
 ## `_sheet` Metadata
 
-Tolaria stores spreadsheet presentation state in `_sheet` as plain YAML.
+Sapientia stores spreadsheet presentation state in `_sheet` as plain YAML.
 
 | Field | Meaning |
 | --- | --- |
@@ -370,7 +370,7 @@ These formats affect presentation, not the underlying cell input in the CSV body
 
 ## Markdown Style Import
 
-When Tolaria imports a non-formula CSV cell, simple Markdown wrappers can seed initial styles:
+When Sapientia imports a non-formula CSV cell, simple Markdown wrappers can seed initial styles:
 
 | Cell text | Stored value | Style |
 | --- | --- | --- |
@@ -383,7 +383,7 @@ After save, the style belongs in `_sheet` metadata and the body keeps the unwrap
 
 ## Wikilinks
 
-Non-formula cells can store normal Tolaria wikilinks:
+Non-formula cells can store normal Sapientia wikilinks:
 
 ```csv
 Account,Source
@@ -391,7 +391,7 @@ Newsletter,[[newsletter-revenue]]
 Sponsors,[[sponsorship-pipeline]]
 ```
 
-Formula cells can reference another sheet note with Tolaria's cross-sheet syntax:
+Formula cells can reference another sheet note with Sapientia's cross-sheet syntax:
 
 ```txt
 =[[newsletter-revenue]].B5
@@ -404,7 +404,7 @@ Cross-sheet references resolve another sheet note by wikilink target, then read 
 
 When editing a sheet note programmatically:
 
-- preserve the YAML frontmatter delimiter and ordinary Tolaria fields
+- preserve the YAML frontmatter delimiter and ordinary Sapientia fields
 - keep `_display: sheet` when the file should display as a spreadsheet
 - keep spreadsheet presentation state under `_sheet`
 - parse and serialize the body as CSV, not by splitting on every comma manually
@@ -425,9 +425,9 @@ URL: /reference/spreadsheet-functions
 
 # Spreadsheet Formulas
 
-Formula cells start with `=` and are evaluated by IronCalc through Tolaria's sheet editor.
+Formula cells start with `=` and are evaluated by IronCalc through Sapientia's sheet editor.
 
-Tolaria adds vault-aware sheet references on top of the normal spreadsheet formula model. Everything else should be treated as IronCalc formula behavior. IronCalc aims for Excel-compatible formulas, but the upstream project is still evolving, so verify advanced formulas against the IronCalc docs when precision matters.
+Sapientia adds vault-aware sheet references on top of the normal spreadsheet formula model. Everything else should be treated as IronCalc formula behavior. IronCalc aims for Excel-compatible formulas, but the upstream project is still evolving, so verify advanced formulas against the IronCalc docs when precision matters.
 
 ## Basic Syntax
 
@@ -449,9 +449,9 @@ Use parentheses when a model depends on precedence:
 =(B2+B3-B4)/B5
 ```
 
-## Tolaria Cross-Sheet References
+## Sapientia Cross-Sheet References
 
-Tolaria supports wikilink cell references for values that live in another sheet note:
+Sapientia supports wikilink cell references for values that live in another sheet note:
 
 ```txt
 =[[newsletter-revenue]].B5
@@ -459,7 +459,7 @@ Tolaria supports wikilink cell references for values that live in another sheet 
 =ROUND([[business-plan]].$E$12, 2)
 ```
 
-The target inside `[[...]]` resolves like a normal Tolaria wikilink. The cell address after the dot uses A1 notation.
+The target inside `[[...]]` resolves like a normal Sapientia wikilink. The cell address after the dot uses A1 notation.
 
 Absolute markers follow spreadsheet copy behavior:
 
@@ -474,7 +474,7 @@ Cross-sheet references currently resolve single cells. Keep range formulas insid
 
 ## Autocomplete Functions
 
-Tolaria's formula autocomplete exposes the implemented function catalog from the bundled IronCalc engine. The current catalog has 195 functions.
+Sapientia's formula autocomplete exposes the implemented function catalog from the bundled IronCalc engine. The current catalog has 195 functions.
 
 The dropdown shows a small ranked set of matches while you type. Keep typing to narrow the result list. Function names with digits and dots, such as `BIN2DEC` and `ERFC.PRECISE`, are supported.
 
@@ -579,7 +579,7 @@ Format the result as a percentage with a cell `num_fmt` such as `0.00%`.
 
 ## IronCalc Function Families
 
-IronCalc documents formulas by category. Use these upstream pages for detailed syntax and examples. The upstream documentation may include newer functions that are not yet present in Tolaria's bundled IronCalc version.
+IronCalc documents formulas by category. Use these upstream pages for detailed syntax and examples. The upstream documentation may include newer functions that are not yet present in Sapientia's bundled IronCalc version.
 
 | Family | Link |
 | --- | --- |
@@ -607,7 +607,7 @@ URL: /reference/supported-platforms
 
 # Supported Platforms
 
-Tolaria is a desktop app built with Tauri. Releases currently target macOS, Windows, and Linux.
+Sapientia is a desktop app built with Tauri. Releases currently target macOS, Windows, and Linux.
 
 | Platform | Current support | Notes |
 | --- | --- | --- |
@@ -623,7 +623,7 @@ Primary support means the platform is part of normal development and release val
 
 Include:
 
-- Tolaria version.
+- Sapientia version.
 - Operating system and version.
 - CPU architecture.
 - Whether the vault is local-only or connected to a remote.

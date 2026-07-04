@@ -17,6 +17,7 @@ import {
 } from './SingleEditorView.testUtils'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactElement } from 'react'
 import type { VaultEntry } from '../types'
 import { RUNTIME_STYLE_NONCE } from '../lib/runtimeStyleNonce'
 import { insertPlainTextFromClipboardText } from '../utils/plainTextPaste'
@@ -57,6 +58,7 @@ describe('SingleEditorView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     state.capturedLinkToolbarProps = null
+    state.capturedTolariaFormattingToolbarProps = null
     state.capturedToolbarProps = null
     state.capturedSuggestionProps = {}
     state.capturedImageDropArgs = null
@@ -232,6 +234,8 @@ describe('SingleEditorView', () => {
       floatingUIOptions: expect.objectContaining({
         elementProps: expect.objectContaining({
           onMouseDownCapture: expect.any(Function),
+          onPointerDownCapture: expect.any(Function),
+          onClickCapture: expect.any(Function),
         }),
       }),
     }))
@@ -243,12 +247,17 @@ describe('SingleEditorView', () => {
     menuTrigger.setAttribute('aria-haspopup', 'menu')
     const menuPreventDefault = vi.fn()
     onMouseDownCapture({ target: menuTrigger, preventDefault: menuPreventDefault })
-    expect(menuPreventDefault).not.toHaveBeenCalled()
+    expect(menuPreventDefault).toHaveBeenCalledOnce()
 
     const normalTarget = document.createElement('div')
     const normalPreventDefault = vi.fn()
     onMouseDownCapture({ target: normalTarget, preventDefault: normalPreventDefault })
     expect(normalPreventDefault).toHaveBeenCalledOnce()
+
+    const toolbarButton = document.createElement('button')
+    const toolbarButtonPreventDefault = vi.fn()
+    onMouseDownCapture({ target: toolbarButton, preventDefault: toolbarButtonPreventDefault })
+    expect(toolbarButtonPreventDefault).toHaveBeenCalledOnce()
 
     const linkToolbarMouseDownCapture = (
       (state.capturedLinkToolbarProps?.floatingUIOptions as { elementProps: { onMouseDownCapture: (event: { target: HTMLElement; preventDefault: () => void }) => void } })
@@ -270,6 +279,97 @@ describe('SingleEditorView', () => {
 
     expect(onWikiItemClick).toHaveBeenCalledOnce()
     expect(onMentionItemClick).toHaveBeenCalledOnce()
+  })
+
+  it('does not refresh selected AI context while the formatting toolbar is being clicked', () => {
+    const editor = createEditor()
+    const sourceEntry = makeEntry({
+      path: '/vault/note.md',
+      title: 'Toolbar Note',
+    })
+    const onSelectedTextContextChange = vi.fn()
+    render(
+      <SingleEditorView
+        editor={editor as never}
+        entries={[sourceEntry]}
+        onNavigateWikilink={vi.fn()}
+        onSelectedTextContextChange={onSelectedTextContextChange}
+        sourceEntry={sourceEntry}
+      />,
+      { wrapper: TooltipProvider },
+    )
+
+    const blockNoteView = screen.getByTestId('blocknote-view')
+    const range = document.createRange()
+    range.setStart(blockNoteView, 0)
+    range.collapse(true)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+
+    const elementProps = (
+      state.capturedToolbarProps?.floatingUIOptions as {
+        elementProps: {
+          onMouseDownCapture: (event: { target: HTMLElement; preventDefault: () => void }) => void
+        }
+      }
+    ).elementProps
+    const toolbarButton = document.createElement('button')
+    elementProps.onMouseDownCapture({ target: toolbarButton, preventDefault: vi.fn() })
+    document.dispatchEvent(new Event('selectionchange'))
+
+    expect(onSelectedTextContextChange).not.toHaveBeenCalled()
+  })
+
+  it('attaches selected text to AI context only through the formatting toolbar action', () => {
+    const editor = createEditor()
+    const sourceEntry = makeEntry({
+      path: '/vault/note.md',
+      title: 'Toolbar Note',
+    })
+    const onSelectedTextContextChange = vi.fn()
+    render(
+      <SingleEditorView
+        editor={editor as never}
+        entries={[sourceEntry]}
+        onNavigateWikilink={vi.fn()}
+        onSelectedTextContextChange={onSelectedTextContextChange}
+        sourceEntry={sourceEntry}
+      />,
+      { wrapper: TooltipProvider },
+    )
+
+    const blockNoteView = screen.getByTestId('blocknote-view')
+    const textNode = document.createTextNode('Attach this text')
+    blockNoteView.appendChild(textNode)
+    const range = document.createRange()
+    range.selectNodeContents(textNode)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+
+    expect(onSelectedTextContextChange).not.toHaveBeenCalled()
+
+    const formattingToolbar = state.capturedToolbarProps?.formattingToolbar as
+      | ((props: Record<string, unknown>) => ReactElement)
+      | undefined
+    expect(formattingToolbar).toBeDefined()
+    render(formattingToolbar?.({}) ?? <div />)
+    const onAttachSelectedTextContext = state.capturedTolariaFormattingToolbarProps
+      ?.onAttachSelectedTextContext as ((text: string) => void) | undefined
+    expect(onAttachSelectedTextContext).toBeDefined()
+
+    act(() => {
+      onAttachSelectedTextContext?.('Attach this text')
+    })
+
+    expect(onSelectedTextContextChange).toHaveBeenCalledWith({
+      kind: 'text',
+      entryPath: '/vault/note.md',
+      entryTitle: 'Toolbar Note',
+      text: 'Attach this text',
+    })
   })
 
   it('renders when a reload returns an entry with missing suggestion metadata', () => {

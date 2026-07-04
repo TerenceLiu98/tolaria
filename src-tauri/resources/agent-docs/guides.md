@@ -64,7 +64,7 @@ URL: /guides/commit-and-push
 
 # Manage Git Manually Or With AutoGit
 
-Tolaria can act as a lightweight Git client for a Git-enabled vault. You can manage commits and pushes yourself, or enable AutoGit to create conservative checkpoints after editing pauses or when the app is no longer active.
+Sapientia can act as a lightweight Git client for a Git-enabled vault. You can manage commits and pushes yourself, or enable AutoGit to create conservative checkpoints after editing pauses or when the app is no longer active.
 
 ## Manual Git
 
@@ -78,7 +78,7 @@ If the remote has changed, pull first and resolve any conflicts. If the vault ha
 
 ## AutoGit
 
-AutoGit is available in Settings for Git-enabled vaults. When enabled, Tolaria automatically commits and pushes saved local changes after an idle pause or after the app becomes inactive.
+AutoGit is available in Settings for Git-enabled vaults. When enabled, Sapientia automatically commits and pushes saved local changes after an idle pause or after the app becomes inactive.
 
 Use AutoGit when you want the safety of regular checkpoints without interrupting capture or editing. You can still inspect each note's current diff, review note history, and browse the whole-vault history before making larger manual commits.
 
@@ -105,7 +105,7 @@ Local model targets are for tools such as Ollama and LM Studio. They usually nee
 
 API model targets are for hosted providers such as OpenAI, Anthropic, Gemini, OpenRouter, or another OpenAI-compatible endpoint.
 
-Tolaria does not store provider API keys in vault settings. Choose one of the supported key paths:
+Sapientia does not store provider API keys in vault settings. Choose one of the supported key paths:
 
 - Save the key locally on this device.
 - Read the key from an environment variable.
@@ -113,7 +113,7 @@ Tolaria does not store provider API keys in vault settings. Choose one of the su
 
 ## Test The Connection
 
-After adding a provider, use the test action in Settings. A successful test means Tolaria reached the endpoint and the model replied.
+After adding a provider, use the test action in Settings. A successful test means Sapientia reached the endpoint and the model replied.
 
 ## Select The Target
 
@@ -132,7 +132,7 @@ Connect a remote when you want backup or sync beyond the current machine.
 
 ## Before You Start
 
-Make sure the remote repository exists and your system Git can authenticate to it. Tolaria uses system Git rather than storing provider-specific credentials.
+Make sure the remote repository exists and your system Git can authenticate to it. Sapientia uses system Git rather than storing provider-specific credentials.
 
 ## Steps
 
@@ -221,7 +221,7 @@ An individual note can override the default width from the editor toolbar. That 
 
 ## Sidebar Labels
 
-Tolaria can pluralize type names in the sidebar. Turn this off in Settings if your type names should be shown exactly as written, or use `_sidebar_label` on a type document for an explicit label.
+Sapientia can pluralize type names in the sidebar. Turn this off in Settings if your type names should be shown exactly as written, or use `_sidebar_label` on a type document for an explicit label.
 
 ## Vault Content
 
@@ -242,7 +242,7 @@ Inbox review turns quick captures into usable knowledge.
 
 When a note is organized enough, mark it as organized. Use `Cmd+E` on macOS or `Ctrl+E` on Windows and Linux, or click the organize action in the breadcrumb bar.
 
-That action is what removes the note from Inbox. If auto-advance is enabled in Settings > Workflow, Tolaria opens the next Inbox item immediately after you mark the current note organized.
+That action is what removes the note from Inbox. If auto-advance is enabled in Settings > Workflow, Sapientia opens the next Inbox item immediately after you mark the current note organized.
 
 ## Review Checklist
 
@@ -275,7 +275,7 @@ URL: /guides/use-ai-panel
 
 # Use The AI
 
-Tolaria gives you two ways to ask for AI help: open the AI panel for an ongoing conversation, or prompt directly from the editor with `Cmd+K` followed by a space.
+Sapientia gives you two ways to ask for AI help: open the AI panel for an ongoing conversation, or prompt directly from the editor with `Cmd+K` followed by a space.
 
 ## Choose How To Prompt
 
@@ -290,7 +290,7 @@ Open Settings and choose the default AI target:
 - **Local model** for Ollama or LM Studio chat over note context.
 - **API model** for OpenAI, Anthropic, Gemini, OpenRouter, or an OpenAI-compatible endpoint.
 
-If a coding agent is missing, install it and reopen Tolaria or switch to another target.
+If a coding agent is missing, install it and reopen Sapientia or switch to another target.
 
 ## Permission Mode
 
@@ -310,7 +310,7 @@ Direct model targets always stay in chat mode. They can use note context, but th
 
 ## Review Changes
 
-AI edits are file edits. Review them with Tolaria's diff and Git history before committing.
+AI edits are file edits. Review them with Sapientia's diff and Git history before committing.
 
 ---
 
@@ -321,7 +321,7 @@ URL: /guides/use-command-palette
 
 # Use The Command Palette
 
-The command palette is the fastest way to move around Tolaria.
+The command palette is the fastest way to move around Sapientia.
 
 Open it with:
 
@@ -355,11 +355,11 @@ URL: /guides/use-media-previews
 
 # Use Media Previews
 
-Media previews let you inspect vault files without leaving Tolaria.
+Media previews let you inspect vault files without leaving Sapientia.
 
 ## Open A File
 
-Select an image, PDF, media file, or unsupported file from a folder or file list. Tolaria opens supported files in the app and offers an external-open action for files that should use the system default app.
+Select an image, PDF, media file, or unsupported file from a folder or file list. Sapientia opens supported files in the app and offers an external-open action for files that should use the system default app.
 
 ## All Notes Visibility
 
@@ -373,7 +373,7 @@ Folder browsing still shows files in their folders even when a category is hidde
 
 ## Attachments
 
-When you paste or drop an image into a note, Tolaria copies it into the vault and references the copied file from Markdown.
+When you paste or drop an image into a note, Sapientia copies it into the vault and references the copied file from Markdown.
 
 ## Troubleshooting
 
@@ -388,18 +388,18 @@ URL: /guides/use-spreadsheets
 
 # Use Spreadsheets
 
-Tolaria spreadsheets are sheet notes: Markdown files with frontmatter and a CSV-like body that open in a spreadsheet editor when their `Display as` value is `Sheet`.
+Sapientia spreadsheets are sheet notes: Markdown files with frontmatter and a CSV-like body that open in a spreadsheet editor when their `Display as` value is `Sheet`.
 
 Use a sheet note when a model needs rows, columns, calculations, or repeated numeric editing. Use a normal note when the main artifact is prose.
 
 ## Create A Sheet
 
-Use the command palette action `New Sheet`, or create/open a note and set its `Display as` to `Sheet` from the Properties panel. `Type` remains separate and can still be `Note`, `Project`, `Responsibility`, or any other Tolaria type.
+Use the command palette action `New Sheet`, or create/open a note and set its `Display as` to `Sheet` from the Properties panel. `Type` remains separate and can still be `Note`, `Project`, `Responsibility`, or any other Sapientia type.
 
 When a note is a sheet:
 
 - the YAML frontmatter remains available for type, status, relationships, wikilinks, and custom properties
-- `_display: sheet` tells Tolaria to display the note with the spreadsheet editor
+- `_display: sheet` tells Sapientia to display the note with the spreadsheet editor
 - the body is the sheet itself
 - there is no rich-text body around the table
 - the editor switches from the text editor to the spreadsheet editor
@@ -423,7 +423,7 @@ Formulas start with `=`.
 =IF(E6>0, "Up", "Down")
 ```
 
-Tolaria shows inline formula autocomplete while you type. The autocomplete list is built from the implemented function catalog in the bundled IronCalc engine; formula evaluation is still handled by IronCalc.
+Sapientia shows inline formula autocomplete while you type. The autocomplete list is built from the implemented function catalog in the bundled IronCalc engine; formula evaluation is still handled by IronCalc.
 
 See [Spreadsheet Formulas](/reference/spreadsheet-functions) for syntax, supported examples, and links to the full IronCalc formula reference.
 
@@ -470,13 +470,13 @@ Project,Owner,Status
 [[sponsorship-pipeline]],[[person/matteo]],Review
 ```
 
-When the cell is not being edited, Tolaria renders the wikilink like other note links. When you edit the cell, the raw `[[wikilink]]` syntax is shown again.
+When the cell is not being edited, Sapientia renders the wikilink like other note links. When you edit the cell, the raw `[[wikilink]]` syntax is shown again.
 
 Command-click a wikilink in a sheet cell to open the linked note.
 
 ## Reference Another Sheet Note
 
-Formulas can read a cell from another sheet note with Tolaria's wikilink cell syntax:
+Formulas can read a cell from another sheet note with Sapientia's wikilink cell syntax:
 
 ```txt
 =[[newsletter-revenue]].B5
@@ -484,7 +484,7 @@ Formulas can read a cell from another sheet note with Tolaria's wikilink cell sy
 =ROUND([[business-plan]].$E$12, 2)
 ```
 
-The part inside `[[...]]` resolves like a normal Tolaria wikilink. The part after the dot is an A1-style cell reference.
+The part inside `[[...]]` resolves like a normal Sapientia wikilink. The part after the dot is an A1-style cell reference.
 
 Use absolute markers when copying formulas:
 
@@ -543,7 +543,7 @@ Use the editor toolbar, the command palette, or the shortcut:
 
 ## How It Works
 
-Tolaria builds the outline from the current note's headings. The panel updates as the note changes and can jump to sections in the editor.
+Sapientia builds the outline from the current note's headings. The panel updates as the note changes and can jump to sections in the editor.
 
 ## Good Uses
 
@@ -584,4 +584,4 @@ related_to:
 
 ## Keep Links Stable
 
-Prefer clear note titles and filenames. Tolaria's wikilink autocomplete helps you pick the right target while you type.
+Prefer clear note titles and filenames. Sapientia's wikilink autocomplete helps you pick the right target while you type.

@@ -232,13 +232,13 @@ fn validate_git_init_target(vault_path: &str) -> Result<(), String> {
         return Err(format!(
             "Choose a dedicated vault folder before initializing Git. '{}' looks like a broad personal folder; create or select a subfolder such as '{}' instead.",
             path.display(),
-            path.join("Tolaria").display()
+            path.join("Sapientia").display()
         ));
     }
 
     if crate::git::is_inside_work_tree(path) && !crate::git::has_direct_git_metadata(path) {
         return Err(
-            "This vault is already inside a Git work tree. Tolaria will use the parent repository instead of creating an embedded repository."
+            "This vault is already inside a Git work tree. Sapientia will use the parent repository instead of creating an embedded repository."
                 .to_string(),
         );
     }
@@ -528,7 +528,7 @@ mod tests {
     #[test]
     fn init_git_repo_allows_named_vault_subfolder_under_documents() {
         let dir = TempDir::new().unwrap();
-        let vault = dir.path().join("Documents").join("Tolaria");
+        let vault = dir.path().join("Documents").join("Sapientia");
         fs::create_dir_all(&vault).unwrap();
         fs::write(vault.join("note.md"), "# Note\n").unwrap();
         let vault = vault.to_string_lossy().into_owned();

@@ -6,6 +6,7 @@ import { TooltipProvider } from './ui/tooltip'
 
 const state = vi.hoisted(() => ({
   capturedLinkToolbarProps: null as null | Record<string, unknown>,
+  capturedTolariaFormattingToolbarProps: null as null | Record<string, unknown>,
   capturedToolbarProps: null as null | Record<string, unknown>,
   capturedSuggestionProps: {} as Record<string, Record<string, unknown>>,
   capturedImageDropArgs: null as null | Record<string, unknown>,
@@ -204,7 +205,10 @@ vi.mock('./tolariaEditorFormattingConfig', () => ({
 }))
 
 vi.mock('./tolariaEditorFormatting', () => ({
-  TolariaFormattingToolbar: () => <div data-testid="tolaria-formatting-toolbar" />,
+  TolariaFormattingToolbar: (props: Record<string, unknown>) => {
+    state.capturedTolariaFormattingToolbarProps = props
+    return <div data-testid="tolaria-formatting-toolbar" />
+  },
   TolariaFormattingToolbarController: (props: Record<string, unknown>) => {
     state.capturedToolbarProps = props
     return <div data-testid="tolaria-formatting-toolbar-controller" />

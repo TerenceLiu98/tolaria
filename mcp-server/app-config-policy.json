@@ -1,6 +1,6 @@
 {
-  "current_namespace": "com.tolaria.app",
-  "legacy_namespace": "com.laputa.app",
+  "current_namespace": "cc.cklau.sapientia",
+  "legacy_namespace": "com.tolaria.app",
   "namespace_read_order": ["current", "legacy"],
   "files": {
     "settings": "settings.json",

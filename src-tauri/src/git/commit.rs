@@ -154,7 +154,7 @@ mod tests {
 
         assert_eq!(
             local_config_value(vault, "user.name").as_deref(),
-            Some("Tolaria")
+            Some("Sapientia")
         );
         assert_eq!(
             local_config_value(vault, "user.email").as_deref(),
@@ -168,7 +168,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             String::from_utf8_lossy(&author.stdout).trim(),
-            "Tolaria <vault@tolaria.default>"
+            "Sapientia <vault@tolaria.default>"
         );
     }
 

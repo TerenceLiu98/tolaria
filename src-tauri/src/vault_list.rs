@@ -170,18 +170,18 @@ mod tests {
         assert!(result.is_ok());
         let path = result.unwrap();
         let path = path.to_str().unwrap();
-        assert!(path.contains("com.tolaria.app") || path.contains("com.laputa.app"));
+        assert!(path.contains("cc.cklau.sapientia") || path.contains("com.tolaria.app"));
     }
 
     #[test]
-    fn preferred_vault_list_path_uses_tolaria_namespace() {
+    fn preferred_vault_list_path_uses_sapientia_namespace() {
         let result = preferred_app_config_path("vaults.json");
         assert!(result.is_ok());
         assert!(result
             .unwrap()
             .to_str()
             .unwrap()
-            .contains("com.tolaria.app"));
+            .contains("cc.cklau.sapientia"));
     }
 
     #[test]

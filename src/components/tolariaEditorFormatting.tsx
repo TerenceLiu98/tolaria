@@ -49,6 +49,7 @@ import {
   CaretDown as ChevronDown,
   Code as Code2,
   Highlighter,
+  Paperclip,
   TextB as Bold,
   TextItalic as Italic,
   TextStrikethrough as Strikethrough,
@@ -73,6 +74,8 @@ type TolariaBasicTextStyle =
   | 'strike'
   | 'code'
   | typeof MARKDOWN_HIGHLIGHT_STYLE
+
+type AttachSelectedTextHandler = (text: string) => void
 
 const FORMATTER_CLOSE_GRACE_MS = 160
 const FORMATTER_VIEWPORT_PADDING_PX = 8
@@ -671,17 +674,64 @@ function TolariaFileDownloadButton({ vaultPath }: { vaultPath?: string }) {
   )
 }
 
+function selectedEditorText(editor: BlockNoteEditor<BlockSchema, InlineContentSchema, StyleSchema>) {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null
+
+  const range = selection.getRangeAt(0)
+  const editorElement = editor.domElement
+  if (!editorElement || !editorElement.contains(range.commonAncestorContainer)) return null
+
+  const text = selection.toString().trim()
+  return text.length > 0 ? text : null
+}
+
+function TolariaAttachSelectedTextButton({
+  locale = 'en',
+  onAttachSelectedTextContext,
+}: {
+  locale?: AppLocale
+  onAttachSelectedTextContext?: AttachSelectedTextHandler
+}) {
+  const Components = useComponentsContext()!
+  const editor = useBlockNoteEditor<
+    BlockSchema,
+    InlineContentSchema,
+    StyleSchema
+  >()
+  const selectedText = useEditorState({
+    editor,
+    selector: ({ editor }) => selectedEditorText(editor),
+  })
+  const handleAttach = useCallback(() => {
+    const text = selectedEditorText(editor)
+    if (!text) return
+
+    onAttachSelectedTextContext?.(text)
+    editor.focus()
+  }, [editor, onAttachSelectedTextContext])
+
+  if (!onAttachSelectedTextContext || !selectedText) return null
+
+  const label = translate(locale, 'ai.panel.selectedText.include')
+  return (
+    <Components.FormattingToolbar.Button
+      className="bn-button"
+      data-test="attachSelectedTextContext"
+      onClick={handleAttach}
+      isSelected={false}
+      label={label}
+      mainTooltip={label}
+      icon={<Paperclip />}
+    />
+  )
+}
+
 function replaceToolbarControls(items: ReactElement[], vaultPath?: string) {
   return items.flatMap((item) => {
     switch (String(item.key)) {
       case 'blockTypeSelect':
         return [<TolariaBlockTypeSelect key={item.key} />]
-      case 'boldStyleButton':
-        return [<TolariaBasicTextStyleButton basicTextStyle="bold" key={item.key} />]
-      case 'italicStyleButton':
-        return [<TolariaBasicTextStyleButton basicTextStyle="italic" key={item.key} />]
-      case 'strikeStyleButton':
-        return [<TolariaBasicTextStyleButton basicTextStyle="strike" key={item.key} />]
       case 'fileDownloadButton':
         return [<TolariaFileDownloadButton key={item.key} vaultPath={vaultPath} />]
       default:
@@ -690,7 +740,11 @@ function replaceToolbarControls(items: ReactElement[], vaultPath?: string) {
   })
 }
 
-function insertExtraTextStyleButtons(items: ReactElement[], locale: AppLocale) {
+function insertExtraTextStyleButtons(
+  items: ReactElement[],
+  locale: AppLocale,
+  onAttachSelectedTextContext?: AttachSelectedTextHandler,
+) {
   const strikeButtonIndex = items.findIndex(
     (item) => String(item.key) === 'strikeStyleButton',
   )
@@ -704,11 +758,20 @@ function insertExtraTextStyleButtons(items: ReactElement[], locale: AppLocale) {
       key="highlightStyleButton"
       locale={locale}
     />,
+    <TolariaAttachSelectedTextButton
+      key="attachSelectedTextContextButton"
+      locale={locale}
+      onAttachSelectedTextContext={onAttachSelectedTextContext}
+    />,
     ...items.slice(strikeButtonIndex + 1),
   ]
 }
 
-function getTolariaFormattingToolbarItems(vaultPath: string | undefined, locale: AppLocale) {
+function getTolariaFormattingToolbarItems(
+  vaultPath: string | undefined,
+  locale: AppLocale,
+  onAttachSelectedTextContext?: AttachSelectedTextHandler,
+) {
   return insertExtraTextStyleButtons(
     replaceToolbarControls(
       filterTolariaFormattingToolbarItems(
@@ -717,17 +780,20 @@ function getTolariaFormattingToolbarItems(vaultPath: string | undefined, locale:
       vaultPath,
     ),
     locale,
+    onAttachSelectedTextContext,
   )
 }
 
 export function TolariaFormattingToolbar({
   locale = 'en',
+  onAttachSelectedTextContext,
   vaultPath,
 }: {
   locale?: AppLocale
+  onAttachSelectedTextContext?: AttachSelectedTextHandler
   vaultPath?: string
 } = {}) {
-  return <FormattingToolbar>{getTolariaFormattingToolbarItems(vaultPath, locale)}</FormattingToolbar>
+  return <FormattingToolbar>{getTolariaFormattingToolbarItems(vaultPath, locale, onAttachSelectedTextContext)}</FormattingToolbar>
 }
 
 export function TolariaFormattingToolbarController(props: {

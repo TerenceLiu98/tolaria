@@ -1,6 +1,6 @@
 # Use The AI
 
-Tolaria gives you two ways to ask for AI help: open the AI panel for an ongoing conversation, or prompt directly from the editor with `Cmd+K` followed by a space.
+Sapientia gives you two ways to ask for AI help: open the AI panel for an ongoing conversation, or prompt directly from the editor with `Cmd+K` followed by a space.
 
 ## Choose How To Prompt
 
@@ -15,7 +15,7 @@ Open Settings and choose the default AI target:
 - **Local model** for Ollama or LM Studio chat over note context.
 - **API model** for OpenAI, Anthropic, Gemini, OpenRouter, or an OpenAI-compatible endpoint.
 
-If a coding agent is missing, install it and reopen Tolaria or switch to another target.
+If a coding agent is missing, install it and reopen Sapientia or switch to another target.
 
 ## Permission Mode
 
@@ -35,4 +35,4 @@ Direct model targets always stay in chat mode. They can use note context, but th
 
 ## Review Changes
 
-AI edits are file edits. Review them with Tolaria's diff and Git history before committing.
+AI edits are file edits. Review them with Sapientia's diff and Git history before committing.

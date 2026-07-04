@@ -59,7 +59,7 @@ fn build_hermes_command(
 
 fn format_hermes_error(stderr_output: &str, status: &str) -> String {
     if is_auth_or_setup_error(stderr_output) {
-        return "Hermes Agent is not ready. Run `hermes setup`, choose a model with `hermes model`, then run `hermes doctor` in your terminal before retrying in Tolaria.".into();
+        return "Hermes Agent is not ready. Run `hermes setup`, choose a model with `hermes model`, then run `hermes doctor` in your terminal before retrying in Sapientia.".into();
     }
 
     let stderr = stderr_output.trim();
@@ -95,7 +95,7 @@ mod tests {
     fn request(vault_path: String) -> AgentStreamRequest {
         AgentStreamRequest {
             message: "Summarize".into(),
-            system_prompt: Some("Use Tolaria conventions".into()),
+            system_prompt: Some("Use Sapientia conventions".into()),
             vault_path,
             vault_paths: Vec::new(),
             permission_mode: AiAgentPermissionMode::Safe,

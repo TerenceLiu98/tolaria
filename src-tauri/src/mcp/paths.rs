@@ -35,10 +35,10 @@ fn runtime_resource_roots_for_env_and_exe(
     if let Some(appdir) = appdir {
         push_resource_root(&mut roots, appdir.join("usr"));
         push_resource_root(&mut roots, appdir.join("usr/lib/tolaria"));
-        push_resource_root(&mut roots, appdir.join("usr/lib/Tolaria"));
+        push_resource_root(&mut roots, appdir.join("usr/lib/Sapientia"));
     }
     if let Some(local_app_data) = local_app_data {
-        push_resource_root(&mut roots, local_app_data.join("Tolaria"));
+        push_resource_root(&mut roots, local_app_data.join("Sapientia"));
         push_resource_root(&mut roots, local_app_data.join("tolaria"));
     }
 
@@ -112,7 +112,7 @@ mod tests {
     #[test]
     fn includes_windows_install_locations() {
         let local_app_data = PathBuf::from(r"C:\Users\alex\AppData\Local");
-        let install_dir = local_app_data.join("Tolaria");
+        let install_dir = local_app_data.join("Sapientia");
         let roots =
             runtime_resource_roots_for_env_and_exe(None, None, Some(local_app_data.clone()), None);
 
@@ -126,44 +126,44 @@ mod tests {
 
     #[test]
     fn includes_macos_app_bundle_resources_from_executable_path() {
-        let executable = PathBuf::from("/Applications/Tolaria.app/Contents/MacOS/Tolaria");
+        let executable = PathBuf::from("/Applications/Sapientia.app/Contents/MacOS/Sapientia");
         let roots = runtime_resource_roots_for_env_and_exe(None, None, None, Some(&executable));
 
         assert!(roots.contains(&PathBuf::from(
-            "/Applications/Tolaria.app/Contents/Resources"
+            "/Applications/Sapientia.app/Contents/Resources"
         )));
 
         let candidates =
             super::super::mcp_server_dir_candidates(Path::new("/repo/mcp-server"), &roots);
         assert!(candidates.contains(&PathBuf::from(
-            "/Applications/Tolaria.app/Contents/Resources/mcp-server"
+            "/Applications/Sapientia.app/Contents/Resources/mcp-server"
         )));
     }
 
     #[test]
     fn client_script_path_strips_windows_extended_length_disk_prefix() {
-        let path = PathBuf::from(r"\\?\D:\Tolaria\mcp-server\index.js");
+        let path = PathBuf::from(r"\\?\D:\Sapientia\mcp-server\index.js");
 
-        assert_eq!(client_script_path(&path), r"D:\Tolaria\mcp-server\index.js",);
+        assert_eq!(client_script_path(&path), r"D:\Sapientia\mcp-server\index.js",);
     }
 
     #[test]
     fn client_script_path_strips_windows_extended_length_unc_prefix() {
-        let path = PathBuf::from(r"\\?\UNC\server\share\Tolaria\mcp-server\index.js");
+        let path = PathBuf::from(r"\\?\UNC\server\share\Sapientia\mcp-server\index.js");
 
         assert_eq!(
             client_script_path(&path),
-            r"\\server\share\Tolaria\mcp-server\index.js",
+            r"\\server\share\Sapientia\mcp-server\index.js",
         );
     }
 
     #[test]
     fn client_script_path_preserves_normal_paths_with_spaces() {
-        let path = PathBuf::from(r"D:\Program Files\Tolaria\mcp-server\index.js");
+        let path = PathBuf::from(r"D:\Program Files\Sapientia\mcp-server\index.js");
 
         assert_eq!(
             client_script_path(&path),
-            r"D:\Program Files\Tolaria\mcp-server\index.js",
+            r"D:\Program Files\Sapientia\mcp-server\index.js",
         );
     }
 }

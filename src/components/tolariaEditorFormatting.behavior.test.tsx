@@ -24,58 +24,75 @@ function MockIcon() {
   return <svg data-testid="mock-icon" />
 }
 
-vi.mock('@blocknote/react', () => ({
-  FormattingToolbar: ({ children }: { children?: ReactNode }) => (
-    <div data-testid="mock-formatting-toolbar">{children}</div>
-  ),
-  getFormattingToolbarItems: () => [
-    <div key="blockTypeSelect" />,
-    <div key="boldStyleButton" />,
-    <div key="italicStyleButton" />,
-    <div key="strikeStyleButton" />,
-    <div key="fileDownloadButton" />,
-    <div key="createLinkButton" />,
-  ],
-  PositionPopover: (props: Record<string, unknown> & { children?: ReactNode }) => {
-    positionPopoverState.lastProps = props
-    return <div data-testid="mock-position-popover">{props.children}</div>
-  },
-  useBlockNoteEditor: useBlockNoteEditorMock,
-  useComponentsContext: () => ({
-    FormattingToolbar: {
-      Button: ({
-        children,
-        icon,
-        label,
-        onClick,
-      }: {
-        children?: ReactNode
-        icon?: ReactNode
-        label: string
-        onClick: () => void
-      }) => (
-        <button onClick={onClick} type="button">
-          {icon}
-          {label}
-          {children}
-        </button>
-      ),
+vi.mock('@blocknote/react', () => {
+  function MockDefaultBoldButton() {
+    const editor = useBlockNoteEditorMock()
+    return (
+      <button
+        onClick={() => {
+          editor.focus()
+          editor.toggleStyles({ bold: true })
+        }}
+        type="button"
+      >
+        Bold
+      </button>
+    )
+  }
+
+  return {
+    FormattingToolbar: ({ children }: { children?: ReactNode }) => (
+      <div data-testid="mock-formatting-toolbar">{children}</div>
+    ),
+    getFormattingToolbarItems: () => [
+      <div key="blockTypeSelect" />,
+      <MockDefaultBoldButton key="boldStyleButton" />,
+      <button key="italicStyleButton" type="button">Italic</button>,
+      <button key="strikeStyleButton" type="button">Strikethrough</button>,
+      <div key="fileDownloadButton" />,
+      <div key="createLinkButton" />,
+    ],
+    PositionPopover: (props: Record<string, unknown> & { children?: ReactNode }) => {
+      positionPopoverState.lastProps = props
+      return <div data-testid="mock-position-popover">{props.children}</div>
     },
-  }),
-  useDictionary: () => ({
-    formatting_toolbar: {
-      file_download: {
-        tooltip: {
-          file: 'Download file',
-          image: 'Download image',
+    useBlockNoteEditor: useBlockNoteEditorMock,
+    useComponentsContext: () => ({
+      FormattingToolbar: {
+        Button: ({
+          children,
+          icon,
+          label,
+          onClick,
+        }: {
+          children?: ReactNode
+          icon?: ReactNode
+          label: string
+          onClick: () => void
+        }) => (
+          <button onClick={onClick} type="button">
+            {icon}
+            {label}
+            {children}
+          </button>
+        ),
+      },
+    }),
+    useDictionary: () => ({
+      formatting_toolbar: {
+        file_download: {
+          tooltip: {
+            file: 'Download file',
+            image: 'Download image',
+          },
         },
       },
-    },
-  }),
-  useEditorState: ({ editor, selector }: { editor: unknown; selector: (context: { editor: unknown }) => unknown }) => selector({ editor }),
-  useExtension: () => ({ store: formattingToolbarStore }),
-  useExtensionState: () => showState.value,
-}))
+    }),
+    useEditorState: ({ editor, selector }: { editor: unknown; selector: (context: { editor: unknown }) => unknown }) => selector({ editor }),
+    useExtension: () => ({ store: formattingToolbarStore }),
+    useExtensionState: () => showState.value,
+  }
+})
 
 vi.mock('@blocknote/core', () => ({
   blockHasType: blockHasTypeMock,
@@ -106,6 +123,7 @@ vi.mock('@phosphor-icons/react', () => ({
   CaretDown: MockIcon,
   Code: MockIcon,
   Highlighter: MockIcon,
+  Paperclip: MockIcon,
   TextB: MockIcon,
   TextItalic: MockIcon,
   TextStrikethrough: MockIcon,
@@ -193,6 +211,7 @@ describe('tolariaEditorFormatting behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Heading 1' }))
 
     expect(editor.focus).toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Bold' })).toBeInTheDocument()
     expect(editor.toggleStyles).toHaveBeenCalledWith({ bold: true })
     expect(editor.toggleStyles).toHaveBeenCalledWith({ code: true })
     expect(editor.toggleStyles).toHaveBeenCalledWith({ highlight: true })
@@ -201,6 +220,30 @@ describe('tolariaEditorFormatting behavior', () => {
       'file-block',
       { type: 'heading', props: { level: 1 } },
     )
+  })
+
+  it('attaches the current editor text selection to AI context from the toolbar', () => {
+    const editor = createMockEditor('paragraph')
+    const textNode = document.createTextNode('Selected text for AI')
+    editor.domElement.firstElementChild?.appendChild(textNode)
+    const range = document.createRange()
+    range.selectNodeContents(textNode)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    const onAttachSelectedTextContext = vi.fn()
+    useBlockNoteEditorMock.mockReturnValue(editor)
+
+    render(
+      <TolariaFormattingToolbar
+        onAttachSelectedTextContext={onAttachSelectedTextContext}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /include selected text/i }))
+
+    expect(onAttachSelectedTextContext).toHaveBeenCalledWith('Selected text for AI')
+    expect(editor.focus).toHaveBeenCalled()
   })
 
   it('ignores stale block-type clicks when the selected block disappeared before the action', () => {
