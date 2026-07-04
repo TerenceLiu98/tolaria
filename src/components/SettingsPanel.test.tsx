@@ -324,7 +324,7 @@ describe('SettingsPanel', () => {
     const confirmation = within(teamRow).getByTestId('settings-workspace-remove-confirm-team')
     expect(screen.queryByTestId('confirm-delete-dialog')).not.toBeInTheDocument()
     expect(confirmation).toHaveTextContent('Remove vault?')
-    expect(confirmation).toHaveTextContent("This removes Team Vault from Tolaria's vault list. Files on disk are not deleted.")
+    expect(confirmation).toHaveTextContent("This removes Team Vault from Sapientia's vault list. Files on disk are not deleted.")
 
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Cancel' }))
     expect(onRemoveVault).not.toHaveBeenCalled()
