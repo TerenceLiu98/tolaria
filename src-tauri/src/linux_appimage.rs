@@ -369,7 +369,9 @@ fn apply_colrv1_emoji_font_guard() {
         return;
     };
     let Some(config_path) = colrv1_fontconfig_file_path() else {
-        eprintln!("Sapientia AppImage COLRv1 font guard skipped: failed to resolve cache directory");
+        eprintln!(
+            "Sapientia AppImage COLRv1 font guard skipped: failed to resolve cache directory"
+        );
         return;
     };
     let Some(parent) = config_path.parent() else {
@@ -377,7 +379,9 @@ fn apply_colrv1_emoji_font_guard() {
     };
 
     if let Err(error) = std::fs::create_dir_all(parent) {
-        eprintln!("Sapientia AppImage COLRv1 font guard skipped: failed to prepare cache ({error})");
+        eprintln!(
+            "Sapientia AppImage COLRv1 font guard skipped: failed to prepare cache ({error})"
+        );
         return;
     }
 

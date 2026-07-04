@@ -144,7 +144,10 @@ mod tests {
     fn client_script_path_strips_windows_extended_length_disk_prefix() {
         let path = PathBuf::from(r"\\?\D:\Sapientia\mcp-server\index.js");
 
-        assert_eq!(client_script_path(&path), r"D:\Sapientia\mcp-server\index.js",);
+        assert_eq!(
+            client_script_path(&path),
+            r"D:\Sapientia\mcp-server\index.js",
+        );
     }
 
     #[test]

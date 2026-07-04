@@ -625,7 +625,8 @@ mod tests {
         )];
         let candidates = mcp_server_dir_candidates(dev_path, &resource_roots);
 
-        let resource_dir = PathBuf::from("/Applications/Sapientia.app/Contents/Resources/mcp-server");
+        let resource_dir =
+            PathBuf::from("/Applications/Sapientia.app/Contents/Resources/mcp-server");
         let linux_pos = candidates
             .iter()
             .position(|path| path == &PathBuf::from("/usr/local/Sapientia/mcp-server"))

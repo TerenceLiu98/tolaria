@@ -308,7 +308,9 @@ fn build_manifest_menu(app: &App, label: &str) -> MenuResult {
 }
 
 fn build_app_menu(app: &App) -> MenuResult {
-    let mut builder = SubmenuBuilder::new(app, "Sapientia").about(None).separator();
+    let mut builder = SubmenuBuilder::new(app, "Sapientia")
+        .about(None)
+        .separator();
 
     for item in &manifest().app_menu {
         builder = append_manifest_item(app, builder, item)?;
