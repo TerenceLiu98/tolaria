@@ -327,6 +327,28 @@ describe('tolariaEditorFormatting behavior', () => {
     expect(writeClipboardTextMock).toHaveBeenCalledWith('attachments/diagram.png')
   })
 
+  it('edits selected media captions from the formatting toolbar', () => {
+    const editor = createMockEditor('image', {
+      caption: 'Old caption',
+      url: 'asset://localhost/%2Fvault%2Fattachments%2Fdiagram.png',
+    })
+    useBlockNoteEditorMock.mockReturnValue(editor)
+
+    render(<TolariaFormattingToolbar vaultPath="/vault" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit media caption' }))
+    const input = screen.getByRole('textbox', { name: 'Edit media caption' })
+    expect(input).toHaveValue('Old caption')
+
+    fireEvent.change(input, { target: { value: 'Architecture diagram' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save caption' }))
+
+    expect(editor.updateBlock).toHaveBeenCalledWith('file-block', {
+      props: { caption: 'Architecture diagram' },
+    })
+    expect(editor.focus).toHaveBeenCalled()
+  })
+
   it('controls the floating toolbar placement, hover guard, and escape-key close behavior', () => {
     const editor = createMockEditor()
     const toolbarComponent = () => <div data-testid="custom-toolbar">Toolbar</div>

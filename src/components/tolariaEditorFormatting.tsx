@@ -35,6 +35,7 @@ import {
   useState,
   type Dispatch,
   type FC,
+  type FormEvent,
   type MutableRefObject,
   type ReactElement,
   type SetStateAction,
@@ -57,6 +58,8 @@ import {
   TextStrikethrough as Strikethrough,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
 import { MARKDOWN_HIGHLIGHT_STYLE } from '../utils/markdownHighlightMarkdown'
 import { MATH_INLINE_TYPE } from '../utils/mathMarkdown'
 import {
@@ -222,7 +225,9 @@ type TolariaSelectedBlock = ReturnType<
 >['block']
 
 type TolariaSelectedFileBlock = {
+  caption: string
   displayPath: string
+  id: string
   type: string
   url: string
 }
@@ -439,9 +444,11 @@ function getSelectedFileBlockState(
   if (typeof url !== 'string' || url.trim().length === 0) return null
 
   return {
+    caption: typeof block.props.caption === 'string' ? block.props.caption : '',
     displayPath: vaultPath
       ? portableAttachmentPathFromCurrentVaultAssetUrl({ url, vaultPath }) ?? url
       : url,
+    id: block.id,
     type: block.type,
     url,
   }
@@ -729,6 +736,90 @@ function TolariaFilePathCopyButton({ locale = 'en', vaultPath }: { locale?: AppL
   )
 }
 
+function TolariaFileCaptionButton({ locale = 'en', vaultPath }: { locale?: AppLocale; vaultPath?: string }) {
+  const Components = useComponentsContext()!
+  const editor = useBlockNoteEditor<
+    BlockSchema,
+    InlineContentSchema,
+    StyleSchema
+  >()
+  const selectedFileBlock = useEditorState({
+    editor,
+    selector: ({ editor }) => getSelectedFileBlockState(editor, vaultPath),
+  })
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
+  const [draftCaption, setDraftCaption] = useState('')
+  const isEditing = selectedFileBlock !== null && editingBlockId === selectedFileBlock.id
+
+  const handleStart = useCallback(() => {
+    if (!selectedFileBlock) return
+    setEditingBlockId(selectedFileBlock.id)
+    setDraftCaption(selectedFileBlock.caption)
+  }, [selectedFileBlock])
+
+  const handleCancel = useCallback(() => {
+    setEditingBlockId(null)
+    setDraftCaption('')
+    editor.focus()
+  }, [editor])
+
+  const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!selectedFileBlock) return
+
+    try {
+      editor.updateBlock(selectedFileBlock.id, {
+        props: { caption: draftCaption.trim() } as never,
+      })
+      setEditingBlockId(null)
+      editor.focus()
+    } catch (error) {
+      if (isStaleBlockReferenceError(error)) {
+        reportStaleFormattingToolbarBlockReference(error)
+        return
+      }
+      throw error
+    }
+  }, [draftCaption, editor, selectedFileBlock])
+
+  if (!selectedFileBlock || !editor.isEditable) return null
+
+  const label = translate(locale, 'editor.toolbar.editMediaCaption')
+  return (
+    <>
+      <Components.FormattingToolbar.Button
+        className="bn-button"
+        data-test="fileCaption"
+        onClick={handleStart}
+        isSelected={isEditing}
+        label={label}
+        mainTooltip={label}
+        icon={<ClipboardText />}
+      />
+      {isEditing ? (
+        <form
+          className="flex items-center gap-1 rounded-md border border-border bg-popover p-1 shadow-sm"
+          onSubmit={handleSubmit}
+        >
+          <Input
+            aria-label={label}
+            className="h-7 w-48 text-xs"
+            onChange={(event) => setDraftCaption(event.currentTarget.value)}
+            placeholder={translate(locale, 'editor.toolbar.mediaCaptionPlaceholder')}
+            value={draftCaption}
+          />
+          <Button size="xs" type="submit">
+            {translate(locale, 'editor.toolbar.saveMediaCaption')}
+          </Button>
+          <Button onClick={handleCancel} size="xs" type="button" variant="ghost">
+            {translate(locale, 'common.cancel')}
+          </Button>
+        </form>
+      ) : null}
+    </>
+  )
+}
+
 function selectedEditorText(editor: BlockNoteEditor<BlockSchema, InlineContentSchema, StyleSchema>) {
   const selection = window.getSelection()
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null
@@ -865,6 +956,7 @@ function replaceToolbarControls(items: ReactElement[], locale: AppLocale, vaultP
       case 'fileDownloadButton':
         return [
           <TolariaFileDownloadButton key={item.key} vaultPath={vaultPath} />,
+          <TolariaFileCaptionButton key="fileCaptionButton" locale={locale} vaultPath={vaultPath} />,
           <TolariaFilePathCopyButton key="filePathCopyButton" locale={locale} vaultPath={vaultPath} />,
         ]
       default:
