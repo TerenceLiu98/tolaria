@@ -27,6 +27,8 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
+import { CommentGutter } from './comments/CommentUI'
+import type { EditorCommentAnchor, EditorCommentOptions } from './comments/commentAnchors'
 import { usePointerBlockReorder } from './tolariaBlockReorder'
 import { useSideMenuTextAlignment } from './tolariaSideMenuAlignment'
 import {
@@ -49,6 +51,7 @@ type TableHeaderContent = Record<string, unknown> & {
 }
 
 type TolariaSideMenuProps = SideMenuProps & {
+  commentOptions?: EditorCommentOptions
   locale?: AppLocale
 }
 
@@ -388,7 +391,57 @@ function TolariaDragHandleMenu() {
   )
 }
 
-export function TolariaSideMenu({ locale = 'en', ...props }: TolariaSideMenuProps) {
+function commentAnchorForSideMenuBlock({
+  anchors,
+  block,
+  editor,
+}: {
+  anchors: readonly EditorCommentAnchor[]
+  block: SideMenuBlock | undefined
+  editor: ReturnType<typeof useBlockNoteEditor<BlockSchema, InlineContentSchema, StyleSchema>>
+}): EditorCommentAnchor | null {
+  if (!block) return null
+  const index = editor.document.findIndex((candidate) => candidate.id === block.id)
+  return index >= 0 ? anchors[index] ?? null : null
+}
+
+function TolariaCommentSideMenuButton({
+  commentOptions,
+}: {
+  commentOptions: EditorCommentOptions
+}) {
+  const { block, editor } = useSideMenuBlock()
+  const anchor = commentAnchorForSideMenuBlock({
+    anchors: commentOptions.anchors,
+    block,
+    editor,
+  })
+  if (!anchor) return null
+
+  const isOpen = commentOptions.selectedAnchorId === anchor.id
+
+  return (
+    <div
+      className="group/comment-anchor relative"
+      data-testid={`tolaria-side-menu-comment-anchor-${anchor.id}`}
+    >
+      <CommentGutter
+        anchorId={anchor.id}
+        count={anchor.comments.length}
+        isOpen={isOpen}
+        onOpenThread={commentOptions.onOpenThread}
+        title={anchor.title}
+      />
+      {isOpen ? (
+        <div className="absolute left-9 top-0 z-50 w-[min(22rem,calc(100vw-5rem))] max-w-[80vw]">
+          {commentOptions.renderThread(anchor.id)}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+export function TolariaSideMenu({ commentOptions, locale = 'en', ...props }: TolariaSideMenuProps) {
   const { block, editor } = useSideMenuBlock()
   useSideMenuTextAlignment(editor, block)
 
@@ -396,6 +449,7 @@ export function TolariaSideMenu({ locale = 'en', ...props }: TolariaSideMenuProp
     <SideMenu {...props}>
       <TolariaDragHandleButton dragHandleMenu={TolariaDragHandleMenu} />
       <TolariaSectionControlButton locale={locale} />
+      {commentOptions ? <TolariaCommentSideMenuButton commentOptions={commentOptions} /> : null}
     </SideMenu>
   )
 }

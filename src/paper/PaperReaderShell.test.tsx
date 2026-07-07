@@ -44,7 +44,7 @@ vi.mock('../components/NoteSurface', () => ({
       data-source-path={sourceEntry?.path}
     >
       {commentOptions ? (
-        <aside data-testid="note-surface-comment-seam">
+        <aside data-testid="mock-side-menu-comment-seam">
           {commentOptions.anchors.map((anchor) => (
             <button
               key={anchor.id}
@@ -251,7 +251,7 @@ describe('PaperReaderShell', () => {
     expect(screen.getByTestId('note-surface')).toHaveAttribute('data-readonly', 'false')
     expect(screen.getByTestId('note-surface')).toHaveAttribute('data-has-on-change', 'true')
     expect(screen.getByTestId('note-surface')).toHaveAttribute('data-source-path', '/vault/papers/attention/paper.md')
-    expect(screen.getByTestId('note-surface-comment-seam')).toBeInTheDocument()
+    expect(screen.getByTestId('mock-side-menu-comment-seam')).toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-source-preview')).not.toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-metadata-inspector')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Paper metadata' })).toBeInTheDocument()

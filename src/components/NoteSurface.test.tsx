@@ -1,5 +1,5 @@
 import { createRef } from 'react'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { NoteSurface, type NoteSurfaceAdapter } from './NoteSurface'
 
@@ -30,18 +30,20 @@ describe('NoteSurface', () => {
     singleEditorViewMock.mockClear()
   })
 
-  it('renders comment markers as a block-adjacent overlay and opens the selected thread', async () => {
+  it('forwards comment options to the shared editor view without rendering an overlay gutter', () => {
+    const commentOptions = {
+      anchors: [
+        { comments: [], id: 'b0001', title: 'First block' },
+        { comments: [{ anchorId: 'b0002', body: 'Existing comment', id: 'c1', kind: 'comment' }], id: 'b0002', title: 'Second block' },
+      ],
+      onOpenThread: vi.fn(),
+      renderThread: (anchorId: string) => <section data-testid="selected-comment-thread">Thread for {anchorId}</section>,
+      selectedAnchorId: 'b0002',
+    }
+
     render(
       <NoteSurface
-        commentOptions={{
-          anchors: [
-            { comments: [], id: 'b0001', title: 'First block' },
-            { comments: [{ anchorId: 'b0002', body: 'Existing comment', id: 'c1', kind: 'comment' }], id: 'b0002', title: 'Second block' },
-          ],
-          onOpenThread: vi.fn(),
-          renderThread: (anchorId) => <section data-testid="selected-comment-thread">Thread for {anchorId}</section>,
-          selectedAnchorId: 'b0002',
-        }}
+        commentOptions={commentOptions}
         editor={{} as never}
         entries={[]}
         onNavigateWikilink={vi.fn()}
@@ -50,13 +52,10 @@ describe('NoteSurface', () => {
 
     expect(screen.getByTestId('note-surface')).toHaveClass('relative')
     expect(screen.getByTestId('note-surface')).not.toHaveClass('grid-cols-[minmax(0,1fr)_3rem]')
-    const seam = await screen.findByTestId('note-surface-comment-seam')
-    expect(seam).toHaveClass('absolute')
-    const firstAnchor = await within(seam).findByTestId('note-surface-comment-anchor-b0001')
-    const selectedAnchor = await within(seam).findByTestId('note-surface-comment-anchor-b0002')
-    expect(firstAnchor).not.toContainElement(screen.getByTestId('selected-comment-thread'))
-    expect(selectedAnchor).toContainElement(screen.getByTestId('selected-comment-thread'))
-    expect(within(selectedAnchor).getByTestId('comment-gutter-count-b0002')).toHaveTextContent('1')
+    expect(screen.queryByTestId('note-surface-comment-seam')).not.toBeInTheDocument()
+    expect(singleEditorViewMock).toHaveBeenCalledWith(expect.objectContaining({
+      commentOptions,
+    }))
   })
 
   it('forwards selected text context changes to the shared editor view', () => {

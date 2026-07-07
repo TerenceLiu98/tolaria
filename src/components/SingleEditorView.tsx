@@ -36,6 +36,7 @@ import { getRuntimeStyleNonce } from '../lib/runtimeStyleNonce'
 import { WikilinkSuggestionMenu, type WikilinkSuggestionItem } from './WikilinkSuggestionMenu'
 import type { VaultEntry } from '../types'
 import type { AiSelectedTextContext } from '../utils/ai-context'
+import type { EditorCommentOptions } from './comments/commentAnchors'
 import { _wikilinkEntriesRef } from './editorSchema'
 import {
   handleEditorFileBlockClick,
@@ -1007,6 +1008,7 @@ function useSuggestionMenuItems(options: {
 }
 
 type EditorInteractionControllersProps = ReturnType<typeof useSuggestionMenuItems> & {
+  commentOptions?: EditorCommentOptions
   locale: AppLocale
   onAttachSelectedTextContext?: (text: string) => void
   onToolbarInteractionEnd: () => void
@@ -1016,6 +1018,7 @@ type EditorInteractionControllersProps = ReturnType<typeof useSuggestionMenuItem
 }
 
 function EditorInteractionControllers({
+  commentOptions,
   getEmojiItems,
   getPersonMentionItems,
   getSlashMenuItems,
@@ -1028,8 +1031,8 @@ function EditorInteractionControllers({
   vaultPath,
 }: EditorInteractionControllersProps) {
   const sideMenu = useCallback((props: SideMenuProps) => (
-    <TolariaSideMenu {...props} locale={locale} />
-  ), [locale])
+    <TolariaSideMenu {...props} commentOptions={commentOptions} locale={locale} />
+  ), [commentOptions, locale])
   const handleToolbarPointerDownCapture = useCallback((event: Pick<React.MouseEvent<HTMLElement>, 'target' | 'preventDefault'>) => {
     onToolbarInteractionStart()
     handleToolbarMouseDownCapture(event)
@@ -1207,7 +1210,8 @@ function refreshCodeBlockSyntaxHighlighting(editor: ReturnType<typeof useCreateB
 }
 
 /** Single BlockNote editor view — content is swapped via replaceBlocks */
-export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange, onSelectedTextContextChange, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
+export function SingleEditorView({ commentOptions, editor, entries, onNavigateWikilink, onChange, onSelectedTextContextChange, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
+  commentOptions?: EditorCommentOptions
   editor: ReturnType<typeof useCreateBlockNote>
   entries: VaultEntry[]
   onNavigateWikilink: (target: string) => void
@@ -1444,6 +1448,7 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
           >
             <EditorInteractionControllers
               {...suggestionMenuItems}
+              commentOptions={commentOptions}
               locale={locale}
               onAttachSelectedTextContext={handleAttachSelectedTextContext}
               onToolbarInteractionEnd={handleToolbarInteractionEnd}
