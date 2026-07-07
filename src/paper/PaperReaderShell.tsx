@@ -65,6 +65,7 @@ import {
   createBlockAnnotationId,
   type AnnotationsByBlockId,
   type PaperAnnotation,
+  type PaperAnnotationReaction,
   type PaperAnnotationKind,
   type PaperAnnotationReply,
 } from './annotations'
@@ -392,6 +393,7 @@ function metadataValuesFromCurrent(current: ResolvedPaperMetadata): PaperMetadat
 
 const EMPTY_SOURCE_BLOCKS: SourceBlock[] = []
 const PAPER_COMMENT_KIND: PaperAnnotationKind = 'comment'
+const PAPER_COMMENT_REACTION_EMOJI = '👍'
 
 function cleanOptionalNote(note: string): string | undefined {
   const trimmed = note.trim()
@@ -404,10 +406,24 @@ function activeAnnotationReplies(annotation: PaperAnnotation): PaperAnnotationRe
     : []
 }
 
+function activeAnnotationReactions(annotation: PaperAnnotation): PaperAnnotationReaction[] {
+  return Array.isArray(annotation.reactions)
+    ? annotation.reactions.filter((reaction) => typeof reaction.deleted_at !== 'string')
+    : []
+}
+
 function createAnnotationReply(note: string, now = new Date()): PaperAnnotationReply {
   return {
     id: createBlockAnnotationId().replace(/^ann_/u, 'reply_'),
     note,
+    created_at: now.toISOString(),
+  }
+}
+
+function createAnnotationReaction(emoji: string, now = new Date()): PaperAnnotationReaction {
+  return {
+    emoji,
+    count: 1,
     created_at: now.toISOString(),
   }
 }
@@ -837,7 +853,9 @@ function PaperAnnotationEditor({
 }) {
   const [note, setNote] = useState(annotation.note ?? annotation.text ?? '')
   const isResolved = typeof annotation.resolved_at === 'string' && annotation.resolved_at.trim().length > 0
+  const reactions = activeAnnotationReactions(annotation)
   const replies = activeAnnotationReplies(annotation)
+  const hasPrimaryReaction = reactions.some((reaction) => reaction.emoji === PAPER_COMMENT_REACTION_EMOJI && reaction.count > 0)
 
   const saveAnnotation = useCallback(() => {
     onSaveAnnotation({
@@ -866,6 +884,22 @@ function PaperAnnotationEditor({
       updated_at: now,
     })
   }, [annotation, onSaveAnnotation])
+  const toggleReaction = useCallback(() => {
+    const now = new Date().toISOString()
+    const currentReactions = activeAnnotationReactions(annotation)
+    const hasCurrentReaction = currentReactions.some((reaction) => reaction.emoji === PAPER_COMMENT_REACTION_EMOJI && reaction.count > 0)
+    onSaveAnnotation({
+      ...annotation,
+      reactions: hasCurrentReaction
+        ? currentReactions
+          .filter((reaction) => reaction.emoji !== PAPER_COMMENT_REACTION_EMOJI)
+        : [
+          ...currentReactions,
+          createAnnotationReaction(PAPER_COMMENT_REACTION_EMOJI, new Date(now)),
+        ],
+      updated_at: now,
+    })
+  }, [annotation, onSaveAnnotation])
 
   return (
     <li
@@ -889,6 +923,15 @@ function PaperAnnotationEditor({
             {translate(locale, 'paper.reader.commentReplies', { count: replies.length })}
           </span>
         ) : null}
+        {reactions.map((reaction) => (
+          <span
+            key={reaction.emoji}
+            className="rounded bg-background px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+            data-testid={`paper-reader-annotation-reaction-${annotation.id}-${reaction.emoji}`}
+          >
+            {reaction.emoji} {reaction.count}
+          </span>
+        ))}
         <Button
           type="button"
           variant="secondary"
@@ -905,6 +948,17 @@ function PaperAnnotationEditor({
           onClick={toggleResolved}
         >
           {isResolved ? translate(locale, 'paper.reader.reopenComment') : translate(locale, 'paper.reader.resolveComment')}
+        </Button>
+        <Button
+          type="button"
+          variant={hasPrimaryReaction ? 'secondary' : 'ghost'}
+          size="xs"
+          aria-pressed={hasPrimaryReaction}
+          onClick={toggleReaction}
+        >
+          {hasPrimaryReaction
+            ? translate(locale, 'paper.reader.removeCommentReaction', { emoji: PAPER_COMMENT_REACTION_EMOJI })
+            : translate(locale, 'paper.reader.reactToComment', { emoji: PAPER_COMMENT_REACTION_EMOJI })}
         </Button>
         <Button
           type="button"

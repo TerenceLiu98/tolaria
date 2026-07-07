@@ -21,6 +21,11 @@ describe('paperCommentProvider', () => {
       note: 'Follow-up evidence.',
       created_at: '2026-07-03T10:05:00Z',
     }],
+    reactions: [{
+      emoji: '👍',
+      count: 1,
+      created_at: '2026-07-03T10:06:00Z',
+    }],
   }
 
   it('maps block annotations to generic note comments', () => {
@@ -30,6 +35,10 @@ describe('paperCommentProvider', () => {
       color: 'important',
       id: 'ann-1',
       kind: 'comment',
+      reactions: [expect.objectContaining({
+        count: 1,
+        emoji: '👍',
+      })],
       replies: [expect.objectContaining({
         body: 'Follow-up evidence.',
         id: 'reply-1',

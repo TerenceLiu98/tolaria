@@ -1088,5 +1088,7 @@
   "paper.reader.reopenComment": "Reopen",
   "paper.reader.commentResolved": "Resolved",
   "paper.reader.replyToComment": "Reply",
-  "paper.reader.commentReplies": "Replies ({count})"
+  "paper.reader.commentReplies": "Replies ({count})",
+  "paper.reader.reactToComment": "React {emoji}",
+  "paper.reader.removeCommentReaction": "Remove {emoji}"
 }

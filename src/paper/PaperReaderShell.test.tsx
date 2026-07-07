@@ -784,7 +784,19 @@ describe('PaperReaderShell', () => {
       expect(screen.getByTestId(/paper-reader-annotation-replies-/u)).toHaveTextContent('Follow-up from a second reading.')
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })
-    fireEvent.click(within(editor).getByRole('button', { name: 'Resolve' }))
+    fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-editor-/u)).getByRole('button', { name: 'React 👍' }))
+    await waitFor(() => {
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"reactions"')
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"emoji":"👍"')
+      expect(screen.getByTestId(/paper-reader-annotation-reaction-/u)).toHaveTextContent('👍 1')
+      expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
+    })
+    fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-editor-/u)).getByRole('button', { name: 'Remove 👍' }))
+    await waitFor(() => {
+      expect(screen.queryByTestId(/paper-reader-annotation-reaction-/u)).not.toBeInTheDocument()
+      expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
+    })
+    fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-editor-/u)).getByRole('button', { name: 'Resolve' }))
     await waitFor(() => {
       expect(MOCK_CONTENT[annotationsPath]).toContain('"resolved_at"')
       expect(screen.getByText('Resolved')).toBeInTheDocument()

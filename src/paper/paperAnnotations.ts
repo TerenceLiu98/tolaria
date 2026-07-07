@@ -27,6 +27,14 @@ export interface PaperAnnotationReply {
   deleted_at?: string
 }
 
+export interface PaperAnnotationReaction {
+  emoji: string
+  count: number
+  created_at?: string
+  updated_at?: string
+  deleted_at?: string
+}
+
 export interface PaperAnnotation {
   id: string
   paper_id: string
@@ -38,6 +46,7 @@ export interface PaperAnnotation {
   note?: string
   page?: number
   bbox?: number[]
+  reactions?: PaperAnnotationReaction[]
   replies?: PaperAnnotationReply[]
   resolved_at?: string
   updated_at?: string

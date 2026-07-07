@@ -1,6 +1,7 @@
 import {
   groupCommentsByAnchor,
   type NoteComment,
+  type NoteCommentReaction,
   type NoteCommentReply,
   type NoteCommentAnchor,
 } from '../comments/commentProvider'
@@ -20,6 +21,18 @@ function paperAnnotationReplies(annotation: PaperAnnotation): NoteCommentReply[]
     }))
 }
 
+function paperAnnotationReactions(annotation: PaperAnnotation): NoteCommentReaction[] {
+  const reactions = Array.isArray(annotation.reactions) ? annotation.reactions : []
+  return reactions
+    .filter((reaction) => typeof reaction.deleted_at !== 'string')
+    .map((reaction) => ({
+      count: reaction.count,
+      createdAt: reaction.created_at ?? null,
+      emoji: reaction.emoji,
+      updatedAt: reaction.updated_at ?? null,
+    }))
+}
+
 export function paperAnnotationToComment(annotation: PaperAnnotation): NoteComment | null {
   if (!annotation.block_id) return null
   return {
@@ -30,6 +43,7 @@ export function paperAnnotationToComment(annotation: PaperAnnotation): NoteComme
     id: annotation.id,
     kind: annotation.kind,
     quote: annotation.text ?? null,
+    reactions: paperAnnotationReactions(annotation),
     replies: paperAnnotationReplies(annotation),
     updatedAt: annotation.updated_at ?? null,
   }

@@ -11,6 +11,13 @@ export interface NoteCommentReply {
   updatedAt?: string | null
 }
 
+export interface NoteCommentReaction {
+  count: number
+  createdAt?: string | null
+  emoji: string
+  updatedAt?: string | null
+}
+
 export interface NoteComment {
   anchorId: string
   body: string
@@ -19,6 +26,7 @@ export interface NoteComment {
   id: string
   kind: string
   quote?: string | null
+  reactions?: NoteCommentReaction[]
   replies?: NoteCommentReply[]
   updatedAt?: string | null
 }
