@@ -21,6 +21,7 @@ import { lazy, Suspense, useEffect, useRef, useState, type ComponentProps, type 
 import { resolveWikilinkColor as resolveColor } from '../utils/wikilinkColors'
 import { resolveEntry } from '../utils/wikilink'
 import { MATH_BLOCK_TYPE, MATH_INLINE_TYPE, renderMathToHtml } from '../utils/mathMarkdown'
+import { normalizeLatexSource } from '../utils/mathLatex'
 import { MERMAID_BLOCK_TYPE, mermaidFenceSource } from '../utils/mermaidMarkdown'
 import { TLDRAW_BLOCK_TYPE, TLDRAW_DEFAULT_HEIGHT } from '../utils/tldrawMarkdown'
 import { MARKDOWN_HIGHLIGHT_STYLE } from '../utils/markdownHighlightMarkdown'
@@ -109,13 +110,14 @@ export const WikiLink = createReactInlineContentSpec(
 )
 
 function MathRender({ latex, displayMode }: { latex: string; displayMode: boolean }) {
-  const source = displayMode ? `$$\n${latex}\n$$` : `$${latex}$`
+  const normalizedLatex = normalizeLatexSource(latex)
+  const source = displayMode ? `$$\n${normalizedLatex}\n$$` : `$${normalizedLatex}$`
   return (
     <SafeHtmlSpan
-      aria-label={`Math: ${latex}`}
+      aria-label={`Math: ${normalizedLatex}`}
       className={displayMode ? 'math math--block' : 'math math--inline'}
-      data-latex={latex}
-      markup={renderMathToHtml({ latex, displayMode })}
+      data-latex={normalizedLatex}
+      markup={renderMathToHtml({ latex: normalizedLatex, displayMode })}
       role="img"
       title={source}
     />
@@ -144,7 +146,7 @@ export function MathInlineEditor({
   inlineContent,
   updateInlineContent,
 }: MathInlineEditorProps) {
-  const currentLatex = inlineContent.props.latex
+  const currentLatex = normalizeLatexSource(inlineContent.props.latex)
   const inputRef = useRef<HTMLInputElement>(null)
   const [draftLatex, setDraftLatex] = useState(currentLatex)
   const [open, setOpen] = useState(false)
@@ -168,7 +170,7 @@ export function MathInlineEditor({
   }
 
   const save = () => {
-    const nextLatex = draftLatex.trim()
+    const nextLatex = normalizeLatexSource(draftLatex.trim())
     if (nextLatex.length > 0 && nextLatex !== currentLatex) {
       updateInlineContent({ props: { latex: nextLatex } })
       dispatchRichEditorExternalChange(editor, editor.domElement ?? undefined)

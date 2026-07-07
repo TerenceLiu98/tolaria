@@ -162,6 +162,20 @@ describe('MathInlineEditor', () => {
     unsubscribe()
   })
 
+  it('normalizes over-escaped inline math before rendering and saving edits', async () => {
+    const { updateInlineContent } = renderMathInlineEditor('\\\\frac\\{a\\}\\{b\\}')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Math: \\frac{a}{b}' }))
+    const input = await screen.findByRole('textbox', { name: 'Inline math' })
+    expect(input).toHaveValue('\\frac{a}{b}')
+    fireEvent.change(input, { target: { value: '\\\\sqrt\\{x\\}' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(updateInlineContent).toHaveBeenCalledWith({
+      props: { latex: '\\sqrt{x}' },
+    })
+  })
+
   it('closes inline math editing without changing props on Escape', async () => {
     const { editor, updateInlineContent } = renderMathInlineEditor()
 

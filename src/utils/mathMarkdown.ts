@@ -2,6 +2,7 @@ import katex from 'katex'
 import {
   type DirectMarkdownCapableSerializer,
 } from './blockNoteDirectMarkdown'
+import { normalizeLatexSource } from './mathLatex'
 
 export const MATH_INLINE_TYPE = 'mathInline'
 export const MATH_BLOCK_TYPE = 'mathBlock'
@@ -116,7 +117,7 @@ function mathToken({ prefix, latex }: TokenRequest): string {
 
 function readMathToken({ text, prefix }: TokenReadRequest): string | null {
   if (!text.startsWith(prefix) || !text.endsWith(TOKEN_SUFFIX)) return null
-  return decodeLatex({ encoded: text.slice(prefix.length, -TOKEN_SUFFIX.length) })
+  return normalizeLatexSource(decodeLatex({ encoded: text.slice(prefix.length, -TOKEN_SUFFIX.length) }))
 }
 
 function isEscaped({ text, index }: TextPosition): boolean {
@@ -217,7 +218,7 @@ function readInlineMath({ text, index }: TextPosition): InlineMathMatch | null {
   const end = findInlineMathEnd({ text, index })
   if (end === -1) return null
 
-  const latex = text.slice(index + 1, end)
+  const latex = normalizeLatexSource(text.slice(index + 1, end))
   return isValidInlineLatex({ latex }) ? { latex, end } : null
 }
 
@@ -241,7 +242,7 @@ export function readCompletedInlineMathAtEnd({ text }: { text: string }): Comple
   const start = findCompletedInlineMathStart({ text, index: end })
   if (start === -1) return null
 
-  const latex = text.slice(start + 1, end)
+  const latex = normalizeLatexSource(text.slice(start + 1, end))
   return isValidInlineLatex({ latex }) ? { latex, start, end } : null
 }
 
@@ -274,7 +275,7 @@ function replaceInlineMath({ line }: MarkdownLine): string {
 
 function readSingleLineDisplayMath({ line }: MarkdownLine): InlineMathMatch | null {
   const match = line.trim().match(/^\$\$(.+)\$\$$/)
-  const latex = match?.at(1)?.trim()
+  const latex = normalizeLatexSource(match?.at(1)?.trim() ?? '')
   return latex ? { latex, end: 0 } : null
 }
 
@@ -282,7 +283,7 @@ function readMultilineDisplayMath({ lines, start }: MarkdownLines): InlineMathMa
   const startLine = lines.at(start)
   if (startLine?.trim() !== '$$') return null
   const end = lines.findIndex((line, index) => index > start && line.trim() === '$$')
-  return end === -1 ? null : { latex: lines.slice(start + 1, end).join('\n'), end }
+  return end === -1 ? null : { latex: normalizeLatexSource(lines.slice(start + 1, end).join('\n')), end }
 }
 
 function readDisplayMath({ lines, start }: MarkdownLines): InlineMathMatch | null {
@@ -345,9 +346,9 @@ function inlineMathPartToItem({ source, part, index }: { source: InlineItem; par
   if (!part) return []
   if (index % 2 === 0) return [{ ...source, text: part }]
   return [{
-    type: MATH_INLINE_TYPE,
-    props: { latex: decodeLatex({ encoded: part }) },
-    content: undefined,
+      type: MATH_INLINE_TYPE,
+      props: { latex: normalizeLatexSource(decodeLatex({ encoded: part })) },
+      content: undefined,
   }]
 }
 
@@ -356,7 +357,17 @@ function restoreInlineMath(content: InlineItem[]): InlineItem[] {
   const restored = content.map((item) => {
     if (item.type !== MATH_INLINE_TYPE || !item.props?.latex) return item
     changed = true
-    return { type: 'text', text: `$${item.props.latex}$` }
+    return { type: 'text', text: `$${normalizeLatexSource(item.props.latex)}$` }
+  })
+  return changed ? restored : content
+}
+
+function restoreInlineMathTokens(content: InlineItem[]): InlineItem[] {
+  let changed = false
+  const restored = content.map((item) => {
+    if (item.type !== MATH_INLINE_TYPE || !item.props?.latex) return item
+    changed = true
+    return { type: 'text', text: mathToken({ prefix: INLINE_TOKEN_PREFIX, latex: normalizeLatexSource(item.props.latex) }) }
   })
   return changed ? restored : content
 }
@@ -444,6 +455,12 @@ function restoreInlineMathInBlock(block: BlockLike): BlockLike {
   return content === block.content && children === block.children ? block : { ...block, content, children }
 }
 
+function restoreInlineMathTokensInBlock(block: BlockLike): BlockLike {
+  const content = transformBlockContent(block.content, restoreInlineMathTokens)
+  const children = transformChildBlocks(block.children, restoreInlineMathTokensInBlock)
+  return content === block.content && children === block.children ? block : { ...block, content, children }
+}
+
 function transformChildBlocks(
   children: BlockLike[] | undefined,
   transform: (block: BlockLike) => BlockLike,
@@ -463,7 +480,7 @@ function isMathBlock(block: BlockLike): boolean {
 }
 
 function displayMathMarkdown({ latex }: LatexPayload): string {
-  return `$$\n${latex}\n$$`
+  return `$$\n${normalizeLatexSource(latex)}\n$$`
 }
 
 export function injectMathInBlocks(blocks: unknown[]): unknown[] {
@@ -477,7 +494,11 @@ export function restoreMathInBlocks(blocks: unknown[]): unknown[] {
 function serializeInlineMathAwareOrdinaryBlocks(editor: MarkdownSerializer, blocks: unknown[]): string {
   const direct = editor.blocksToMarkdownDirect?.(blocks)
   if (direct?.supported) return direct.markdown
-  return editor.blocksToMarkdownLossy(restoreMathInBlocks(blocks))
+
+  const tokenizedBlocks = (blocks as BlockLike[]).map(restoreInlineMathTokensInBlock)
+  return editor.blocksToMarkdownLossy(tokenizedBlocks).replace(INLINE_TOKEN_RE, (_token, encoded: string) => {
+    return `$${normalizeLatexSource(decodeLatex({ encoded }))}$`
+  })
 }
 
 export function serializeMathAwareBlocks(editor: MarkdownSerializer, blocks: unknown[]): string {

@@ -50,6 +50,37 @@ describe('math markdown round-trip', () => {
     ])
   })
 
+  it('normalizes previously over-escaped inline LaTeX when reopening Markdown', () => {
+    const preprocessed = preProcessMathMarkdown({ markdown: String.raw`Ratio is $\\frac\{a\}\{b\}$ in prose.` })
+    const blocks = [{
+      type: 'paragraph',
+      content: [{ type: 'text', text: preprocessed, styles: {} }],
+      children: [],
+    }]
+
+    const [block] = injectMathInBlocks(blocks) as Array<{ content: unknown[] }>
+
+    expect(block.content).toEqual([
+      { type: 'text', text: 'Ratio is ', styles: {} },
+      { type: MATH_INLINE_TYPE, props: { latex: '\\frac{a}{b}' }, content: undefined },
+      { type: 'text', text: ' in prose.', styles: {} },
+    ])
+  })
+
+  it('normalizes previously over-escaped display LaTeX when reopening Markdown', () => {
+    const preprocessed = preProcessMathMarkdown({ markdown: '$$\n\\\\frac\\{a\\}\\{b\\}\n$$' })
+    const blocks = [{
+      type: 'paragraph',
+      content: [{ type: 'text', text: preprocessed, styles: {} }],
+      children: [],
+    }]
+
+    const [block] = injectMathInBlocks(blocks) as Array<{ type: string; props: { latex: string } }>
+
+    expect(block.type).toBe(MATH_BLOCK_TYPE)
+    expect(block.props.latex).toBe('\\frac{a}{b}')
+  })
+
   it('injects display math placeholders into dedicated math blocks', () => {
     const preprocessed = preProcessMathMarkdown({ markdown: '$$\n\\int_0^1 x\\,dx\n$$' })
     const blocks = [{
@@ -137,6 +168,26 @@ describe('math markdown round-trip', () => {
     expect(serializeMathAwareBlocks(editor, blocks)).toBe('Inline $\\frac{a}{b}$')
   })
 
+  it('does not let fallback Markdown escaping corrupt inline LaTeX', () => {
+    const editor = {
+      blocksToMarkdownLossy: vi.fn((blocks: unknown[]) => {
+        return (blocks as Array<{ content?: Array<{ text?: string }> }>)
+          .map((block) => block.content?.map((item) => item.text?.replace(/([\\{}])/gu, '\\$1') ?? '').join('') ?? '')
+          .join('\n\n')
+      }),
+    }
+    const blocks = [{
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: 'Inline ', styles: {} },
+        { type: MATH_INLINE_TYPE, props: { latex: '\\frac{a}{b}' } },
+      ],
+      children: [],
+    }]
+
+    expect(serializeMathAwareBlocks(editor, blocks)).toBe('Inline $\\frac{a}{b}$')
+  })
+
   it('round-trips inline math inside table cells', () => {
     const tableCellMath = preProcessMathMarkdown({ markdown: '$a+b$' })
     const blocks = [{
@@ -175,7 +226,7 @@ describe('math markdown round-trip', () => {
         rows: [{
           cells: [{
             type: 'tableCell',
-            content: [{ type: 'text', text: '$a+b$' }],
+            content: [{ type: 'text', text: '@@TOLARIA_MATH_INLINE:a%2Bb@@' }],
           }],
         }],
       },

@@ -1,3 +1,5 @@
+import { normalizeLatexSource } from './mathLatex'
+
 interface TextStyles {
   [style: string]: string | boolean | undefined
 }
@@ -119,7 +121,7 @@ function inlineText(item: InlineItem): string {
   if (item.type === 'text') return item.text ?? ''
   if (item.type === 'link') return linkMarkdown(item)
   if (item.type === 'wikilink') return wikilinkMarkdown(item)
-  if (item.type === 'mathInline') return item.props?.latex ? `$${item.props.latex}$` : ''
+  if (item.type === 'mathInline') return item.props?.latex ? `$${normalizeLatexSource(item.props.latex)}$` : ''
   if (Array.isArray(item.content)) return serializeInlineContent(item.content)
   return ''
 }
