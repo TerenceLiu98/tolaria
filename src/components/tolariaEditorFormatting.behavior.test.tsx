@@ -259,6 +259,68 @@ describe('tolariaEditorFormatting behavior', () => {
     expect(editor.focus).toHaveBeenCalled()
   })
 
+  it('streams an inline AI suggestion and accepts it into the selected text', async () => {
+    const editor = createMockEditor('paragraph')
+    const textNode = document.createTextNode('Original sentence')
+    editor.domElement.firstElementChild?.appendChild(textNode)
+    const range = document.createRange()
+    range.selectNodeContents(textNode)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    useBlockNoteEditorMock.mockReturnValue(editor)
+
+    const onRequestInlineAiSuggestion = vi.fn((_request, callbacks) => {
+      callbacks.onDelta('Improved ')
+      callbacks.onDelta('sentence')
+      callbacks.onDone()
+    })
+
+    render(<TolariaFormattingToolbar onRequestInlineAiSuggestion={onRequestInlineAiSuggestion} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest inline AI edit' }))
+    await screen.findByText('Review the inline AI draft.')
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+
+    expect(onRequestInlineAiSuggestion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'rewrite',
+        selectedText: 'Original sentence',
+      }),
+      expect.any(Object),
+    )
+    expect(editor.insertInlineContent).toHaveBeenCalledWith('Improved sentence', { updateSelection: true })
+    expect(editor.focus).toHaveBeenCalled()
+  })
+
+  it('rejects inline AI suggestions without mutating the editor', async () => {
+    const editor = createMockEditor('paragraph')
+    const textNode = document.createTextNode('Original sentence')
+    editor.domElement.firstElementChild?.appendChild(textNode)
+    const range = document.createRange()
+    range.selectNodeContents(textNode)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    useBlockNoteEditorMock.mockReturnValue(editor)
+
+    render(
+      <TolariaFormattingToolbar
+        onRequestInlineAiSuggestion={(_request, callbacks) => {
+          callbacks.onDelta('Rejected sentence')
+          callbacks.onDone()
+        }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest inline AI edit' }))
+    await screen.findByText('Rejected sentence')
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+
+    expect(editor.insertInlineContent).not.toHaveBeenCalled()
+    expect(editor.focus).toHaveBeenCalled()
+  })
+
   it('converts the current editor text selection to inline math from the toolbar', () => {
     const editor = createMockEditor('paragraph')
     const textNode = document.createTextNode('$E=mc^2$')

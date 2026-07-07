@@ -46,6 +46,7 @@ import { insertImageBlockAfterCursor } from './editorImageInsertion'
 import { useBlockNoteSideMenuHoverGuard } from './blockNoteSideMenuHoverGuard'
 import { getTolariaSlashMenuItems } from './tolariaEditorFormattingConfig'
 import {
+  type InlineAiSuggestionHandler,
   TolariaFormattingToolbar,
   TolariaFormattingToolbarController,
 } from './tolariaEditorFormatting'
@@ -1012,6 +1013,7 @@ type EditorInteractionControllersProps = ReturnType<typeof useSuggestionMenuItem
   commentOptions?: EditorCommentOptions
   locale: AppLocale
   onAttachSelectedTextContext?: (text: string) => void
+  onRequestInlineAiSuggestion?: InlineAiSuggestionHandler
   onToolbarInteractionEnd: () => void
   onToolbarInteractionStart: () => void
   runEditorAction: (action: SuggestionAction) => void
@@ -1026,6 +1028,7 @@ function EditorInteractionControllers({
   getWikilinkItems,
   locale,
   onAttachSelectedTextContext,
+  onRequestInlineAiSuggestion,
   onToolbarInteractionEnd,
   onToolbarInteractionStart,
   runEditorAction,
@@ -1052,6 +1055,7 @@ function EditorInteractionControllers({
             {...props}
             locale={locale}
             onAttachSelectedTextContext={onAttachSelectedTextContext}
+            onRequestInlineAiSuggestion={onRequestInlineAiSuggestion}
             vaultPath={vaultPath}
           />
         )}
@@ -1211,12 +1215,13 @@ function refreshCodeBlockSyntaxHighlighting(editor: ReturnType<typeof useCreateB
 }
 
 /** Single BlockNote editor view — content is swapped via replaceBlocks */
-export function SingleEditorView({ commentOptions, editor, entries, onNavigateWikilink, onChange, onSelectedTextContextChange, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
+export function SingleEditorView({ commentOptions, editor, entries, onNavigateWikilink, onChange, onRequestInlineAiSuggestion, onSelectedTextContextChange, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
   commentOptions?: EditorCommentOptions
   editor: ReturnType<typeof useCreateBlockNote>
   entries: VaultEntry[]
   onNavigateWikilink: (target: string) => void
   onChange?: () => void
+  onRequestInlineAiSuggestion?: InlineAiSuggestionHandler
   onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   sourceEntry?: VaultEntry | null
   vaultPath?: string
@@ -1454,6 +1459,7 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
                 commentOptions={commentOptions}
                 locale={locale}
                 onAttachSelectedTextContext={handleAttachSelectedTextContext}
+                onRequestInlineAiSuggestion={onRequestInlineAiSuggestion}
                 onToolbarInteractionEnd={handleToolbarInteractionEnd}
                 onToolbarInteractionStart={handleToolbarInteractionStart}
                 runEditorAction={runEditorAction}

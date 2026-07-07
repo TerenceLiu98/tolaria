@@ -86,6 +86,22 @@ type TolariaBasicTextStyle =
   | typeof MARKDOWN_HIGHLIGHT_STYLE
 
 type AttachSelectedTextHandler = (text: string) => void
+export interface InlineAiSuggestionRequest {
+  operation: 'rewrite'
+  selectedText: string
+}
+
+export interface InlineAiSuggestionCallbacks {
+  onDelta: (text: string) => void
+  onDone: () => void
+  onError: (message: string) => void
+}
+
+export type InlineAiSuggestionHandler = (
+  request: InlineAiSuggestionRequest,
+  callbacks: InlineAiSuggestionCallbacks,
+) => void | Promise<void>
+
 type InlineMathContent = {
   content?: undefined
   props: { latex: string }
@@ -950,6 +966,118 @@ function TolariaAttachSelectedTextButton({
   )
 }
 
+function TolariaInlineAiSuggestionButton({
+  locale = 'en',
+  onRequestInlineAiSuggestion,
+}: {
+  locale?: AppLocale
+  onRequestInlineAiSuggestion?: InlineAiSuggestionHandler
+}) {
+  const Components = useComponentsContext()!
+  const editor = useBlockNoteEditor<
+    BlockSchema,
+    InlineContentSchema,
+    StyleSchema
+  >()
+  const selectedText = useEditorState({
+    editor,
+    selector: ({ editor }) => selectedEditorText(editor),
+  })
+  const [draft, setDraft] = useState('')
+  const [status, setStatus] = useState<'idle' | 'streaming' | 'ready' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState('')
+  const isOpen = status !== 'idle'
+
+  const handleRequest = useCallback(() => {
+    const text = selectedEditorText(editor)
+    if (!text || !onRequestInlineAiSuggestion) return
+
+    setDraft('')
+    setErrorMessage('')
+    setStatus('streaming')
+
+    void Promise.resolve(onRequestInlineAiSuggestion(
+      { operation: 'rewrite', selectedText: text },
+      {
+        onDelta: (delta) => {
+          setDraft((current) => `${current}${delta}`)
+        },
+        onDone: () => {
+          setStatus('ready')
+        },
+        onError: (message) => {
+          setErrorMessage(message)
+          setStatus('error')
+        },
+      },
+    )).catch((error: unknown) => {
+      setErrorMessage(error instanceof Error ? error.message : String(error))
+      setStatus('error')
+    })
+  }, [editor, onRequestInlineAiSuggestion])
+
+  const handleAccept = useCallback(() => {
+    const suggestion = draft.trim()
+    if (!suggestion) return
+
+    editor.focus()
+    editor.insertInlineContent(suggestion, { updateSelection: true })
+    setStatus('idle')
+    setDraft('')
+    setErrorMessage('')
+  }, [draft, editor])
+
+  const handleReject = useCallback(() => {
+    setStatus('idle')
+    setDraft('')
+    setErrorMessage('')
+    editor.focus()
+  }, [editor])
+
+  if (!onRequestInlineAiSuggestion || !selectedText || !editor.isEditable) return null
+
+  const label = translate(locale, 'editor.inlineAi.suggest')
+  return (
+    <>
+      <Components.FormattingToolbar.Button
+        className="bn-button"
+        data-test="inlineAiSuggestion"
+        onClick={handleRequest}
+        isSelected={isOpen}
+        label={label}
+        mainTooltip={label}
+        icon={<Highlighter />}
+      />
+      {isOpen ? (
+        <div className="pointer-events-auto flex max-w-[24rem] flex-col gap-2 rounded-md border border-border bg-popover p-2 text-xs shadow-sm">
+          <div className="text-muted-foreground">
+            {status === 'streaming'
+              ? translate(locale, 'editor.inlineAi.streaming')
+              : status === 'error'
+                ? translate(locale, 'editor.inlineAi.failed')
+                : translate(locale, 'editor.inlineAi.ready')}
+          </div>
+          {status === 'error' ? (
+            <div className="text-destructive">{errorMessage}</div>
+          ) : (
+            <div className="max-h-32 overflow-auto whitespace-pre-wrap rounded border border-border bg-background p-2 text-foreground">
+              {draft || translate(locale, 'editor.inlineAi.emptyDraft')}
+            </div>
+          )}
+          <div className="flex justify-end gap-1">
+            <Button onClick={handleReject} size="xs" type="button" variant="ghost">
+              {translate(locale, 'editor.inlineAi.reject')}
+            </Button>
+            <Button disabled={draft.trim().length === 0 || status === 'error'} onClick={handleAccept} size="xs" type="button">
+              {translate(locale, 'editor.inlineAi.accept')}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </>
+  )
+}
+
 function replaceToolbarControls(items: ReactElement[], locale: AppLocale, vaultPath?: string) {
   return items.flatMap((item) => {
     switch (String(item.key)) {
@@ -971,6 +1099,7 @@ function insertExtraTextStyleButtons(
   items: ReactElement[],
   locale: AppLocale,
   onAttachSelectedTextContext?: AttachSelectedTextHandler,
+  onRequestInlineAiSuggestion?: InlineAiSuggestionHandler,
 ) {
   const strikeButtonIndex = items.findIndex(
     (item) => String(item.key) === 'strikeStyleButton',
@@ -994,6 +1123,11 @@ function insertExtraTextStyleButtons(
       locale={locale}
       onAttachSelectedTextContext={onAttachSelectedTextContext}
     />,
+    <TolariaInlineAiSuggestionButton
+      key="inlineAiSuggestionButton"
+      locale={locale}
+      onRequestInlineAiSuggestion={onRequestInlineAiSuggestion}
+    />,
     ...items.slice(strikeButtonIndex + 1),
   ]
 }
@@ -1002,6 +1136,7 @@ function getTolariaFormattingToolbarItems(
   vaultPath: string | undefined,
   locale: AppLocale,
   onAttachSelectedTextContext?: AttachSelectedTextHandler,
+  onRequestInlineAiSuggestion?: InlineAiSuggestionHandler,
 ) {
   return insertExtraTextStyleButtons(
     replaceToolbarControls(
@@ -1013,19 +1148,26 @@ function getTolariaFormattingToolbarItems(
     ),
     locale,
     onAttachSelectedTextContext,
+    onRequestInlineAiSuggestion,
   )
 }
 
 export function TolariaFormattingToolbar({
   locale = 'en',
   onAttachSelectedTextContext,
+  onRequestInlineAiSuggestion,
   vaultPath,
 }: {
   locale?: AppLocale
   onAttachSelectedTextContext?: AttachSelectedTextHandler
+  onRequestInlineAiSuggestion?: InlineAiSuggestionHandler
   vaultPath?: string
 } = {}) {
-  return <FormattingToolbar>{getTolariaFormattingToolbarItems(vaultPath, locale, onAttachSelectedTextContext)}</FormattingToolbar>
+  return (
+    <FormattingToolbar>
+      {getTolariaFormattingToolbarItems(vaultPath, locale, onAttachSelectedTextContext, onRequestInlineAiSuggestion)}
+    </FormattingToolbar>
+  )
 }
 
 export function TolariaFormattingToolbarController(props: {
