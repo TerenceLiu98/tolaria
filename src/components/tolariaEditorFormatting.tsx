@@ -47,6 +47,7 @@ import {
 import {
   ArrowSquareOut as ExternalLink,
   CaretDown as ChevronDown,
+  ClipboardText,
   Code as Code2,
   Function as FunctionIcon,
   Highlighter,
@@ -65,6 +66,8 @@ import {
 import { translate, type AppLocale } from '../lib/i18n'
 import { useBlockNoteFormattingToolbarHoverGuard } from './blockNoteFormattingToolbarHoverGuard'
 import { openEditorAttachmentOrUrl } from './editorAttachmentActions'
+import { writeClipboardText } from '../utils/clipboardText'
+import { portableAttachmentPathFromCurrentVaultAssetUrl } from '../utils/vaultAttachments'
 import {
   isStaleBlockReferenceError,
   reportRecoveredEditorTransformError,
@@ -219,6 +222,7 @@ type TolariaSelectedBlock = ReturnType<
 >['block']
 
 type TolariaSelectedFileBlock = {
+  displayPath: string
   type: string
   url: string
 }
@@ -422,6 +426,7 @@ function getFormattingToolbarBridgeBlockId(
 
 function getSelectedFileBlockState(
   editor: BlockNoteEditor<BlockSchema, InlineContentSchema, StyleSchema>,
+  vaultPath?: string,
 ): TolariaSelectedFileBlock | null {
   const selectedBlocks = getSelectedBlocksSafely(editor)
   if (selectedBlocks.length !== 1) return null
@@ -431,9 +436,15 @@ function getSelectedFileBlockState(
   if (!FORMATTING_TOOLBAR_FILE_BLOCK_TYPES.has(block.type)) return null
 
   const url = (block.props as Record<string, unknown>).url
-  return typeof url === 'string' && url.trim().length > 0
-    ? { type: block.type, url }
-    : null
+  if (typeof url !== 'string' || url.trim().length === 0) return null
+
+  return {
+    displayPath: vaultPath
+      ? portableAttachmentPathFromCurrentVaultAssetUrl({ url, vaultPath }) ?? url
+      : url,
+    type: block.type,
+    url,
+  }
 }
 
 function reportStaleFormattingToolbarBlockReference(error: unknown) {
@@ -652,7 +663,7 @@ function TolariaFileDownloadButton({ vaultPath }: { vaultPath?: string }) {
   >()
   const selectedFileBlock = useEditorState({
     editor,
-    selector: ({ editor }) => getSelectedFileBlockState(editor),
+    selector: ({ editor }) => getSelectedFileBlockState(editor, vaultPath),
   })
   const handleOpen = useCallback(() => {
     if (!selectedFileBlock) return
@@ -677,6 +688,43 @@ function TolariaFileDownloadButton({ vaultPath }: { vaultPath?: string }) {
       label={label}
       mainTooltip={label}
       icon={<ExternalLink />}
+    />
+  )
+}
+
+function TolariaFilePathCopyButton({ locale = 'en', vaultPath }: { locale?: AppLocale; vaultPath?: string }) {
+  const Components = useComponentsContext()!
+  const editor = useBlockNoteEditor<
+    BlockSchema,
+    InlineContentSchema,
+    StyleSchema
+  >()
+  const selectedFileBlock = useEditorState({
+    editor,
+    selector: ({ editor }) => getSelectedFileBlockState(editor, vaultPath),
+  })
+  const handleCopy = useCallback(() => {
+    if (!selectedFileBlock) return
+
+    editor.focus()
+    void writeClipboardText(selectedFileBlock.displayPath).catch((error) => {
+      console.warn('[file] Failed to copy media path:', error)
+    })
+  }, [editor, selectedFileBlock])
+
+  if (!selectedFileBlock || !editor.isEditable) return null
+
+  const label = translate(locale, 'editor.toolbar.copyFilePath')
+  return (
+    <Components.FormattingToolbar.Button
+      className="bn-button"
+      data-test="filePathCopy"
+      onClick={handleCopy}
+      isSelected={false}
+      label={label}
+      mainTooltip={label}
+      secondaryTooltip={selectedFileBlock.displayPath}
+      icon={<ClipboardText />}
     />
   )
 }
@@ -809,13 +857,16 @@ function TolariaAttachSelectedTextButton({
   )
 }
 
-function replaceToolbarControls(items: ReactElement[], vaultPath?: string) {
+function replaceToolbarControls(items: ReactElement[], locale: AppLocale, vaultPath?: string) {
   return items.flatMap((item) => {
     switch (String(item.key)) {
       case 'blockTypeSelect':
         return [<TolariaBlockTypeSelect key={item.key} />]
       case 'fileDownloadButton':
-        return [<TolariaFileDownloadButton key={item.key} vaultPath={vaultPath} />]
+        return [
+          <TolariaFileDownloadButton key={item.key} vaultPath={vaultPath} />,
+          <TolariaFilePathCopyButton key="filePathCopyButton" locale={locale} vaultPath={vaultPath} />,
+        ]
       default:
         return [item]
     }
@@ -863,6 +914,7 @@ function getTolariaFormattingToolbarItems(
       filterTolariaFormattingToolbarItems(
         getFormattingToolbarItems(),
       ),
+      locale,
       vaultPath,
     ),
     locale,

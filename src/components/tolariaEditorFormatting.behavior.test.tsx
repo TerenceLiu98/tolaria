@@ -10,6 +10,7 @@ const {
   positionPopoverState,
   showState,
   useBlockNoteEditorMock,
+  writeClipboardTextMock,
 } = vi.hoisted(() => ({
   blockHasTypeMock: vi.fn(() => true),
   editorHasBlockWithTypeMock: vi.fn(() => true),
@@ -18,6 +19,7 @@ const {
   positionPopoverState: { lastProps: null as null | Record<string, unknown> },
   showState: { value: true },
   useBlockNoteEditorMock: vi.fn(),
+  writeClipboardTextMock: vi.fn().mockResolvedValue(undefined),
 }))
 
 function MockIcon() {
@@ -121,6 +123,7 @@ vi.mock('@mantine/core', () => ({
 vi.mock('@phosphor-icons/react', () => ({
   ArrowSquareOut: MockIcon,
   CaretDown: MockIcon,
+  ClipboardText: MockIcon,
   Code: MockIcon,
   Function: MockIcon,
   Highlighter: MockIcon,
@@ -128,6 +131,10 @@ vi.mock('@phosphor-icons/react', () => ({
   TextB: MockIcon,
   TextItalic: MockIcon,
   TextStrikethrough: MockIcon,
+}))
+
+vi.mock('../utils/clipboardText', () => ({
+  writeClipboardText: writeClipboardTextMock,
 }))
 
 vi.mock('./tolariaEditorFormattingConfig', () => ({
@@ -304,6 +311,20 @@ describe('tolariaEditorFormatting behavior', () => {
 
     expect(editor.focus).toHaveBeenCalled()
     expect(mockOpenLocalFile).toHaveBeenCalledWith('/vault/attachments/report.pdf', '/vault')
+  })
+
+  it('copies selected media block paths from the formatting toolbar', () => {
+    const editor = createMockEditor('image', {
+      url: 'asset://localhost/%2Fvault%2Fattachments%2Fdiagram.png',
+    })
+    useBlockNoteEditorMock.mockReturnValue(editor)
+
+    render(<TolariaFormattingToolbar vaultPath="/vault" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy file path' }))
+
+    expect(editor.focus).toHaveBeenCalled()
+    expect(writeClipboardTextMock).toHaveBeenCalledWith('attachments/diagram.png')
   })
 
   it('controls the floating toolbar placement, hover guard, and escape-key close behavior', () => {
