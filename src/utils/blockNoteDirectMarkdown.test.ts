@@ -90,6 +90,58 @@ describe('BlockNote direct Markdown serialization', () => {
     expect(editor.__tolariaLastDirectMarkdownMetrics?.fallbackReason).toBe('unsupported:unsupportedWidget')
   })
 
+  it('serializes toggle blocks and media embeds for BlockNote built-in coverage', () => {
+    const blocks = [
+      {
+        type: 'toggleHeading',
+        props: { level: 2 },
+        content: [{ type: 'text', text: 'Expandable section', styles: {} }],
+        children: [{
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Hidden detail', styles: {} }],
+          children: [],
+        }],
+      },
+      {
+        type: 'toggleListItem',
+        content: [{ type: 'text', text: 'Evidence bundle', styles: {} }],
+        children: [{
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Nested note', styles: {} }],
+          children: [],
+        }],
+      },
+      { type: 'image', props: { name: 'Figure 1', url: 'assets/figure-1.png' }, children: [] },
+      { type: 'file', props: { name: 'Supplement', url: 'attachments/supplement.pdf' }, children: [] },
+      { type: 'video', props: { name: 'Demo', url: 'media/demo.mp4' }, children: [] },
+      { type: 'audio', props: { name: 'Interview', url: 'media/interview.mp3' }, children: [] },
+    ]
+
+    expect(blocksToMarkdownDirect(blocks).markdown).toBe([
+      '## Expandable section',
+      '',
+      '<details>',
+      '<summary>Section</summary>',
+      '',
+      'Hidden detail',
+      '</details>',
+      '',
+      '<details>',
+      '<summary>Evidence bundle</summary>',
+      '',
+      'Nested note',
+      '</details>',
+      '',
+      '![Figure 1](assets/figure-1.png)',
+      '',
+      '[Supplement](attachments/supplement.pdf)',
+      '',
+      '[Demo](media/demo.mp4)',
+      '',
+      '[Interview](media/interview.mp3)',
+    ].join('\n'))
+  })
+
   it('escapes literal Markdown syntax without double-escaping table pipes', () => {
     const blocks = [
       {

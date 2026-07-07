@@ -84,6 +84,7 @@ const TEXT_CONTENT_BLOCK_TYPES = new Set([
   'paragraph',
 ])
 const MEDIA_BLOCK_TYPES = new Set(['audio', 'file', 'image', 'video'])
+const CHILDREN_INCLUDED_BLOCK_TYPES = new Set(['toggleHeading', 'toggleListItem'])
 
 type BlockMarkdownHandler = (block: BlockLike, context: SerializeContext) => string | null
 
@@ -264,6 +265,25 @@ function headingMarkdown(block: BlockLike): string {
   return `${'#'.repeat(level)} ${serializeInlineContent(contentArray(block.content))}`.trimEnd()
 }
 
+function toggleSummaryMarkdown(block: BlockLike, context: SerializeContext): string {
+  const summary = serializeInlineContent(contentArray(block.content)) || 'Details'
+  const childMarkdown = Array.isArray(block.children) ? serializeBlockList(block.children, 0, context) : ''
+
+  return childMarkdown
+    ? `<details>\n<summary>${summary}</summary>\n\n${childMarkdown}\n</details>`
+    : `<details>\n<summary>${summary}</summary>\n</details>`
+}
+
+function toggleHeadingMarkdown(block: BlockLike, context: SerializeContext): string {
+  const level = Math.max(1, Math.min(6, Number(block.props?.level ?? 1)))
+  const heading = `${'#'.repeat(level)} ${serializeInlineContent(contentArray(block.content))}`.trimEnd()
+  const childMarkdown = Array.isArray(block.children) ? serializeBlockList(block.children, 0, context) : ''
+
+  return childMarkdown
+    ? `${heading}\n\n<details>\n<summary>Section</summary>\n\n${childMarkdown}\n</details>`
+    : heading
+}
+
 function unsupportedBlockMarkdown(block: BlockLike, context: SerializeContext): null {
   context.fallbackReason = typeof block.type === 'string' ? `unsupported:${block.type}` : 'unsupported:unknown'
   return null
@@ -275,6 +295,8 @@ const BLOCK_MARKDOWN_HANDLERS: Record<string, BlockMarkdownHandler> = {
   heading: headingMarkdown,
   quote: quoteMarkdown,
   table: tableMarkdown,
+  toggleHeading: toggleHeadingMarkdown,
+  toggleListItem: toggleSummaryMarkdown,
 }
 
 function blockMarkdownWithoutChildren(block: BlockLike, context: SerializeContext): string | null {
@@ -331,6 +353,9 @@ function renderUncachedBlock(block: BlockLike, depth: number, context: Serialize
 
   const prefix = blockPrefix(block, depth, context)
   const ownWithPrefix = prefix ? prependLinePrefix(ownMarkdown, prefix) : ownMarkdown
+  if (typeof block.type === 'string' && CHILDREN_INCLUDED_BLOCK_TYPES.has(block.type)) {
+    return ownWithPrefix
+  }
   const childMarkdown = serializeChildren(block, depth, context)
   return childMarkdown ? `${ownWithPrefix}\n${childMarkdown}` : ownWithPrefix
 }
