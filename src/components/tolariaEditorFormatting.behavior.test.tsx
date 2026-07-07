@@ -531,6 +531,7 @@ describe('tolariaEditorFormatting behavior', () => {
     expect(portalHost).toContainElement(screen.getByTestId('custom-toolbar'))
     expect(screen.getByTestId('mock-position-popover').closest('.editor__floating-blocknote-scope')).toHaveClass(
       'bn-root',
+      'bn-mantine',
       'bn-default-styles',
     )
   })

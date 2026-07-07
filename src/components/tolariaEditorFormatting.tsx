@@ -1433,7 +1433,7 @@ export function TolariaFormattingToolbarController(props: {
   const Component = props.formattingToolbar || TolariaFormattingToolbar
 
   const toolbar = (
-    <div className="editor__floating-blocknote-scope bn-root bn-default-styles">
+    <div className="editor__floating-blocknote-scope bn-root bn-mantine bn-default-styles">
       <PositionPopover position={position} {...floatingUIOptions}>
         {shouldRenderFloatingToolbar && (
           <div
