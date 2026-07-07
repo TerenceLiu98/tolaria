@@ -16,6 +16,11 @@ describe('paperCommentProvider', () => {
     color: 'important',
     note: 'Compare this with the baseline.',
     created_at: '2026-07-03T10:00:00Z',
+    replies: [{
+      id: 'reply-1',
+      note: 'Follow-up evidence.',
+      created_at: '2026-07-03T10:05:00Z',
+    }],
   }
 
   it('maps block annotations to generic note comments', () => {
@@ -25,6 +30,10 @@ describe('paperCommentProvider', () => {
       color: 'important',
       id: 'ann-1',
       kind: 'comment',
+      replies: [expect.objectContaining({
+        body: 'Follow-up evidence.',
+        id: 'reply-1',
+      })],
     }))
   })
 

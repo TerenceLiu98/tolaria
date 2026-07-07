@@ -61,10 +61,12 @@ import {
   type BlockCitationNavigationEvent,
 } from './blockCitationNavigation'
 import { loadPaperBlocks, type PaperBlocksError, type PaperBlocksReadResult } from './blocks'
-import type {
-  AnnotationsByBlockId,
-  PaperAnnotation,
-  PaperAnnotationKind,
+import {
+  createBlockAnnotationId,
+  type AnnotationsByBlockId,
+  type PaperAnnotation,
+  type PaperAnnotationKind,
+  type PaperAnnotationReply,
 } from './annotations'
 import {
   type PaperReaderBlocksState,
@@ -394,6 +396,20 @@ const PAPER_COMMENT_KIND: PaperAnnotationKind = 'comment'
 function cleanOptionalNote(note: string): string | undefined {
   const trimmed = note.trim()
   return trimmed.length > 0 ? trimmed : undefined
+}
+
+function activeAnnotationReplies(annotation: PaperAnnotation): PaperAnnotationReply[] {
+  return Array.isArray(annotation.replies)
+    ? annotation.replies.filter((reply) => typeof reply.deleted_at !== 'string')
+    : []
+}
+
+function createAnnotationReply(note: string, now = new Date()): PaperAnnotationReply {
+  return {
+    id: createBlockAnnotationId().replace(/^ann_/u, 'reply_'),
+    note,
+    created_at: now.toISOString(),
+  }
 }
 
 function PaperActionConfirmDialog({
@@ -821,6 +837,7 @@ function PaperAnnotationEditor({
 }) {
   const [note, setNote] = useState(annotation.note ?? annotation.text ?? '')
   const isResolved = typeof annotation.resolved_at === 'string' && annotation.resolved_at.trim().length > 0
+  const replies = activeAnnotationReplies(annotation)
 
   const saveAnnotation = useCallback(() => {
     onSaveAnnotation({
@@ -836,6 +853,19 @@ function PaperAnnotationEditor({
       updated_at: new Date().toISOString(),
     })
   }, [annotation, isResolved, onSaveAnnotation])
+  const addReply = useCallback((replyNote: string) => {
+    const cleanedReply = cleanOptionalNote(replyNote)
+    if (!cleanedReply) return
+    const now = new Date().toISOString()
+    onSaveAnnotation({
+      ...annotation,
+      replies: [
+        ...activeAnnotationReplies(annotation),
+        createAnnotationReply(cleanedReply, new Date(now)),
+      ],
+      updated_at: now,
+    })
+  }, [annotation, onSaveAnnotation])
 
   return (
     <li
@@ -849,6 +879,14 @@ function PaperAnnotationEditor({
             data-testid={`paper-reader-annotation-resolved-${annotation.id}`}
           >
             {translate(locale, 'paper.reader.commentResolved')}
+          </span>
+        ) : null}
+        {replies.length > 0 ? (
+          <span
+            className="rounded bg-background px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+            data-testid={`paper-reader-annotation-reply-count-${annotation.id}`}
+          >
+            {translate(locale, 'paper.reader.commentReplies', { count: replies.length })}
           </span>
         ) : null}
         <Button
@@ -885,6 +923,24 @@ function PaperAnnotationEditor({
         placeholder={translate(locale, 'paper.reader.addComment')}
         value={note}
         onChange={(event) => setNote(event.currentTarget.value)}
+      />
+      {replies.length > 0 ? (
+        <ul
+          className="grid gap-1 border-l border-border/70 pl-2"
+          data-testid={`paper-reader-annotation-replies-${annotation.id}`}
+        >
+          {replies.map((reply) => (
+            <li key={reply.id} className="rounded bg-background/70 px-2 py-1 text-xs text-foreground">
+              {reply.note}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <CommentComposer
+        label={translate(locale, 'paper.reader.replyToComment')}
+        placeholder={translate(locale, 'paper.reader.replyToComment')}
+        submitLabel={translate(locale, 'paper.reader.replyToComment')}
+        onSubmit={addReply}
       />
     </li>
   )

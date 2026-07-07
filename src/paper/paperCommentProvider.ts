@@ -1,11 +1,24 @@
 import {
   groupCommentsByAnchor,
   type NoteComment,
+  type NoteCommentReply,
   type NoteCommentAnchor,
 } from '../comments/commentProvider'
 import type { PaperAnnotation } from './annotations'
 import { blockDisplayText } from './paperReaderModel'
 import type { SourceBlock } from './sourceBlocks'
+
+function paperAnnotationReplies(annotation: PaperAnnotation): NoteCommentReply[] {
+  const replies = Array.isArray(annotation.replies) ? annotation.replies : []
+  return replies
+    .filter((reply) => typeof reply.deleted_at !== 'string')
+    .map((reply) => ({
+      body: reply.note,
+      createdAt: reply.created_at,
+      id: reply.id,
+      updatedAt: reply.updated_at ?? null,
+    }))
+}
 
 export function paperAnnotationToComment(annotation: PaperAnnotation): NoteComment | null {
   if (!annotation.block_id) return null
@@ -17,6 +30,7 @@ export function paperAnnotationToComment(annotation: PaperAnnotation): NoteComme
     id: annotation.id,
     kind: annotation.kind,
     quote: annotation.text ?? null,
+    replies: paperAnnotationReplies(annotation),
     updatedAt: annotation.updated_at ?? null,
   }
 }

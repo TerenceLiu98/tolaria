@@ -1086,5 +1086,7 @@
   "editor.formatting.inlineMathTooltip": "Convert selection to inline math",
   "paper.reader.resolveComment": "Resolve",
   "paper.reader.reopenComment": "Reopen",
-  "paper.reader.commentResolved": "Resolved"
+  "paper.reader.commentResolved": "Resolved",
+  "paper.reader.replyToComment": "Reply",
+  "paper.reader.commentReplies": "Replies ({count})"
 }

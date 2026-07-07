@@ -19,6 +19,14 @@ export const PAPER_ANNOTATION_COLORS = [
 export type PaperAnnotationKind = typeof PAPER_ANNOTATION_KINDS[number]
 export type PaperAnnotationColor = typeof PAPER_ANNOTATION_COLORS[number]
 
+export interface PaperAnnotationReply {
+  id: string
+  note: string
+  created_at: string
+  updated_at?: string
+  deleted_at?: string
+}
+
 export interface PaperAnnotation {
   id: string
   paper_id: string
@@ -30,6 +38,7 @@ export interface PaperAnnotation {
   note?: string
   page?: number
   bbox?: number[]
+  replies?: PaperAnnotationReply[]
   resolved_at?: string
   updated_at?: string
   deleted_at?: string

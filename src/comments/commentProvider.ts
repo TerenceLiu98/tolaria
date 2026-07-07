@@ -4,6 +4,13 @@ export interface NoteCommentAnchor {
   metadata?: Record<string, string | number | null>
 }
 
+export interface NoteCommentReply {
+  body: string
+  createdAt?: string | null
+  id: string
+  updatedAt?: string | null
+}
+
 export interface NoteComment {
   anchorId: string
   body: string
@@ -12,6 +19,7 @@ export interface NoteComment {
   id: string
   kind: string
   quote?: string | null
+  replies?: NoteCommentReply[]
   updatedAt?: string | null
 }
 

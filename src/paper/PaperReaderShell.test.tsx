@@ -773,6 +773,17 @@ describe('PaperReaderShell', () => {
     const editor = await screen.findByTestId(/paper-reader-annotation-editor-/u)
     expect(within(editor).queryByRole('combobox', { name: 'Annotation kind' })).not.toBeInTheDocument()
     expect(within(editor).queryByRole('combobox', { name: 'Annotation color' })).not.toBeInTheDocument()
+    fireEvent.change(within(editor).getByLabelText('Reply'), {
+      target: { value: 'Follow-up from a second reading.' },
+    })
+    fireEvent.click(within(editor).getByRole('button', { name: 'Reply' }))
+    await waitFor(() => {
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"replies"')
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"note":"Follow-up from a second reading."')
+      expect(screen.getByTestId(/paper-reader-annotation-reply-count-/u)).toHaveTextContent('Replies (1)')
+      expect(screen.getByTestId(/paper-reader-annotation-replies-/u)).toHaveTextContent('Follow-up from a second reading.')
+      expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
+    })
     fireEvent.click(within(editor).getByRole('button', { name: 'Resolve' }))
     await waitFor(() => {
       expect(MOCK_CONTENT[annotationsPath]).toContain('"resolved_at"')
