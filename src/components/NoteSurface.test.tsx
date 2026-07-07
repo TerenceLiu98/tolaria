@@ -30,7 +30,7 @@ describe('NoteSurface', () => {
     singleEditorViewMock.mockClear()
   })
 
-  it('keeps the comment seam compact and renders the selected thread at the selected anchor', () => {
+  it('renders comment markers as a block-adjacent overlay and opens the selected thread', async () => {
     render(
       <NoteSurface
         commentOptions={{
@@ -48,10 +48,12 @@ describe('NoteSurface', () => {
       />,
     )
 
-    expect(screen.getByTestId('note-surface')).toHaveClass('grid-cols-[minmax(0,1fr)_3rem]')
-    const seam = screen.getByTestId('note-surface-comment-seam')
-    const firstAnchor = within(seam).getByTestId('note-surface-comment-anchor-b0001')
-    const selectedAnchor = within(seam).getByTestId('note-surface-comment-anchor-b0002')
+    expect(screen.getByTestId('note-surface')).toHaveClass('relative')
+    expect(screen.getByTestId('note-surface')).not.toHaveClass('grid-cols-[minmax(0,1fr)_3rem]')
+    const seam = await screen.findByTestId('note-surface-comment-seam')
+    expect(seam).toHaveClass('absolute')
+    const firstAnchor = await within(seam).findByTestId('note-surface-comment-anchor-b0001')
+    const selectedAnchor = await within(seam).findByTestId('note-surface-comment-anchor-b0002')
     expect(firstAnchor).not.toContainElement(screen.getByTestId('selected-comment-thread'))
     expect(selectedAnchor).toContainElement(screen.getByTestId('selected-comment-thread'))
     expect(within(selectedAnchor).getByTestId('comment-gutter-count-b0002')).toHaveTextContent('1')

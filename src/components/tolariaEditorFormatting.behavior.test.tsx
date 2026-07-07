@@ -122,6 +122,7 @@ vi.mock('@phosphor-icons/react', () => ({
   ArrowSquareOut: MockIcon,
   CaretDown: MockIcon,
   Code: MockIcon,
+  Function: MockIcon,
   Highlighter: MockIcon,
   Paperclip: MockIcon,
   TextB: MockIcon,
@@ -176,6 +177,9 @@ function createMockEditor(blockType = 'image', props: Record<string, unknown> = 
         code: { type: 'code', propSchema: 'boolean' },
         highlight: { type: 'highlight', propSchema: 'boolean' },
       },
+      inlineContentSchema: {
+        mathInline: { type: 'mathInline' },
+      },
     },
     prosemirrorState: { selection: { from: 1, to: 5 } },
     domElement,
@@ -184,6 +188,7 @@ function createMockEditor(blockType = 'image', props: Record<string, unknown> = 
     getBlock: vi.fn((id: string) => (id === selectedBlock.id ? selectedBlock : undefined)),
     getSelection: () => ({ blocks: [selectedBlock] }),
     getTextCursorPosition: () => ({ block: selectedBlock }),
+    insertInlineContent: vi.fn(),
     toggleStyles: vi.fn(),
     transact: vi.fn((callback: () => void) => callback()),
     updateBlock: vi.fn(),
@@ -244,6 +249,31 @@ describe('tolariaEditorFormatting behavior', () => {
 
     expect(onAttachSelectedTextContext).toHaveBeenCalledWith('Selected text for AI')
     expect(editor.focus).toHaveBeenCalled()
+  })
+
+  it('converts the current editor text selection to inline math from the toolbar', () => {
+    const editor = createMockEditor('paragraph')
+    const textNode = document.createTextNode('$E=mc^2$')
+    editor.domElement.firstElementChild?.appendChild(textNode)
+    const range = document.createRange()
+    range.selectNodeContents(textNode)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    useBlockNoteEditorMock.mockReturnValue(editor)
+
+    render(<TolariaFormattingToolbar />)
+
+    fireEvent.click(screen.getByRole('button', { name: /inline math/i }))
+
+    expect(editor.focus).toHaveBeenCalled()
+    expect(editor.insertInlineContent).toHaveBeenCalledWith([
+      {
+        type: 'mathInline',
+        props: { latex: 'E=mc^2' },
+        content: undefined,
+      },
+    ], { updateSelection: true })
   })
 
   it('ignores stale block-type clicks when the selected block disappeared before the action', () => {

@@ -758,6 +758,8 @@
   "editor.sideMenu.collapseItem": "Collapse item",
   "editor.formatting.highlight": "Highlight",
   "editor.formatting.highlightTooltip": "Highlight (persists in markdown)",
+  "editor.formatting.inlineMath": "Inline math",
+  "editor.formatting.inlineMathTooltip": "Convert selection to inline math",
   "editor.whiteboard.enterFullscreen": "Expand whiteboard",
   "editor.whiteboard.exitFullscreen": "Exit fullscreen whiteboard",
   "editor.whiteboard.permissionDeniedTitle": "Whiteboard permission blocked",

@@ -48,6 +48,7 @@ import {
   ArrowSquareOut as ExternalLink,
   CaretDown as ChevronDown,
   Code as Code2,
+  Function as FunctionIcon,
   Highlighter,
   Paperclip,
   TextB as Bold,
@@ -56,6 +57,7 @@ import {
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 import { MARKDOWN_HIGHLIGHT_STYLE } from '../utils/markdownHighlightMarkdown'
+import { MATH_INLINE_TYPE } from '../utils/mathMarkdown'
 import {
   filterTolariaFormattingToolbarItems,
   getTolariaBlockTypeSelectItems,
@@ -76,6 +78,11 @@ type TolariaBasicTextStyle =
   | typeof MARKDOWN_HIGHLIGHT_STYLE
 
 type AttachSelectedTextHandler = (text: string) => void
+type InlineMathContent = {
+  content?: undefined
+  props: { latex: string }
+  type: typeof MATH_INLINE_TYPE
+}
 
 const FORMATTER_CLOSE_GRACE_MS = 160
 const FORMATTER_VIEWPORT_PADDING_PX = 8
@@ -686,6 +693,81 @@ function selectedEditorText(editor: BlockNoteEditor<BlockSchema, InlineContentSc
   return text.length > 0 ? text : null
 }
 
+function stripInlineMathDelimiters(text: string): string {
+  const trimmed = text.trim()
+  if (trimmed.startsWith('$') && trimmed.endsWith('$') && !trimmed.startsWith('$$') && !trimmed.endsWith('$$')) {
+    return trimmed.slice(1, -1).trim()
+  }
+  if (trimmed.startsWith('\\(') && trimmed.endsWith('\\)')) {
+    return trimmed.slice(2, -2).trim()
+  }
+  return trimmed
+}
+
+function selectedInlineLatex(editor: BlockNoteEditor<BlockSchema, InlineContentSchema, StyleSchema>) {
+  const text = selectedEditorText(editor)
+  if (!text) return null
+
+  const latex = stripInlineMathDelimiters(text)
+  return latex.length > 0 ? latex : null
+}
+
+function editorSupportsInlineMath(
+  editor: BlockNoteEditor<BlockSchema, InlineContentSchema, StyleSchema>,
+) {
+  const inlineContentSchema = (editor.schema as { inlineContentSchema?: unknown }).inlineContentSchema
+  return isRecord(inlineContentSchema) && MATH_INLINE_TYPE in inlineContentSchema
+}
+
+function inlineMathContent(latex: string): InlineMathContent {
+  return {
+    type: MATH_INLINE_TYPE,
+    props: { latex },
+    content: undefined,
+  }
+}
+
+function TolariaInlineMathButton({ locale = 'en' }: { locale?: AppLocale }) {
+  const Components = useComponentsContext()!
+  const editor = useBlockNoteEditor<
+    BlockSchema,
+    InlineContentSchema,
+    StyleSchema
+  >()
+  const latex = useEditorState({
+    editor,
+    selector: ({ editor }) => (
+      editor.isEditable && editorSupportsInlineMath(editor)
+        ? selectedInlineLatex(editor)
+        : null
+    ),
+  })
+  const handleInsertMath = useCallback(() => {
+    const selectedLatex = selectedInlineLatex(editor)
+    if (!selectedLatex) return
+
+    editor.focus()
+    editor.insertInlineContent([inlineMathContent(selectedLatex)] as never, { updateSelection: true })
+  }, [editor])
+
+  if (!latex) return null
+
+  const label = translate(locale, 'editor.formatting.inlineMath')
+  const tooltip = translate(locale, 'editor.formatting.inlineMathTooltip')
+  return (
+    <Components.FormattingToolbar.Button
+      className="bn-button"
+      data-test="inlineMathButton"
+      onClick={handleInsertMath}
+      isSelected={false}
+      label={label}
+      mainTooltip={tooltip}
+      secondaryTooltip="$...$"
+      icon={<FunctionIcon />}
+    />
+  )
+}
+
 function TolariaAttachSelectedTextButton({
   locale = 'en',
   onAttachSelectedTextContext,
@@ -756,6 +838,10 @@ function insertExtraTextStyleButtons(
     <TolariaBasicTextStyleButton
       basicTextStyle={MARKDOWN_HIGHLIGHT_STYLE}
       key="highlightStyleButton"
+      locale={locale}
+    />,
+    <TolariaInlineMathButton
+      key="inlineMathButton"
       locale={locale}
     />,
     <TolariaAttachSelectedTextButton
