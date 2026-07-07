@@ -133,8 +133,9 @@ type MathInlineEditorProps = {
     props: {
       latex: string
     }
+    type?: typeof MATH_INLINE_TYPE
   }
-  updateInlineContent: (update: { props: { latex: string } }) => void
+  updateInlineContent: (update: { content?: undefined; props: { latex: string }; type: typeof MATH_INLINE_TYPE }) => void
 }
 
 function stopInlineMathPopoverEvent(event: { stopPropagation: () => void }) {
@@ -172,7 +173,11 @@ export function MathInlineEditor({
   const save = () => {
     const nextLatex = normalizeLatexSource(draftLatex.trim())
     if (nextLatex.length > 0 && nextLatex !== currentLatex) {
-      updateInlineContent({ props: { latex: nextLatex } })
+      updateInlineContent({
+        content: undefined,
+        props: { latex: nextLatex },
+        type: MATH_INLINE_TYPE,
+      })
       dispatchRichEditorExternalChange(editor, editor.domElement ?? undefined)
     }
     close()

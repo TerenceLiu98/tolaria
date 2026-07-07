@@ -155,7 +155,9 @@ describe('MathInlineEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(updateInlineContent).toHaveBeenCalledWith({
+      content: undefined,
       props: { latex: '\\frac{1}{2}' },
+      type: 'mathInline',
     })
     expect(onExternalChange).toHaveBeenCalledTimes(1)
     expect(editor.focus).toHaveBeenCalled()
@@ -172,7 +174,9 @@ describe('MathInlineEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(updateInlineContent).toHaveBeenCalledWith({
+      content: undefined,
       props: { latex: '\\sqrt{x}' },
+      type: 'mathInline',
     })
   })
 
