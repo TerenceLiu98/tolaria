@@ -32,6 +32,23 @@ describe('math markdown round-trip', () => {
     ])
   })
 
+  it('preserves inline LaTeX command backslashes across preprocessing and injection', () => {
+    const preprocessed = preProcessMathMarkdown({ markdown: String.raw`Ratio is $\frac{a}{b}$ in prose.` })
+    const blocks = [{
+      type: 'paragraph',
+      content: [{ type: 'text', text: preprocessed, styles: {} }],
+      children: [],
+    }]
+
+    const [block] = injectMathInBlocks(blocks) as Array<{ content: unknown[] }>
+
+    expect(block.content).toEqual([
+      { type: 'text', text: 'Ratio is ', styles: {} },
+      { type: MATH_INLINE_TYPE, props: { latex: '\\frac{a}{b}' }, content: undefined },
+      { type: 'text', text: ' in prose.', styles: {} },
+    ])
+  })
+
   it('injects display math placeholders into dedicated math blocks', () => {
     const preprocessed = preProcessMathMarkdown({ markdown: '$$\n\\int_0^1 x\\,dx\n$$' })
     const blocks = [{
@@ -80,7 +97,7 @@ describe('math markdown round-trip', () => {
         type: 'paragraph',
         content: [
           { type: 'text', text: 'Inline ', styles: {} },
-          { type: MATH_INLINE_TYPE, props: { latex: 'a^2+b^2=c^2' } },
+          { type: MATH_INLINE_TYPE, props: { latex: '\\frac{a}{b}' } },
         ],
         children: [],
       },
@@ -97,7 +114,7 @@ describe('math markdown round-trip', () => {
     ]
 
     expect(serializeMathAwareBlocks(editor, blocks)).toBe(
-      'Inline $a^2+b^2=c^2$\n\n$$\n\\frac{1}{2}\n$$\n\nDone',
+      'Inline $\\frac{a}{b}$\n\n$$\n\\frac{1}{2}\n$$\n\nDone',
     )
   })
 

@@ -32,6 +32,13 @@ import { SafeHtmlSpan } from './SafeMarkup'
 import { updateTldrawBlockPropsSafely } from './tldrawBlockProps'
 import { useExternalMediaPreview } from '../utils/mediaPreviewRuntime'
 import { Textarea } from './ui/textarea'
+import { Input } from './ui/input'
+import { Button } from './ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from './ui/popover'
 import { dispatchRichEditorExternalChange } from './editorExternalChangeEvents'
 import {
   isStaleBlockReferenceError,
@@ -112,6 +119,111 @@ function MathRender({ latex, displayMode }: { latex: string; displayMode: boolea
       role="img"
       title={source}
     />
+  )
+}
+
+type MathInlineEditorProps = {
+  editor: {
+    domElement?: EventTarget | null
+    focus?: () => void
+  }
+  inlineContent: {
+    props: {
+      latex: string
+    }
+  }
+  updateInlineContent: (update: { props: { latex: string } }) => void
+}
+
+function stopInlineMathPopoverEvent(event: { stopPropagation: () => void }) {
+  event.stopPropagation()
+}
+
+export function MathInlineEditor({
+  editor,
+  inlineContent,
+  updateInlineContent,
+}: MathInlineEditorProps) {
+  const currentLatex = inlineContent.props.latex
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [draftLatex, setDraftLatex] = useState(currentLatex)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    })
+  }, [open])
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) setDraftLatex(currentLatex)
+    setOpen(nextOpen)
+  }
+
+  const close = () => {
+    setOpen(false)
+    editor.focus?.()
+  }
+
+  const save = () => {
+    const nextLatex = draftLatex.trim()
+    if (nextLatex.length > 0 && nextLatex !== currentLatex) {
+      updateInlineContent({ props: { latex: nextLatex } })
+      dispatchRichEditorExternalChange(editor, editor.domElement ?? undefined)
+    }
+    close()
+  }
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          className="math-inline-trigger inline-flex h-auto w-auto max-w-none shrink-0 whitespace-nowrap rounded px-0.5 py-0 align-baseline font-inherit text-inherit hover:bg-accent/60 [&_.katex]:whitespace-nowrap [&_.math--inline]:whitespace-nowrap"
+          contentEditable={false}
+          aria-label={`Math: ${currentLatex}`}
+        >
+          <MathRender latex={currentLatex} displayMode={false} />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="grid w-72 gap-2 p-2"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            close()
+            return
+          }
+          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+            event.preventDefault()
+            event.stopPropagation()
+            save()
+          }
+        }}
+        onMouseDown={stopInlineMathPopoverEvent}
+      >
+        <Input
+          ref={inputRef}
+          aria-label="Inline math"
+          className="h-8 font-mono text-xs"
+          value={draftLatex}
+          onChange={(event) => setDraftLatex(event.currentTarget.value)}
+        />
+        <div className="flex justify-end gap-1">
+          <Button type="button" variant="ghost" size="sm" onClick={close}>
+            Cancel
+          </Button>
+          <Button type="button" size="sm" disabled={draftLatex.trim().length === 0} onClick={save}>
+            Save
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -245,9 +357,7 @@ export const MathInline = createReactInlineContentSpec(
     content: 'none',
   },
   {
-    render: (props) => (
-      <MathRender latex={props.inlineContent.props.latex} displayMode={false} />
-    ),
+    render: (props) => <MathInlineEditor {...props} />,
   },
 )
 

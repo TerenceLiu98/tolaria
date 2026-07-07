@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { MathBlockEditor } from './editorSchema'
+import { MathBlockEditor, MathInlineEditor } from './editorSchema'
 import { subscribeRichEditorExternalChange } from './editorExternalChangeEvents'
 
 function renderMathBlockEditor(latex = '\\sqrt{x}') {
@@ -17,6 +17,26 @@ function renderMathBlockEditor(latex = '\\sqrt{x}') {
   render(<MathBlockEditor block={block} editor={editor} />)
 
   return { block, editor }
+}
+
+function renderMathInlineEditor(latex = 'E=mc^2') {
+  const domElement = document.createElement('div')
+  document.body.appendChild(domElement)
+  const editor = {
+    domElement,
+    focus: vi.fn(),
+  }
+  const updateInlineContent = vi.fn()
+
+  render(
+    <MathInlineEditor
+      editor={editor}
+      inlineContent={{ props: { latex } }}
+      updateInlineContent={updateInlineContent}
+    />,
+  )
+
+  return { editor, updateInlineContent }
 }
 
 describe('MathBlockEditor', () => {
@@ -120,5 +140,48 @@ describe('MathBlockEditor', () => {
     expect(editorThemeCss).toContain('.editor__blocknote-container .bn-block-outer:has(hr)')
     expect(editorThemeCss).toContain('+ .bn-block-outer:has(> .bn-block > [data-content-type="heading"])')
     expect(editorThemeCss).toContain('margin-top: var(--editor-divider-followed-by-heading-margin-top) !important;')
+  })
+})
+
+describe('MathInlineEditor', () => {
+  it('opens a lightweight popover and updates inline math props', async () => {
+    const { editor, updateInlineContent } = renderMathInlineEditor()
+    const onExternalChange = vi.fn()
+    const unsubscribe = subscribeRichEditorExternalChange(editor, onExternalChange)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Math: E=mc^2' }))
+    const input = await screen.findByRole('textbox', { name: 'Inline math' })
+    fireEvent.change(input, { target: { value: '\\frac{1}{2}' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(updateInlineContent).toHaveBeenCalledWith({
+      props: { latex: '\\frac{1}{2}' },
+    })
+    expect(onExternalChange).toHaveBeenCalledTimes(1)
+    expect(editor.focus).toHaveBeenCalled()
+    unsubscribe()
+  })
+
+  it('closes inline math editing without changing props on Escape', async () => {
+    const { editor, updateInlineContent } = renderMathInlineEditor()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Math: E=mc^2' }))
+    const input = await screen.findByRole('textbox', { name: 'Inline math' })
+    fireEvent.change(input, { target: { value: '\\frac{1}{2}' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(updateInlineContent).not.toHaveBeenCalled()
+    expect(editor.focus).toHaveBeenCalled()
+  })
+
+  it('does not save empty inline math', async () => {
+    const { updateInlineContent } = renderMathInlineEditor()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Math: E=mc^2' }))
+    const input = await screen.findByRole('textbox', { name: 'Inline math' })
+    fireEvent.change(input, { target: { value: '   ' } })
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(updateInlineContent).not.toHaveBeenCalled()
   })
 })
