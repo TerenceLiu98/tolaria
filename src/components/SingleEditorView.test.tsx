@@ -292,8 +292,8 @@ describe('SingleEditorView', () => {
     )
 
     const portal = screen.getByTestId('editor-floating-portal')
-    expect(portal).toHaveClass('bn-root', 'bn-container', 'bn-default-styles', 'pointer-events-none', 'absolute', 'inset-0')
-    expect(portal).toHaveAttribute('data-color-scheme', 'light')
+    expect(portal).toHaveClass('pointer-events-none', 'absolute', 'inset-0')
+    expect(portal).not.toHaveClass('bn-container')
     expect(screen.getByTestId('blocknote-view').closest('.editor__blocknote-container')).toContainElement(portal)
   })
 

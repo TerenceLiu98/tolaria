@@ -1477,8 +1477,7 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
       </EditorFloatingPortalProvider>
       <div
         ref={setFloatingPortalElement}
-        className="bn-root bn-container bn-default-styles pointer-events-none absolute inset-0 z-50"
-        data-color-scheme={themeMode}
+        className="pointer-events-none absolute inset-0 z-50"
         data-testid="editor-floating-portal"
       />
       {copyTarget && <CodeBlockCopyButton copyTarget={copyTarget} locale={locale} />}

@@ -1433,36 +1433,38 @@ export function TolariaFormattingToolbarController(props: {
   const Component = props.formattingToolbar || TolariaFormattingToolbar
 
   const toolbar = (
-    <PositionPopover position={position} {...floatingUIOptions}>
-      {shouldRenderFloatingToolbar && (
-        <div
-          className="pointer-events-auto"
-          onPointerEnter={() => {
-            setToolbarHovered(true)
-          }}
-          onPointerLeave={(event) => {
-            if (isFocusStillWithinToolbar(event.currentTarget, event.relatedTarget)) {
-              return
-            }
+    <div className="editor__floating-blocknote-scope bn-root bn-default-styles">
+      <PositionPopover position={position} {...floatingUIOptions}>
+        {shouldRenderFloatingToolbar && (
+          <div
+            className="pointer-events-auto"
+            onPointerEnter={() => {
+              setToolbarHovered(true)
+            }}
+            onPointerLeave={(event) => {
+              if (isFocusStillWithinToolbar(event.currentTarget, event.relatedTarget)) {
+                return
+              }
 
-            setToolbarHovered(false)
-          }}
-          onFocusCapture={() => {
-            setToolbarHasFocus(true)
-          }}
-          onBlurCapture={(event) => {
-            if (isFocusStillWithinToolbar(event.currentTarget, event.relatedTarget)) {
-              return
-            }
+              setToolbarHovered(false)
+            }}
+            onFocusCapture={() => {
+              setToolbarHasFocus(true)
+            }}
+            onBlurCapture={(event) => {
+              if (isFocusStillWithinToolbar(event.currentTarget, event.relatedTarget)) {
+                return
+              }
 
-            setToolbarHasFocus(false)
-            setFormattingToolbarOpen(false)
-          }}
-        >
-          <Component />
-        </div>
-      )}
-    </PositionPopover>
+              setToolbarHasFocus(false)
+              setFormattingToolbarOpen(false)
+            }}
+          >
+            <Component />
+          </div>
+        )}
+      </PositionPopover>
+    </div>
   )
 
   return portalElement

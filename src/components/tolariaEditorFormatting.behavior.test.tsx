@@ -529,6 +529,10 @@ describe('tolariaEditorFormatting behavior', () => {
 
     expect(portalHost).toContainElement(screen.getByTestId('mock-position-popover'))
     expect(portalHost).toContainElement(screen.getByTestId('custom-toolbar'))
+    expect(screen.getByTestId('mock-position-popover').closest('.editor__floating-blocknote-scope')).toHaveClass(
+      'bn-root',
+      'bn-default-styles',
+    )
   })
 
   it('uses block alignment when deciding the floating placement', () => {
