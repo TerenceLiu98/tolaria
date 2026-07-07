@@ -223,3 +223,4 @@ proposed → active → superseded
 | [0162](0162-derived-paper-catalog-and-duplicate-review.md) | Derived Paper Catalog and Duplicate Review | active |
 | [0163](0163-paper-aware-ai-context-and-tools.md) | Paper-Aware AI Context and Tools | active |
 | [0166](0166-editor-adapter-boundary.md) | Keep BlockNote behind a Sapientia editor adapter boundary | active |
+| [0167](0167-blocknote-native-editor-capabilities.md) | Use BlockNote-native editor capabilities before parallel UI | active |
