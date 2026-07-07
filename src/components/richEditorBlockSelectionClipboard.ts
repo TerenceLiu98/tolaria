@@ -1,4 +1,5 @@
 import { selectedDocumentBlocks } from './richEditorBlockSelectionDocument'
+import { injectMathInBlocks, preProcessMathMarkdown } from '../utils/mathMarkdown'
 import {
   documentBlock,
   type ClipboardDataLike,
@@ -74,7 +75,10 @@ function parseMarkdownClipboardBlocks(
   clipboardData: ClipboardDataLike,
 ): unknown[] {
   const markdown = clipboardData.getData('text/markdown') || clipboardData.getData('text/plain')
-  return markdown ? editor.tryParseMarkdownToBlocks?.(markdown) ?? [] : []
+  if (!markdown) return []
+
+  const preprocessed = preProcessMathMarkdown({ markdown })
+  return editor.tryParseMarkdownToBlocks?.(preprocessed) ?? []
 }
 
 function firstParsedClipboardBlocks(parsers: readonly (() => unknown[])[]): unknown[] {
@@ -90,10 +94,11 @@ export function parseClipboardBlocks(
   editor: RichEditorBlockSelectionEditor,
   clipboardData: ClipboardDataLike,
 ): unknown[] {
-  return firstParsedClipboardBlocks([
+  const parsedBlocks = firstParsedClipboardBlocks([
     () => parseTolariaClipboardBlocks(clipboardData),
     () => parseHTMLClipboardBlocks(editor, clipboardData, 'blocknote/html'),
     () => parseHTMLClipboardBlocks(editor, clipboardData, 'text/html'),
     () => parseMarkdownClipboardBlocks(editor, clipboardData),
   ])
+  return injectMathInBlocks(parsedBlocks)
 }

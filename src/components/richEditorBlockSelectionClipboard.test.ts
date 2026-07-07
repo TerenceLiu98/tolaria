@@ -30,6 +30,16 @@ function parserEditor(): RichEditorBlockSelectionEditor {
   }
 }
 
+function markdownTextParserEditor(): RichEditorBlockSelectionEditor {
+  return {
+    tryParseMarkdownToBlocks: (markdown: string) => [{
+      type: 'paragraph',
+      content: [{ type: 'text', text: markdown, styles: {} }],
+      children: [],
+    }],
+  }
+}
+
 function clipboardWithBlockNoteHTML(tolariaData: string): TestClipboardData {
   const clipboardData = new TestClipboardData()
   clipboardData.setData(TOLARIA_BLOCK_CLIPBOARD_MIME, tolariaData)
@@ -67,6 +77,36 @@ describe('rich editor block-selection clipboard helpers', () => {
     const clipboardData = clipboardWithBlockNoteHTML('{')
 
     expect(parseClipboardBlocks(parserEditor(), clipboardData)).toEqual([{ id: 'html', type: 'paragraph' }])
+  })
+
+  it('normalizes pasted inline math Markdown into math inline content', () => {
+    const clipboardData = new TestClipboardData()
+    clipboardData.setData('text/markdown', String.raw`Ratio is $\frac{a}{b}$.`)
+
+    expect(parseClipboardBlocks(markdownTextParserEditor(), clipboardData)).toEqual([{
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: 'Ratio is ', styles: {} },
+        { type: 'mathInline', props: { latex: '\\frac{a}{b}' }, content: undefined },
+        { type: 'text', text: '.', styles: {} },
+      ],
+      children: [],
+    }])
+  })
+
+  it('normalizes pasted math sentinel tokens into math inline content', () => {
+    const clipboardData = new TestClipboardData()
+    clipboardData.setData('text/plain', 'Inline @@TOLARIA_MATH_INLINE:%5Cfrac%7Ba%7D%7Bb%7D@@ token')
+
+    expect(parseClipboardBlocks(markdownTextParserEditor(), clipboardData)).toEqual([{
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: 'Inline ', styles: {} },
+        { type: 'mathInline', props: { latex: '\\frac{a}{b}' }, content: undefined },
+        { type: 'text', text: ' token', styles: {} },
+      ],
+      children: [],
+    }])
   })
 
   it('strips ids from pasted blocks recursively', () => {

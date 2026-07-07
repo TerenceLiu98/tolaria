@@ -1,6 +1,5 @@
 import katex from 'katex'
 import {
-  serializeBlockNoteMarkdown,
   type DirectMarkdownCapableSerializer,
 } from './blockNoteDirectMarkdown'
 
@@ -475,13 +474,19 @@ export function restoreMathInBlocks(blocks: unknown[]): unknown[] {
   return (blocks as BlockLike[]).map(restoreInlineMathInBlock)
 }
 
+function serializeInlineMathAwareOrdinaryBlocks(editor: MarkdownSerializer, blocks: unknown[]): string {
+  const direct = editor.blocksToMarkdownDirect?.(blocks)
+  if (direct?.supported) return direct.markdown
+  return editor.blocksToMarkdownLossy(restoreMathInBlocks(blocks))
+}
+
 export function serializeMathAwareBlocks(editor: MarkdownSerializer, blocks: unknown[]): string {
   const chunks: string[] = []
   let pending: unknown[] = []
 
   const flushPending = () => {
     if (pending.length === 0) return
-    const markdown = serializeBlockNoteMarkdown(editor, restoreMathInBlocks(pending)).trimEnd()
+    const markdown = serializeInlineMathAwareOrdinaryBlocks(editor, pending).trimEnd()
     if (markdown) chunks.push(markdown)
     pending = []
   }

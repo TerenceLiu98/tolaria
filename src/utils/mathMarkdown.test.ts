@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { blocksToMarkdownDirect } from './blockNoteDirectMarkdown'
 import {
   MATH_BLOCK_TYPE,
   MATH_INLINE_TYPE,
@@ -86,11 +87,8 @@ describe('math markdown round-trip', () => {
 
   it('serializes math nodes back to Markdown-compatible source', () => {
     const editor = {
-      blocksToMarkdownLossy: vi.fn((blocks: unknown[]) => {
-        return (blocks as Array<{ content?: Array<{ text?: string }> }>)
-          .map((block) => block.content?.map((item) => item.text ?? '').join('') ?? '')
-          .join('\n\n')
-      }),
+      blocksToMarkdownDirect,
+      blocksToMarkdownLossy: vi.fn(() => 'legacy markdown'),
     }
     const blocks = [
       {
@@ -116,6 +114,27 @@ describe('math markdown round-trip', () => {
     expect(serializeMathAwareBlocks(editor, blocks)).toBe(
       'Inline $\\frac{a}{b}$\n\n$$\n\\frac{1}{2}\n$$\n\nDone',
     )
+    expect(editor.blocksToMarkdownLossy).not.toHaveBeenCalled()
+  })
+
+  it('falls back to legacy serialization with inline math restored when direct serialization is unavailable', () => {
+    const editor = {
+      blocksToMarkdownLossy: vi.fn((blocks: unknown[]) => {
+        return (blocks as Array<{ content?: Array<{ text?: string }> }>)
+          .map((block) => block.content?.map((item) => item.text ?? '').join('') ?? '')
+          .join('\n\n')
+      }),
+    }
+    const blocks = [{
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: 'Inline ', styles: {} },
+        { type: MATH_INLINE_TYPE, props: { latex: '\\frac{a}{b}' } },
+      ],
+      children: [],
+    }]
+
+    expect(serializeMathAwareBlocks(editor, blocks)).toBe('Inline $\\frac{a}{b}$')
   })
 
   it('round-trips inline math inside table cells', () => {
