@@ -87,6 +87,7 @@ type TolariaBasicTextStyle =
 
 type AttachSelectedTextHandler = (text: string) => void
 export interface InlineAiSuggestionRequest {
+  blockId?: string
   operation: 'rewrite'
   selectedText: string
 }
@@ -124,6 +125,10 @@ type InlineMathContent = {
   props: { latex: string }
   type: typeof MATH_INLINE_TYPE
 }
+
+type InlineAiSuggestionTarget =
+  | { kind: 'selection' }
+  | { blockId: string; kind: 'block' }
 
 const FORMATTER_CLOSE_GRACE_MS = 160
 const FORMATTER_VIEWPORT_PADDING_PX = 8
@@ -935,6 +940,31 @@ function selectedEditorText(editor: BlockNoteEditor<BlockSchema, InlineContentSc
   return text.length > 0 ? text : null
 }
 
+function inlineTextFromBlockContent(content: unknown): string | null {
+  if (!Array.isArray(content)) return null
+
+  const text = content
+    .map((item) => (isRecord(item) && typeof item.text === 'string' ? item.text : ''))
+    .join('')
+    .trim()
+  return text.length > 0 ? text : null
+}
+
+function selectedInlineAiTarget(editor: BlockNoteEditor<BlockSchema, InlineContentSchema, StyleSchema>): {
+  target: InlineAiSuggestionTarget
+  text: string
+} | null {
+  const selectedText = selectedEditorText(editor)
+  if (selectedText) return { target: { kind: 'selection' }, text: selectedText }
+
+  const selectedBlocks = getSelectedBlocksSafely(editor)
+  if (selectedBlocks.length !== 1) return null
+
+  const block = selectedBlocks[0]
+  const blockText = inlineTextFromBlockContent(block.content)
+  return blockText ? { target: { blockId: block.id, kind: 'block' }, text: blockText } : null
+}
+
 function stripInlineMathDelimiters(text: string): string {
   const trimmed = text.trim()
   if (trimmed.startsWith('$') && trimmed.endsWith('$') && !trimmed.startsWith('$$') && !trimmed.endsWith('$$')) {
@@ -1066,23 +1096,29 @@ function TolariaInlineAiSuggestionButton({
   >()
   const selectedText = useEditorState({
     editor,
-    selector: ({ editor }) => selectedEditorText(editor),
+    selector: ({ editor }) => selectedInlineAiTarget(editor)?.text ?? null,
   })
   const [draft, setDraft] = useState('')
   const [status, setStatus] = useState<'idle' | 'streaming' | 'ready' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const [target, setTarget] = useState<InlineAiSuggestionTarget | null>(null)
   const isOpen = status !== 'idle'
 
   const handleRequest = useCallback(() => {
-    const text = selectedEditorText(editor)
-    if (!text || !onRequestInlineAiSuggestion) return
+    const nextTarget = selectedInlineAiTarget(editor)
+    if (!nextTarget || !onRequestInlineAiSuggestion) return
 
     setDraft('')
     setErrorMessage('')
+    setTarget(nextTarget.target)
     setStatus('streaming')
 
     void Promise.resolve(onRequestInlineAiSuggestion(
-      { operation: 'rewrite', selectedText: text },
+      {
+        blockId: nextTarget.target.kind === 'block' ? nextTarget.target.blockId : undefined,
+        operation: 'rewrite',
+        selectedText: nextTarget.text,
+      },
       {
         onDelta: (delta) => {
           setDraft((current) => `${current}${delta}`)
@@ -1103,19 +1139,25 @@ function TolariaInlineAiSuggestionButton({
 
   const handleAccept = useCallback(() => {
     const suggestion = draft.trim()
-    if (!suggestion) return
+    if (!suggestion || !target) return
 
     editor.focus()
-    editor.insertInlineContent(suggestion, { updateSelection: true })
+    if (target.kind === 'block') {
+      editor.updateBlock(target.blockId, { content: suggestion as never })
+    } else {
+      editor.insertInlineContent(suggestion, { updateSelection: true })
+    }
     setStatus('idle')
     setDraft('')
     setErrorMessage('')
-  }, [draft, editor])
+    setTarget(null)
+  }, [draft, editor, target])
 
   const handleReject = useCallback(() => {
     setStatus('idle')
     setDraft('')
     setErrorMessage('')
+    setTarget(null)
     editor.focus()
   }, [editor])
 

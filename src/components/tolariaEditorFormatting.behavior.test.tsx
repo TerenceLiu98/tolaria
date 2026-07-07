@@ -321,6 +321,34 @@ describe('tolariaEditorFormatting behavior', () => {
     expect(editor.focus).toHaveBeenCalled()
   })
 
+  it('accepts inline AI suggestions into the current text block when no text range is selected', async () => {
+    window.getSelection()?.removeAllRanges()
+    const editor = createMockEditor('paragraph')
+    useBlockNoteEditorMock.mockReturnValue(editor)
+
+    const onRequestInlineAiSuggestion = vi.fn((_request, callbacks) => {
+      callbacks.onDelta('Rewritten block')
+      callbacks.onDone()
+    })
+
+    render(<TolariaFormattingToolbar onRequestInlineAiSuggestion={onRequestInlineAiSuggestion} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest inline AI edit' }))
+    await screen.findByText('Rewritten block')
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+
+    expect(onRequestInlineAiSuggestion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        blockId: 'file-block',
+        operation: 'rewrite',
+        selectedText: 'Selected block',
+      }),
+      expect.any(Object),
+    )
+    expect(editor.updateBlock).toHaveBeenCalledWith('file-block', { content: 'Rewritten block' })
+    expect(editor.insertInlineContent).not.toHaveBeenCalled()
+  })
+
   it('converts the current editor text selection to inline math from the toolbar', () => {
     const editor = createMockEditor('paragraph')
     const textNode = document.createTextNode('$E=mc^2$')
