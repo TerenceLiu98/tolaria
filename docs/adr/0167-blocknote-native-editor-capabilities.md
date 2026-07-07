@@ -39,6 +39,8 @@ Storage must continue to use Sapientia's `CommentProvider` boundary. Paper comme
 
 Sapientia should not switch comment storage directly to BlockNote's CommentsExtension in this phase. BlockNote comments are built around a thread store, user resolution, and real-time collaboration assumptions, while Sapientia's source of truth is local files.
 
+Concretely, Sapientia should not make BlockNote's official `CommentsExtension` the durable comment system until a future collaboration ADR decides to adopt its `ThreadStore`, `resolveUsers`, and real-time collaboration model.
+
 ### 2. Comment Experience Parity
 
 Current Sapientia comments support create, edit, delete, and citation actions. They do not yet provide several higher-level comment-thread experiences visible in BlockNote's comments model:
@@ -51,6 +53,8 @@ Current Sapientia comments support create, edit, delete, and citation actions. T
 
 Sapientia may borrow these UX ideas, but should not adopt BlockNote's collaborative comments storage as the source of truth without a separate ADR.
 
+BlockNote's official comments UI includes thread/reply/reaction affordances and a `ThreadsSidebar` with filtering and sorting. Sapientia should treat those as interaction references, not as a storage migration requirement.
+
 ### 3. Inline AI Editing
 
 Sapientia already has an AI panel, selected context, Paper tools, and MCP/tool guidance. It does not yet provide BlockNote-style inline AI editing where the model proposes edits inside the editor and the user can accept, reject, or revise them in place.
@@ -61,9 +65,11 @@ Future AI editor work should add an inline suggestion seam:
 - AI can propose an insert, replace, rewrite, or summarize operation
 - output appears as an editor-local suggestion
 - user can accept, reject, or modify before writing to the note
+- AI suggestions can stream progressively when the provider supports streaming
+- editor AI operations can expose clear custom commands rather than only free-form chat
 - AI operations should remain transparent and citation-aware when Paper evidence is involved
 
-This should extend the existing AI architecture rather than replace it with a standalone editor-only AI product.
+This should extend the existing AI architecture rather than replace it with a standalone editor-only AI product. The target interaction is editor-in-place generation or rewriting of selected blocks, not only answering in the AI panel.
 
 ### 4. File Panel And Media Blocks
 
@@ -76,6 +82,7 @@ Future media work should study and reuse BlockNote File Panel patterns where the
 - media metadata actions
 - consistent selected media controls
 - Paper/MinerU image asset operations
+- media block actions that feel attached to the selected file/image block rather than a separate app-level panel
 
 Sapientia should continue to keep Markdown and vault files as source of truth.
 
@@ -86,6 +93,7 @@ Sapientia can render and edit tables, but Paper/MinerU table import, captions, t
 Future table work should audit:
 
 - table handles and resizing behavior
+- whether table handles are routed through the same floating UI and portal strategy as other editor overlays
 - keyboard navigation
 - copy/paste fidelity
 - Markdown round-trip for imported tables
@@ -115,6 +123,7 @@ Sapientia has previously hit clipping and layering issues around AI panels, tool
 Future editor UI should standardize portal strategy:
 
 - define a consistent portal target for BlockNote floating UI
+- audit BlockNoteView `portalElements` usage where supported by the installed BlockNote version
 - route toolbar, link toolbar, side menu, comment popovers, and math popovers through that strategy where practical
 - reduce local CSS workarounds for overflow and z-index issues
 - test behavior inside the existing app panes, Paper view, inspector, and AI panel
