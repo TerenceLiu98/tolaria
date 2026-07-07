@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 
@@ -409,6 +409,43 @@ describe('tolariaEditorFormatting behavior', () => {
     expect(editor.updateBlock).toHaveBeenCalledWith('file-block', {
       props: { caption: 'Architecture diagram' },
     })
+    expect(editor.focus).toHaveBeenCalled()
+  })
+
+  it('replaces selected media blocks through the injected media replacement handler', async () => {
+    const editor = createMockEditor('image', {
+      caption: 'Old caption',
+      url: 'asset://localhost/%2Fvault%2Fattachments%2Fold-diagram.png',
+    })
+    const onRequestMediaReplacement = vi.fn().mockResolvedValue({
+      name: 'new-diagram.png',
+      url: 'asset://localhost/%2Fvault%2Fattachments%2Fnew-diagram.png',
+    })
+    useBlockNoteEditorMock.mockReturnValue(editor)
+
+    render(
+      <TolariaFormattingToolbar
+        onRequestMediaReplacement={onRequestMediaReplacement}
+        vaultPath="/vault"
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace media' }))
+    await waitFor(() => {
+      expect(editor.updateBlock).toHaveBeenCalledWith('file-block', {
+        props: {
+          name: 'new-diagram.png',
+          url: 'asset://localhost/%2Fvault%2Fattachments%2Fnew-diagram.png',
+        },
+      })
+    })
+
+    expect(onRequestMediaReplacement).toHaveBeenCalledWith(expect.objectContaining({
+      blockId: 'file-block',
+      caption: 'Old caption',
+      displayPath: 'attachments/old-diagram.png',
+      type: 'image',
+    }))
     expect(editor.focus).toHaveBeenCalled()
   })
 

@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "Edit keterangan media",
   "editor.toolbar.mediaCaptionPlaceholder": "Keterangan",
   "editor.toolbar.saveMediaCaption": "Simpan keterangan",
+  "editor.toolbar.replaceMedia": "Ganti media",
+  "editor.toolbar.replaceMediaFailed": "Gagal mengganti media",
   "editor.toolbar.copyNoteDeepLink": "Salin deeplink catatan",
   "editor.toolbar.copyNoteGitUrl": "Salin URL git",
   "editor.toolbar.exportPdf": "Ekspor catatan sebagai PDF",

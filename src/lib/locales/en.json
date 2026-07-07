@@ -750,6 +750,8 @@
   "editor.toolbar.editMediaCaption": "Edit media caption",
   "editor.toolbar.mediaCaptionPlaceholder": "Caption",
   "editor.toolbar.saveMediaCaption": "Save caption",
+  "editor.toolbar.replaceMedia": "Replace media",
+  "editor.toolbar.replaceMediaFailed": "Replace media failed",
   "editor.toolbar.copyNoteDeepLink": "Copy note deeplink",
   "editor.toolbar.copyNoteGitUrl": "Copy git URL",
   "editor.toolbar.exportPdf": "Export note as PDF",

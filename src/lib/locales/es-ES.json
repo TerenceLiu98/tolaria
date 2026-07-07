@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "Editar pie de medio",
   "editor.toolbar.mediaCaptionPlaceholder": "Pie de medio",
   "editor.toolbar.saveMediaCaption": "Guardar pie",
+  "editor.toolbar.replaceMedia": "Reemplazar medio",
+  "editor.toolbar.replaceMediaFailed": "No se pudo reemplazar el medio",
   "editor.toolbar.copyNoteDeepLink": "Copiar el enlace profundo de la nota",
   "editor.toolbar.copyNoteGitUrl": "Copiar URL de Git",
   "editor.toolbar.exportPdf": "Exportar nota como PDF",

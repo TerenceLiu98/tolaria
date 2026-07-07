@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "Modifier la légende du média",
   "editor.toolbar.mediaCaptionPlaceholder": "Légende",
   "editor.toolbar.saveMediaCaption": "Enregistrer la légende",
+  "editor.toolbar.replaceMedia": "Remplacer le média",
+  "editor.toolbar.replaceMediaFailed": "Échec du remplacement du média",
   "editor.toolbar.copyNoteDeepLink": "Copier le deeplink de la note",
   "editor.toolbar.copyNoteGitUrl": "Copier l'URL Git",
   "editor.toolbar.exportPdf": "Exporter la note au format PDF",

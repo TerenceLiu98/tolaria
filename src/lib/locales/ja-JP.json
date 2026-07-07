@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "メディアキャプションを編集",
   "editor.toolbar.mediaCaptionPlaceholder": "キャプション",
   "editor.toolbar.saveMediaCaption": "キャプションを保存",
+  "editor.toolbar.replaceMedia": "メディアを置き換え",
+  "editor.toolbar.replaceMediaFailed": "メディアの置き換えに失敗しました",
   "editor.toolbar.copyNoteDeepLink": "ノートのディープリンクをコピー",
   "editor.toolbar.copyNoteGitUrl": "Git URLをコピー",
   "editor.toolbar.exportPdf": "ノートをPDFとしてエクスポート",

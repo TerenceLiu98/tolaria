@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "Redigera mediebildtext",
   "editor.toolbar.mediaCaptionPlaceholder": "Bildtext",
   "editor.toolbar.saveMediaCaption": "Spara bildtext",
+  "editor.toolbar.replaceMedia": "Ersätt media",
+  "editor.toolbar.replaceMediaFailed": "Det gick inte att ersätta media",
   "editor.toolbar.copyNoteDeepLink": "Kopiera anteckningens djuplänk",
   "editor.toolbar.copyNoteGitUrl": "Kopiera git-URL",
   "editor.toolbar.exportPdf": "Exportera anteckning som PDF",

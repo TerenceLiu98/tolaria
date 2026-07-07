@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "编辑媒体说明",
   "editor.toolbar.mediaCaptionPlaceholder": "说明",
   "editor.toolbar.saveMediaCaption": "保存说明",
+  "editor.toolbar.replaceMedia": "替换媒体",
+  "editor.toolbar.replaceMediaFailed": "替换媒体失败",
   "editor.toolbar.copyNoteDeepLink": "复制笔记深层链接",
   "editor.toolbar.copyNoteGitUrl": "复制 Git URL",
   "editor.toolbar.exportPdf": "将笔记导出为 PDF",

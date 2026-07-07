@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "Редагувати підпис медіа",
   "editor.toolbar.mediaCaptionPlaceholder": "Підпис",
   "editor.toolbar.saveMediaCaption": "Зберегти підпис",
+  "editor.toolbar.replaceMedia": "Замінити медіа",
+  "editor.toolbar.replaceMediaFailed": "Не вдалося замінити медіа",
   "editor.toolbar.copyNoteDeepLink": "Копіювати глибоке посилання на нотатку",
   "editor.toolbar.copyNoteGitUrl": "Копіювати URL-адресу Git",
   "editor.toolbar.exportPdf": "Експортувати нотатку як PDF",

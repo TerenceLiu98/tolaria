@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "미디어 캡션 편집",
   "editor.toolbar.mediaCaptionPlaceholder": "캡션",
   "editor.toolbar.saveMediaCaption": "캡션 저장",
+  "editor.toolbar.replaceMedia": "미디어 교체",
+  "editor.toolbar.replaceMediaFailed": "미디어 교체 실패",
   "editor.toolbar.copyNoteDeepLink": "노트 딥링크 복사",
   "editor.toolbar.copyNoteGitUrl": "Git URL 복사",
   "editor.toolbar.exportPdf": "노트를 PDF로 내보내기",

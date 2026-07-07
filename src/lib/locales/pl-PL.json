@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "Edytuj podpis multimediów",
   "editor.toolbar.mediaCaptionPlaceholder": "Podpis",
   "editor.toolbar.saveMediaCaption": "Zapisz podpis",
+  "editor.toolbar.replaceMedia": "Zastąp multimedia",
+  "editor.toolbar.replaceMediaFailed": "Nie udało się zastąpić multimediów",
   "editor.toolbar.copyNoteDeepLink": "Skopiuj deeplink do notatki",
   "editor.toolbar.copyNoteGitUrl": "Skopiuj adres URL Git",
   "editor.toolbar.exportPdf": "Eksportuj notatkę jako PDF",

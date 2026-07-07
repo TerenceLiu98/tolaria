@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "Изменить подпись медиа",
   "editor.toolbar.mediaCaptionPlaceholder": "Подпись",
   "editor.toolbar.saveMediaCaption": "Сохранить подпись",
+  "editor.toolbar.replaceMedia": "Заменить медиа",
+  "editor.toolbar.replaceMediaFailed": "Не удалось заменить медиа",
   "editor.toolbar.copyNoteDeepLink": "Копировать диплинк заметки",
   "editor.toolbar.copyNoteGitUrl": "Копировать URL Git",
   "editor.toolbar.exportPdf": "Экспортировать заметку в формате PDF",

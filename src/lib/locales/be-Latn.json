@@ -687,6 +687,8 @@
   "editor.toolbar.editMediaCaption": "Redahavać podpis medyja",
   "editor.toolbar.mediaCaptionPlaceholder": "Podpis",
   "editor.toolbar.saveMediaCaption": "Zachavać podpis",
+  "editor.toolbar.replaceMedia": "Zamianić medyja",
+  "editor.toolbar.replaceMediaFailed": "Nie ŭdalosia zamianić medyja",
   "editor.toolbar.copyNoteDeepLink": "Kapijavać deep-link natatki",
   "editor.toolbar.copyNoteGitUrl": "Kapijavać Git URL",
   "editor.toolbar.exportPdf": "Ekspartavać natatku ŭ farmacie PDF",

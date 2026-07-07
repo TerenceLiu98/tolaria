@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "Sửa chú thích media",
   "editor.toolbar.mediaCaptionPlaceholder": "Chú thích",
   "editor.toolbar.saveMediaCaption": "Lưu chú thích",
+  "editor.toolbar.replaceMedia": "Thay thế media",
+  "editor.toolbar.replaceMediaFailed": "Thay thế media thất bại",
   "editor.toolbar.copyNoteDeepLink": "Sao chép liên kết sâu của ghi chú",
   "editor.toolbar.copyNoteGitUrl": "Sao chép URL git",
   "editor.toolbar.exportPdf": "Xuất ghi chú dưới dạng PDF",

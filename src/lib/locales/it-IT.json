@@ -735,6 +735,8 @@
   "editor.toolbar.editMediaCaption": "Modifica didascalia media",
   "editor.toolbar.mediaCaptionPlaceholder": "Didascalia",
   "editor.toolbar.saveMediaCaption": "Salva didascalia",
+  "editor.toolbar.replaceMedia": "Sostituisci media",
+  "editor.toolbar.replaceMediaFailed": "Sostituzione media non riuscita",
   "editor.toolbar.copyNoteDeepLink": "Copia deeplink della nota",
   "editor.toolbar.copyNoteGitUrl": "Copia URL Git",
   "editor.toolbar.exportPdf": "Esporta nota in PDF",

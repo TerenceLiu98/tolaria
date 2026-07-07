@@ -102,6 +102,23 @@ export type InlineAiSuggestionHandler = (
   callbacks: InlineAiSuggestionCallbacks,
 ) => void | Promise<void>
 
+export interface MediaReplacementRequest {
+  blockId: string
+  caption: string
+  displayPath: string
+  type: string
+  url: string
+}
+
+export interface MediaReplacementResult {
+  name?: string
+  url: string
+}
+
+export type MediaReplacementHandler = (
+  request: MediaReplacementRequest,
+) => MediaReplacementResult | null | Promise<MediaReplacementResult | null>
+
 type InlineMathContent = {
   content?: undefined
   props: { latex: string }
@@ -838,6 +855,74 @@ function TolariaFileCaptionButton({ locale = 'en', vaultPath }: { locale?: AppLo
   )
 }
 
+function TolariaFileReplaceButton({
+  locale = 'en',
+  onRequestMediaReplacement,
+  vaultPath,
+}: {
+  locale?: AppLocale
+  onRequestMediaReplacement?: MediaReplacementHandler
+  vaultPath?: string
+}) {
+  const Components = useComponentsContext()!
+  const editor = useBlockNoteEditor<
+    BlockSchema,
+    InlineContentSchema,
+    StyleSchema
+  >()
+  const selectedFileBlock = useEditorState({
+    editor,
+    selector: ({ editor }) => getSelectedFileBlockState(editor, vaultPath),
+  })
+  const [errorMessage, setErrorMessage] = useState('')
+  const handleReplace = useCallback(() => {
+    if (!selectedFileBlock || !onRequestMediaReplacement) return
+
+    setErrorMessage('')
+    void Promise.resolve(onRequestMediaReplacement({
+      blockId: selectedFileBlock.id,
+      caption: selectedFileBlock.caption,
+      displayPath: selectedFileBlock.displayPath,
+      type: selectedFileBlock.type,
+      url: selectedFileBlock.url,
+    })).then((replacement) => {
+      if (!replacement) return
+
+      editor.updateBlock(selectedFileBlock.id, {
+        props: {
+          ...(replacement.name ? { name: replacement.name } : {}),
+          url: replacement.url,
+        } as never,
+      })
+      editor.focus()
+    }).catch((error: unknown) => {
+      setErrorMessage(error instanceof Error ? error.message : String(error))
+    })
+  }, [editor, onRequestMediaReplacement, selectedFileBlock])
+
+  if (!onRequestMediaReplacement || !selectedFileBlock || !editor.isEditable) return null
+
+  const label = translate(locale, 'editor.toolbar.replaceMedia')
+  return (
+    <>
+      <Components.FormattingToolbar.Button
+        className="bn-button"
+        data-test="fileReplace"
+        onClick={handleReplace}
+        isSelected={false}
+        label={label}
+        mainTooltip={label}
+        icon={<ExternalLink />}
+      />
+      {errorMessage ? (
+        <span className="text-xs text-destructive" role="status">
+          {translate(locale, 'editor.toolbar.replaceMediaFailed')}: {errorMessage}
+        </span>
+      ) : null}
+    </>
+  )
+}
+
 function selectedEditorText(editor: BlockNoteEditor<BlockSchema, InlineContentSchema, StyleSchema>) {
   const selection = window.getSelection()
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null
@@ -1078,7 +1163,12 @@ function TolariaInlineAiSuggestionButton({
   )
 }
 
-function replaceToolbarControls(items: ReactElement[], locale: AppLocale, vaultPath?: string) {
+function replaceToolbarControls(
+  items: ReactElement[],
+  locale: AppLocale,
+  vaultPath?: string,
+  onRequestMediaReplacement?: MediaReplacementHandler,
+) {
   return items.flatMap((item) => {
     switch (String(item.key)) {
       case 'blockTypeSelect':
@@ -1086,6 +1176,12 @@ function replaceToolbarControls(items: ReactElement[], locale: AppLocale, vaultP
       case 'fileDownloadButton':
         return [
           <TolariaFileDownloadButton key={item.key} vaultPath={vaultPath} />,
+          <TolariaFileReplaceButton
+            key="fileReplaceButton"
+            locale={locale}
+            onRequestMediaReplacement={onRequestMediaReplacement}
+            vaultPath={vaultPath}
+          />,
           <TolariaFileCaptionButton key="fileCaptionButton" locale={locale} vaultPath={vaultPath} />,
           <TolariaFilePathCopyButton key="filePathCopyButton" locale={locale} vaultPath={vaultPath} />,
         ]
@@ -1137,6 +1233,7 @@ function getTolariaFormattingToolbarItems(
   locale: AppLocale,
   onAttachSelectedTextContext?: AttachSelectedTextHandler,
   onRequestInlineAiSuggestion?: InlineAiSuggestionHandler,
+  onRequestMediaReplacement?: MediaReplacementHandler,
 ) {
   return insertExtraTextStyleButtons(
     replaceToolbarControls(
@@ -1145,6 +1242,7 @@ function getTolariaFormattingToolbarItems(
       ),
       locale,
       vaultPath,
+      onRequestMediaReplacement,
     ),
     locale,
     onAttachSelectedTextContext,
@@ -1156,16 +1254,24 @@ export function TolariaFormattingToolbar({
   locale = 'en',
   onAttachSelectedTextContext,
   onRequestInlineAiSuggestion,
+  onRequestMediaReplacement,
   vaultPath,
 }: {
   locale?: AppLocale
   onAttachSelectedTextContext?: AttachSelectedTextHandler
   onRequestInlineAiSuggestion?: InlineAiSuggestionHandler
+  onRequestMediaReplacement?: MediaReplacementHandler
   vaultPath?: string
 } = {}) {
   return (
     <FormattingToolbar>
-      {getTolariaFormattingToolbarItems(vaultPath, locale, onAttachSelectedTextContext, onRequestInlineAiSuggestion)}
+      {getTolariaFormattingToolbarItems(
+        vaultPath,
+        locale,
+        onAttachSelectedTextContext,
+        onRequestInlineAiSuggestion,
+        onRequestMediaReplacement,
+      )}
     </FormattingToolbar>
   )
 }
