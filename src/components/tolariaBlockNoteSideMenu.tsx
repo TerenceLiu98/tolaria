@@ -31,9 +31,22 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { CommentGutter } from './comments/CommentUI'
-import type { EditorCommentAnchor, EditorCommentOptions } from './comments/commentAnchors'
+import { editorCommentAnchorForBlock, type EditorCommentAnchor, type EditorCommentOptions } from './comments/commentAnchors'
+import {
+  captureEditorScrollForControl,
+  editorElementFromControl,
+  scheduleEditorScrollRestore,
+  type EditorScrollSnapshot,
+} from './editorScrollPreservation'
 import { useEditorFloatingPortal } from './editorFloatingPortal'
+import { sideMenuCommentThreadPosition } from './sideMenuCommentPosition'
 import { usePointerBlockReorder } from './tolariaBlockReorder'
+import {
+  tableHeaderContent,
+  tableHeaderEnabled,
+  toggledTableHeaderContent,
+  type TableHeaderAxis,
+} from './tableHeaderModel'
 import { useSideMenuTextAlignment } from './tolariaSideMenuAlignment'
 import {
   blockHeadingLevel,
@@ -49,11 +62,6 @@ import {
   type SideMenuBlock,
 } from './tolariaSideMenuBlocks'
 
-type TableHeaderContent = Record<string, unknown> & {
-  headerCols?: unknown
-  headerRows?: unknown
-}
-
 type TolariaSideMenuProps = SideMenuProps & {
   commentOptions?: EditorCommentOptions
   locale?: AppLocale
@@ -61,15 +69,6 @@ type TolariaSideMenuProps = SideMenuProps & {
 
 function isInlineBlockEmpty(block: { content?: unknown }) {
   return Array.isArray(block.content) && block.content.length === 0
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function tableHeaderContent(block: unknown): TableHeaderContent | undefined {
-  if (!isRecord(block) || block.type !== 'table' || !isRecord(block.content)) return undefined
-  return block.content
 }
 
 function useSideMenuBlock() {
@@ -93,83 +92,6 @@ function useSideMenuBlock() {
 function stopSideMenuClick(event: ReactMouseEvent<Element>) {
   event.preventDefault()
   event.stopPropagation()
-}
-
-function editorElementFromSideMenuControl(control: Element): HTMLElement | undefined {
-  const container = control.closest('.editor__blocknote-container')
-  const editorElement = container?.querySelector('.bn-editor')
-  if (editorElement instanceof HTMLElement) return editorElement
-
-  const documentEditors = Array.from(control.ownerDocument.querySelectorAll('.bn-editor'))
-    .filter((element): element is HTMLElement => element instanceof HTMLElement)
-  return documentEditors.find((element) => {
-    const rect = element.getBoundingClientRect()
-    return rect.width > 0 && rect.height > 0
-  }) ?? documentEditors.at(-1)
-}
-
-type EditorScrollSnapshot = {
-  scrollArea: HTMLElement
-  scrollLeft: number
-  scrollTop: number
-}
-
-function visibleRichEditorScrollArea(ownerDocument: Document): HTMLElement | null {
-  const scrollAreas = Array.from(ownerDocument.querySelectorAll('.editor-scroll-area'))
-    .filter((element): element is HTMLElement => element instanceof HTMLElement)
-
-  return scrollAreas.find((scrollArea) => {
-    if (scrollArea.classList.contains('editor-scroll-area--sheet')) return false
-    if (!scrollArea.querySelector('.editor__blocknote-container .bn-editor')) return false
-
-    const rect = scrollArea.getBoundingClientRect()
-    return rect.width > 0 && rect.height > 0
-  }) ?? null
-}
-
-function scrollAreaFromSideMenuControl(control: Element): HTMLElement | null {
-  const directScrollArea = control.closest('.editor-scroll-area')
-  if (directScrollArea instanceof HTMLElement) return directScrollArea
-
-  const editorElement = editorElementFromSideMenuControl(control)
-  const editorScrollArea = editorElement?.closest('.editor-scroll-area')
-  return editorScrollArea instanceof HTMLElement
-    ? editorScrollArea
-    : visibleRichEditorScrollArea(control.ownerDocument)
-}
-
-function captureSideMenuScroll(control: Element): EditorScrollSnapshot | null {
-  const scrollArea = scrollAreaFromSideMenuControl(control)
-  return scrollArea
-    ? {
-        scrollArea,
-        scrollLeft: scrollArea.scrollLeft,
-        scrollTop: scrollArea.scrollTop,
-      }
-    : null
-}
-
-function restoreEditorScroll(snapshot: EditorScrollSnapshot | null) {
-  if (!snapshot?.scrollArea.isConnected) return
-  snapshot.scrollArea.scrollLeft = snapshot.scrollLeft
-  snapshot.scrollArea.scrollTop = snapshot.scrollTop
-}
-
-function scheduleEditorScrollRestore(snapshot: EditorScrollSnapshot | null) {
-  restoreEditorScroll(snapshot)
-  queueMicrotask(() => restoreEditorScroll(snapshot))
-
-  const ownerWindow = snapshot?.scrollArea.ownerDocument.defaultView
-  if (!ownerWindow) return
-
-  ownerWindow.setTimeout(() => restoreEditorScroll(snapshot), 0)
-  ownerWindow.setTimeout(() => restoreEditorScroll(snapshot), 32)
-  ownerWindow.setTimeout(() => restoreEditorScroll(snapshot), 96)
-  ownerWindow.setTimeout(() => restoreEditorScroll(snapshot), 192)
-  ownerWindow.requestAnimationFrame(() => {
-    restoreEditorScroll(snapshot)
-    ownerWindow.requestAnimationFrame(() => restoreEditorScroll(snapshot))
-  })
 }
 
 function runSideMenuActionPreservingScroll(
@@ -207,7 +129,7 @@ function TolariaAddBlockButton() {
   }, [block, editor, suggestionMenu])
   const onButtonClick = useCallback((event: ReactMouseEvent<Element>) => {
     stopSideMenuClick(event)
-    addBlock(captureSideMenuScroll(event.currentTarget))
+    addBlock(captureEditorScrollForControl(event.currentTarget))
   }, [addBlock])
 
   if (!block) return null
@@ -255,7 +177,7 @@ function TolariaHeadingCollapseButton({ locale }: { locale: AppLocale }) {
   }, [block, editor])
   const onButtonClick = useCallback((event: ReactMouseEvent<Element>) => {
     stopSideMenuClick(event)
-    toggleHeading(editorElementFromSideMenuControl(event.currentTarget))
+    toggleHeading(editorElementFromControl(event.currentTarget))
   }, [toggleHeading])
 
   if (!isCollapsible) return null
@@ -329,11 +251,11 @@ function TolariaRemoveBlockItem({ children }: { children: ReactNode }) {
     <Components.Generic.Menu.Item
       className="bn-menu-item"
       onClick={() => {
-        runSideMenuAction(() => {
+        runSideMenuActionPreservingScroll(() => {
           const liveBlock = liveSideMenuBlock(editor, block)
           if (!liveBlock) return
           editor.removeBlocks([liveBlock.id])
-        })
+        }, editor.domElement ? captureEditorScrollForControl(editor.domElement) : null)
       }}
     >
       {children}
@@ -346,7 +268,7 @@ function TolariaTableHeaderItem({
   header,
 }: {
   children: ReactNode
-  header: 'column' | 'row'
+  header: TableHeaderAxis
 }) {
   const Components = useComponentsContext()!
   const { block, editor } = useSideMenuBlock()
@@ -355,27 +277,22 @@ function TolariaTableHeaderItem({
 
   if (!tableContent || !editor.settings.tables.headers) return null
 
-  const checked = header === 'row'
-    ? Boolean(tableContent.headerRows)
-    : Boolean(tableContent.headerCols)
+  const checked = tableHeaderEnabled(tableContent, header)
 
   return (
     <Components.Generic.Menu.Item
       className="bn-menu-item"
       checked={checked}
       onClick={() => {
-        runSideMenuAction(() => {
+        runSideMenuActionPreservingScroll(() => {
           const currentBlock = liveSideMenuBlock(editor, block)
           const currentContent = tableHeaderContent(currentBlock)
           if (!currentBlock || !currentContent) return
 
           editor.updateBlock(currentBlock.id, {
-            content: {
-              ...currentContent,
-              [header === 'row' ? 'headerRows' : 'headerCols']: checked ? undefined : 1,
-            } as never,
+            content: toggledTableHeaderContent(currentContent, header, checked) as never,
           })
-        })
+        }, editor.domElement ? captureEditorScrollForControl(editor.domElement) : null)
       }}
     >
       {children}
@@ -404,9 +321,11 @@ function commentAnchorForSideMenuBlock({
   block: SideMenuBlock | undefined
   editor: ReturnType<typeof useBlockNoteEditor<BlockSchema, InlineContentSchema, StyleSchema>>
 }): EditorCommentAnchor | null {
-  if (!block) return null
-  const index = editor.document.findIndex((candidate) => candidate.id === block.id)
-  return index >= 0 ? anchors[index] ?? null : null
+  return editorCommentAnchorForBlock({
+    anchors,
+    blockId: block?.id,
+    editorBlocks: editor.document,
+  })
 }
 
 function useCommentThreadPortalPosition({
@@ -428,14 +347,7 @@ function useCommentThreadPortalPosition({
     const updatePosition = () => {
       const markerRect = markerElement.getBoundingClientRect()
       const portalRect = portalElement.getBoundingClientRect()
-      const panelWidth = Math.min(352, Math.max(0, portalRect.width - 80))
-      const maxLeft = Math.max(0, portalRect.width - panelWidth - 8)
-      const left = Math.min(
-        Math.max(0, markerRect.right - portalRect.left + 8),
-        maxLeft,
-      )
-      const top = Math.max(0, markerRect.top - portalRect.top)
-      setPosition({ left, top })
+      setPosition(sideMenuCommentThreadPosition({ markerRect, portalRect }))
     }
 
     updatePosition()
@@ -495,7 +407,7 @@ function TolariaCommentSideMenuButton({
         anchorId={anchor.id}
         count={anchor.comments.length}
         isOpen={isOpen}
-        onOpenThread={commentOptions.onOpenThread}
+        onToggleThread={commentOptions.onToggleThread}
         title={anchor.title}
       />
       {thread && portalElement && portalPosition ? createPortal(thread, portalElement) : thread}

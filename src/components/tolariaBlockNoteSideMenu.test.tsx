@@ -33,7 +33,7 @@ type SideMenuButtonProps = {
 type MenuItemProps = PropsWithChildren<{
   checked?: boolean
   className?: string
-  onClick?: () => void
+  onClick?: (event: ReactMouseEvent<HTMLButtonElement>) => void
 }>
 
 type RenderSideMenuOptions = {
@@ -169,13 +169,12 @@ vi.mock('@blocknote/react', () => ({
           <button type="button" onClick={onClick}>{children}</button>
         ),
         Root: ({ children, onOpenChange }: PropsWithChildren<{ onOpenChange?: (open: boolean) => void }>) => (
-          <button
-            type="button"
+          <div
             data-testid="menu-root"
             onClick={() => onOpenChange?.(true)}
           >
             {children}
-          </button>
+          </div>
         ),
         Trigger: ({ children }: PropsWithChildren) => <div>{children}</div>,
       },
@@ -494,6 +493,23 @@ describe('TolariaSideMenu', () => {
     expect(mockEditor.removeBlocks).not.toHaveBeenCalled()
   })
 
+  it('keeps editor scroll stable when deleting from the drag-handle menu', async () => {
+    const scrollArea = placeEditorInScrollArea(520)
+    const liveBlock = { id: 'same-id', type: 'paragraph', content: ['fresh text'] }
+    mockEditor.getBlock.mockReturnValue(liveBlock)
+    mockEditor.removeBlocks.mockImplementation(() => {
+      scrollArea.scrollTop = 160
+      return [liveBlock]
+    })
+
+    renderSideMenuWithBlock(liveBlock)
+    fireEvent.click(screen.getByText('Delete'))
+    await Promise.resolve()
+
+    expect(mockEditor.removeBlocks).toHaveBeenCalledWith([liveBlock.id])
+    expect(scrollArea.scrollTop).toBe(520)
+  })
+
   it('resolves the live table block before toggling table headers', () => {
     const staleTable = {
       id: 'table-block',
@@ -512,6 +528,45 @@ describe('TolariaSideMenu', () => {
 
     expect(mockEditor.updateBlock).toHaveBeenCalledWith(liveTable.id, {
       content: { ...liveTable.content, headerRows: 1 },
+    })
+  })
+
+  it('keeps editor scroll stable when toggling table headers from the drag-handle menu', async () => {
+    const scrollArea = placeEditorInScrollArea(620)
+    const table = {
+      id: 'table-block',
+      type: 'table',
+      content: { type: 'tableContent', rows: [], headerRows: undefined },
+    }
+    mockEditor.getBlock.mockReturnValue(table)
+    mockEditor.updateBlock.mockImplementation(() => {
+      scrollArea.scrollTop = 220
+      return table
+    })
+
+    renderSideMenuWithBlock(table)
+    fireEvent.click(screen.getByText('Header row'))
+    await Promise.resolve()
+
+    expect(mockEditor.updateBlock).toHaveBeenCalledWith(table.id, {
+      content: { ...table.content, headerRows: 1 },
+    })
+    expect(scrollArea.scrollTop).toBe(620)
+  })
+
+  it('toggles table column headers through the live block content key', () => {
+    const table = {
+      id: 'table-block',
+      type: 'table',
+      content: { type: 'tableContent', rows: [], headerCols: 1 },
+    }
+    mockEditor.getBlock.mockReturnValue(table)
+
+    renderSideMenuWithBlock(table)
+    fireEvent.click(screen.getByText('Header column'))
+
+    expect(mockEditor.updateBlock).toHaveBeenCalledWith(table.id, {
+      content: { ...table.content, headerCols: undefined },
     })
   })
 
@@ -646,13 +701,13 @@ describe('TolariaSideMenu', () => {
   it('renders the current block comment marker from provider-backed anchors', () => {
     const first = testBlock('first-block', 'paragraph', ['First'])
     const second = testBlock('second-block', 'paragraph', ['Second'])
-    const onOpenThread = vi.fn()
+    const onToggleThread = vi.fn()
     const commentOptions: EditorCommentOptions = {
       anchors: [
         { comments: [], id: 'b0001', title: 'First source block' },
         { comments: [{ anchorId: 'b0002', body: 'Existing', id: 'c1', kind: 'comment' }], id: 'b0002', title: 'Second source block' },
       ],
-      onOpenThread,
+      onToggleThread,
       renderThread: (anchorId) => <section data-testid="side-menu-comment-thread">Thread for {anchorId}</section>,
       selectedAnchorId: 'b0002',
     }
@@ -666,7 +721,7 @@ describe('TolariaSideMenu', () => {
     expect(screen.getByTestId('side-menu-comment-thread')).toHaveTextContent('Thread for b0002')
     fireEvent.click(screen.getByRole('button', { name: 'Second source block' }))
 
-    expect(onOpenThread).toHaveBeenCalledWith('b0002')
+    expect(onToggleThread).toHaveBeenCalledWith('b0002')
   })
 
   it('portals the selected comment thread through the editor floating portal when available', () => {
@@ -691,7 +746,7 @@ describe('TolariaSideMenu', () => {
       anchors: [
         { comments: [{ anchorId: 'b0002', body: 'Existing', id: 'c1', kind: 'comment' }], id: 'b0002', title: 'Second source block' },
       ],
-      onOpenThread: vi.fn(),
+      onToggleThread: vi.fn(),
       renderThread: (anchorId) => <section data-testid="side-menu-comment-thread">Thread for {anchorId}</section>,
       selectedAnchorId: 'b0002',
     }

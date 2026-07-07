@@ -108,14 +108,44 @@ vi.mock('@blocknote/core/extensions', () => ({
 }))
 
 vi.mock('@mantine/core', () => ({
-  Button: ({ children, ...props }: { children?: ReactNode }) => <button type="button" {...props}>{children}</button>,
+  Button: ({
+    children,
+    leftSection,
+    rightSection,
+    ...props
+  }: {
+    children?: ReactNode
+    leftSection?: ReactNode
+    rightSection?: ReactNode
+  }) => (
+    <button type="button" {...props}>
+      {leftSection}
+      {children}
+      {rightSection}
+    </button>
+  ),
   CheckIcon: () => <span data-testid="mantine-check">check</span>,
   Menu: Object.assign(
     ({ children }: { children?: ReactNode }) => <div data-testid="mantine-menu">{children}</div>,
     {
       Target: ({ children }: { children?: ReactNode }) => <>{children}</>,
       Dropdown: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
-      Item: ({ children, ...props }: { children?: ReactNode }) => <button type="button" {...props}>{children}</button>,
+      Item: ({
+        children,
+        leftSection,
+        rightSection,
+        ...props
+      }: {
+        children?: ReactNode
+        leftSection?: ReactNode
+        rightSection?: ReactNode
+      }) => (
+        <button type="button" {...props}>
+          {leftSection}
+          {children}
+          {rightSection}
+        </button>
+      ),
     },
   ),
 }))
@@ -140,8 +170,8 @@ vi.mock('../utils/clipboardText', () => ({
 vi.mock('./tolariaEditorFormattingConfig', () => ({
   filterTolariaFormattingToolbarItems: (items: ReactNode[]) => items,
   getTolariaBlockTypeSelectItems: () => [
-    { name: 'Paragraph', type: 'paragraph', props: {}, icon: MockIcon },
-    { name: 'Heading 1', type: 'heading', props: { level: 1 }, icon: MockIcon },
+    { labelKey: 'editor.blockType.paragraph', type: 'paragraph', props: {}, icon: MockIcon },
+    { labelKey: 'editor.blockType.heading1', type: 'heading', props: { level: 1 }, icon: MockIcon },
   ],
 }))
 
@@ -398,7 +428,7 @@ describe('tolariaEditorFormatting behavior', () => {
 
     render(<TolariaFormattingToolbar vaultPath="/vault" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Download file' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open media' }))
 
     expect(editor.focus).toHaveBeenCalled()
     expect(mockOpenLocalFile).toHaveBeenCalledWith('/vault/attachments/report.pdf', '/vault')
@@ -475,6 +505,42 @@ describe('tolariaEditorFormatting behavior', () => {
       type: 'image',
     }))
     expect(editor.focus).toHaveBeenCalled()
+  })
+
+  it('recovers stale selected media blocks during replacement without showing a user error', async () => {
+    const editor = createMockEditor('image', {
+      caption: 'Old caption',
+      url: 'asset://localhost/%2Fvault%2Fattachments%2Fold-diagram.png',
+    })
+    const staleBlockError = new Error('Block with ID file-block not found')
+    editor.updateBlock.mockImplementation(() => {
+      throw staleBlockError
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const onRequestMediaReplacement = vi.fn().mockResolvedValue({
+      url: 'asset://localhost/%2Fvault%2Fattachments%2Fnew-diagram.png',
+    })
+    useBlockNoteEditorMock.mockReturnValue(editor)
+
+    render(
+      <TolariaFormattingToolbar
+        onRequestMediaReplacement={onRequestMediaReplacement}
+        vaultPath="/vault"
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace media' }))
+    await waitFor(() => {
+      expect(editor.updateBlock).toHaveBeenCalledWith('file-block', {
+        props: {
+          url: 'asset://localhost/%2Fvault%2Fattachments%2Fnew-diagram.png',
+        },
+      })
+    })
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(warn).toHaveBeenCalledWith('[editor] Recovered rich-editor transform error:', staleBlockError)
+    warn.mockRestore()
   })
 
   it('controls the floating toolbar placement, hover guard, and escape-key close behavior', () => {

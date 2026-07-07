@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
-import { MathBlockEditor, MathInlineEditor } from './editorSchema'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { _editorLocaleRef, MathBlockEditor, MathInlineEditor } from './editorSchema'
 import { subscribeRichEditorExternalChange } from './editorExternalChangeEvents'
 
 function renderMathBlockEditor(latex = '\\sqrt{x}') {
@@ -144,6 +144,10 @@ describe('MathBlockEditor', () => {
 })
 
 describe('MathInlineEditor', () => {
+  afterEach(() => {
+    _editorLocaleRef.current = 'en'
+  })
+
   it('opens a lightweight popover and updates inline math props', async () => {
     const { editor, updateInlineContent } = renderMathInlineEditor()
     const onExternalChange = vi.fn()
@@ -180,6 +184,35 @@ describe('MathInlineEditor', () => {
     })
   })
 
+  it('ignores stale inline math updates after the owning inline node disappears', async () => {
+    const { editor, updateInlineContent } = renderMathInlineEditor('x^2')
+    const onExternalChange = vi.fn()
+    const unsubscribe = subscribeRichEditorExternalChange(editor, onExternalChange)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    updateInlineContent.mockImplementation(() => {
+      throw new Error('Block with ID math-inline not found')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Math: x^2' }))
+    const input = await screen.findByRole('textbox', { name: 'Inline math' })
+    fireEvent.change(input, { target: { value: '\\frac{a}{b}' } })
+
+    expect(() => fireEvent.click(screen.getByRole('button', { name: 'Save' }))).not.toThrow()
+    expect(updateInlineContent).toHaveBeenCalledWith({
+      content: undefined,
+      props: { latex: '\\frac{a}{b}' },
+      type: 'mathInline',
+    })
+    expect(onExternalChange).not.toHaveBeenCalled()
+    expect(editor.focus).toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[editor] Recovered rich-editor transform error:',
+      expect.any(Error),
+    )
+    unsubscribe()
+    warnSpy.mockRestore()
+  })
+
   it('closes inline math editing without changing props on Escape', async () => {
     const { editor, updateInlineContent } = renderMathInlineEditor()
 
@@ -201,5 +234,16 @@ describe('MathInlineEditor', () => {
 
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(updateInlineContent).not.toHaveBeenCalled()
+  })
+
+  it('uses the current editor locale for inline math editing controls', async () => {
+    _editorLocaleRef.current = 'zh-CN'
+    renderMathInlineEditor()
+
+    fireEvent.click(screen.getByRole('button', { name: '数学：E=mc^2' }))
+    await screen.findByRole('textbox', { name: '行内数学' })
+
+    expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument()
   })
 })

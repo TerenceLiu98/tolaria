@@ -8,7 +8,7 @@ import {
 
 describe('CommentUI', () => {
   it('renders a gutter count and opens a thread by anchor id', () => {
-    const onOpenThread = vi.fn()
+    const onToggleThread = vi.fn()
 
     render(
       <CommentGutter
@@ -16,13 +16,13 @@ describe('CommentUI', () => {
         count={2}
         isOpen={false}
         title="Open comments"
-        onOpenThread={onOpenThread}
+        onToggleThread={onToggleThread}
       />,
     )
 
     expect(screen.getByTestId('comment-gutter-count-b0002')).toHaveTextContent('2')
     fireEvent.click(screen.getByRole('button', { name: 'Open comments' }))
-    expect(onOpenThread).toHaveBeenCalledWith('b0002')
+    expect(onToggleThread).toHaveBeenCalledWith('b0002')
   })
 
   it('submits non-empty composer text and clears the field', () => {

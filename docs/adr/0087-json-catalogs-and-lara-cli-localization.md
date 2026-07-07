@@ -2,8 +2,9 @@
 type: ADR
 id: "0087"
 title: "JSON locale catalogs with Lara CLI synchronization"
-status: active
+status: superseded
 date: 2026-04-27
+superseded_by: "0168"
 supersedes:
   - "0084"
 ---

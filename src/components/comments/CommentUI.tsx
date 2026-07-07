@@ -9,13 +9,13 @@ export function CommentGutter({
   anchorId,
   count,
   isOpen,
-  onOpenThread,
+  onToggleThread,
   title,
 }: {
   anchorId: string
   count: number
   isOpen: boolean
-  onOpenThread: (anchorId: string) => void
+  onToggleThread: (anchorId: string) => void
   title: string
 }) {
   return (
@@ -31,7 +31,7 @@ export function CommentGutter({
         title={title}
         aria-label={title}
         aria-expanded={isOpen}
-        onClick={() => onOpenThread(anchorId)}
+        onClick={() => onToggleThread(anchorId)}
       >
         {count > 0 ? <NotePencil className="size-4" /> : <Plus className="size-4" />}
         {count > 0 ? (
@@ -88,10 +88,34 @@ export function CommentComposer({
   )
 }
 
+type CommentThreadPanelBaseProps = {
+  actions?: ReactNode
+  children?: ReactNode
+  commentsListTestId?: string
+  comments: readonly NoteComment[]
+  emptyText: string
+  renderComment: (comment: NoteComment) => ReactNode
+  subtitle?: string
+  testId?: string
+  title: string
+  toolbar?: ReactNode
+}
+
+type CommentThreadPanelProps = CommentThreadPanelBaseProps & (
+  | {
+    closeLabel: string
+    onClose: () => void
+  }
+  | {
+    closeLabel?: never
+    onClose?: undefined
+  }
+)
+
 export function CommentThreadPanel({
   actions,
   children,
-  closeLabel = 'Close',
+  closeLabel,
   commentsListTestId,
   comments,
   emptyText,
@@ -101,20 +125,7 @@ export function CommentThreadPanel({
   testId,
   title,
   toolbar,
-}: {
-  actions?: ReactNode
-  children?: ReactNode
-  closeLabel?: string
-  commentsListTestId?: string
-  comments: readonly NoteComment[]
-  emptyText: string
-  onClose?: () => void
-  renderComment: (comment: NoteComment) => ReactNode
-  subtitle?: string
-  testId?: string
-  title: string
-  toolbar?: ReactNode
-}) {
+}: CommentThreadPanelProps) {
   return (
     <aside
       className="grid max-h-[min(28rem,80vh)] gap-3 overflow-auto rounded-md border border-border bg-popover p-3 shadow-lg"

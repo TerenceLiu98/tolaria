@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   hoverGuardMock: vi.fn(),
   imageDropState: { isDragOver: false },
   linkActivationMock: vi.fn(),
+  editorLocaleRef: { current: 'en' },
   personMentionCandidates: [] as Record<string, unknown>[],
   wikilinkEntriesRef: { current: [] as VaultEntry[] },
   wikilinkCandidates: [] as Record<string, unknown>[],
@@ -193,6 +194,7 @@ vi.mock('./WikilinkSuggestionMenu', () => ({
 }))
 
 vi.mock('./editorSchema', () => ({
+  _editorLocaleRef: state.editorLocaleRef,
   _wikilinkEntriesRef: state.wikilinkEntriesRef,
 }))
 

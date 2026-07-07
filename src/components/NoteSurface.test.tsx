@@ -14,6 +14,7 @@ function createEditorMock() {
     insertInlineContent: vi.fn(),
     isEditable: true,
     replaceBlocks: vi.fn(),
+    setTextCursorPosition: vi.fn(),
     tryParseMarkdownToBlocks: vi.fn(() => [{ id: 'next', type: 'paragraph' }]),
   }
 }
@@ -36,7 +37,7 @@ describe('NoteSurface', () => {
         { comments: [], id: 'b0001', title: 'First block' },
         { comments: [{ anchorId: 'b0002', body: 'Existing comment', id: 'c1', kind: 'comment' }], id: 'b0002', title: 'Second block' },
       ],
-      onOpenThread: vi.fn(),
+      onToggleThread: vi.fn(),
       renderThread: (anchorId: string) => <section data-testid="selected-comment-thread">Thread for {anchorId}</section>,
       selectedAnchorId: 'b0002',
     }
@@ -91,6 +92,7 @@ describe('NoteSurface', () => {
 
     act(() => {
       adapterRef.current?.focus()
+      adapterRef.current?.focusBlock('heading-block', 'end')
       adapterRef.current?.insertPlainText('plain')
       adapterRef.current?.insertWikilink('Target Note')
       adapterRef.current?.setEditable(false)
@@ -100,7 +102,8 @@ describe('NoteSurface', () => {
     expect(adapterRef.current?.getMarkdown()).toBe('Serialized body')
     expect(adapterRef.current?.getSelectionContext()).toBeNull()
     expect(adapterRef.current?.getSelectedAttachmentContext()).toBeNull()
-    expect(editor.focus).toHaveBeenCalled()
+    expect(editor.focus).toHaveBeenCalledTimes(2)
+    expect(editor.setTextCursorPosition).toHaveBeenCalledWith('heading-block', 'end')
     expect(editor.insertInlineContent).toHaveBeenCalledWith('plain', { updateSelection: true })
     expect(editor.insertInlineContent).toHaveBeenCalledWith('[[Target Note]]', { updateSelection: true })
     expect(editor.isEditable).toBe(false)

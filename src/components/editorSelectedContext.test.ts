@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { selectedImageContextFromBlock } from './editorSelectedContext'
+import {
+  selectedImageContextFromBlock,
+  selectedTextContextFromText,
+  selectedTextContextFromSelection,
+} from './editorSelectedContext'
 import type { VaultEntry } from '../types'
 
 const sourceEntry = {
@@ -40,5 +44,59 @@ describe('editor selected context', () => {
       sourceEntry,
       vaultPath: '/vault',
     })).toBeNull()
+  })
+
+  it('creates selected text context from trimmed text', () => {
+    expect(selectedTextContextFromText({
+      sourceEntry,
+      text: '  Evidence sentence.  ',
+    })).toEqual({
+      kind: 'text',
+      entryPath: '/vault/note.md',
+      entryTitle: 'Image Note',
+      text: 'Evidence sentence.',
+    })
+  })
+
+  it('creates selected text context only when the selection is inside the editor container', () => {
+    const container = document.createElement('div')
+    const paragraph = document.createElement('p')
+    paragraph.textContent = 'Inside selected text'
+    container.append(paragraph)
+    document.body.append(container)
+    const outside = document.createElement('p')
+    outside.textContent = 'Outside selected text'
+    document.body.append(outside)
+
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    const insideRange = document.createRange()
+    insideRange.selectNodeContents(paragraph)
+    selection?.addRange(insideRange)
+
+    expect(selectedTextContextFromSelection({
+      container,
+      selection,
+      sourceEntry,
+    })).toEqual({
+      kind: 'text',
+      entryPath: '/vault/note.md',
+      entryTitle: 'Image Note',
+      text: 'Inside selected text',
+    })
+
+    selection?.removeAllRanges()
+    const outsideRange = document.createRange()
+    outsideRange.selectNodeContents(outside)
+    selection?.addRange(outsideRange)
+    expect(selectedTextContextFromSelection({
+      container,
+      selection,
+      sourceEntry,
+    })).toBeNull()
+
+    selection?.removeAllRanges()
+    container.remove()
+    outside.remove()
   })
 })

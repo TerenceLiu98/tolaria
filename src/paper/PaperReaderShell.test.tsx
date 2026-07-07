@@ -72,7 +72,7 @@ vi.mock('../components/NoteSurface', () => ({
               type="button"
               data-paper-source-block-id={anchor.id}
               data-testid={`note-surface-anchor-${anchor.id}`}
-              onClick={() => commentOptions.onOpenThread(anchor.id)}
+              onClick={() => commentOptions.onToggleThread(anchor.id)}
             >
               {anchor.title}
               {anchor.comments.length > 0 ? (
@@ -826,6 +826,13 @@ describe('PaperReaderShell', () => {
       expect(screen.getByTestId(/paper-reader-annotation-replies-/u)).toHaveTextContent('Follow-up from a second reading.')
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })
+    fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-replies-/u)).getByRole('button', { name: 'Delete reply' }))
+    await waitFor(() => {
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"deleted_at"')
+      expect(screen.queryByTestId(/paper-reader-annotation-reply-count-/u)).not.toBeInTheDocument()
+      expect(screen.queryByTestId(/paper-reader-annotation-replies-/u)).not.toBeInTheDocument()
+      expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
+    })
     fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-editor-/u)).getByRole('button', { name: 'React 👍' }))
     await waitFor(() => {
       expect(MOCK_CONTENT[annotationsPath]).toContain('"reactions"')
@@ -841,7 +848,7 @@ describe('PaperReaderShell', () => {
     fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-editor-/u)).getByRole('button', { name: 'Resolve' }))
     await waitFor(() => {
       expect(MOCK_CONTENT[annotationsPath]).toContain('"resolved_at"')
-      expect(screen.getByText('Resolved')).toBeInTheDocument()
+      expect(screen.getByTestId(/paper-reader-annotation-resolved-/u)).toBeInTheDocument()
     })
     fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-editor-/u)).getByRole('button', { name: 'Reopen' }))
     await waitFor(() => {
@@ -860,7 +867,7 @@ describe('PaperReaderShell', () => {
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })
 
-    fireEvent.click(within(await screen.findByTestId('paper-reader-annotations-b0002')).getByRole('button', { name: 'Delete annotation' }))
+    fireEvent.click(within(await screen.findByTestId('paper-reader-annotations-b0002')).getByRole('button', { name: 'Delete comment' }))
 
     await waitFor(() => {
       expect(MOCK_CONTENT[annotationsPath]).toBe('')

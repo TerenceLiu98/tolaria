@@ -1,10 +1,11 @@
-import { forwardRef, useImperativeHandle, useMemo } from 'react'
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from 'react'
 import type { useCreateBlockNote } from '@blocknote/react'
 import { cn } from '@/lib/utils'
 import type { AppLocale } from '../lib/i18n'
 import type { AiSelectedTextContext } from '../utils/ai-context'
 import type { VaultEntry } from '../types'
 import type { EditorCommentAnchor, EditorCommentOptions } from './comments/commentAnchors'
+import { selectedTextContextFromSelection } from './editorSelectedContext'
 import { createBlockNoteEditorAdapter, type SapientiaEditorAdapter } from './editorAdapter'
 import { SingleEditorView } from './SingleEditorView'
 
@@ -40,11 +41,32 @@ export const NoteSurface = forwardRef<NoteSurfaceAdapter, NoteSurfaceProps>(func
   sourceEntry,
   vaultPath,
 }, ref) {
-  const editorAdapter = useMemo(() => createBlockNoteEditorAdapter(editor), [editor])
+  const surfaceRef = useRef<HTMLDivElement>(null)
+  const selectedAttachmentContextRef = useRef<AiSelectedTextContext | null>(null)
+  const handleSelectedAttachmentContextChange = useCallback((context: AiSelectedTextContext | null) => {
+    selectedAttachmentContextRef.current = context
+  }, [])
+  const baseEditorAdapter = useMemo(() => createBlockNoteEditorAdapter(editor), [editor])
+  const editorAdapter = useMemo<SapientiaEditorAdapter>(() => ({
+    ...baseEditorAdapter,
+    getSelectedAttachmentContext() {
+      return selectedAttachmentContextRef.current
+    },
+    getSelectionContext() {
+      if (!sourceEntry) return null
+
+      return selectedTextContextFromSelection({
+        container: surfaceRef.current,
+        selection: window.getSelection(),
+        sourceEntry,
+      })
+    },
+  }), [baseEditorAdapter, sourceEntry])
   useImperativeHandle(ref, () => editorAdapter, [editorAdapter])
 
   return (
     <div
+      ref={surfaceRef}
       className={cn(
         'note-surface relative min-h-0 flex-1',
         className,
@@ -59,6 +81,8 @@ export const NoteSurface = forwardRef<NoteSurfaceAdapter, NoteSurfaceProps>(func
         onNavigateWikilink={onNavigateWikilink}
         onChange={onChange}
         onSelectedTextContextChange={onSelectedTextContextChange}
+        editorAdapter={editorAdapter}
+        onSelectedAttachmentContextChange={handleSelectedAttachmentContextChange}
         sourceEntry={sourceEntry}
         vaultPath={vaultPath}
         editable={editable}

@@ -118,10 +118,8 @@ body.mac-chrome .app:not(:has(.app__sidebar)):not(:has(.app__note-list)) .breadc
   box-shadow: 0 2px 8px var(--shadow-dialog);
 }
 
-.editor__blocknote-container .bn-container {
-  width: 100%;
-  height: 100%;
-  background: var(--bg-primary);
+.editor__blocknote-container .bn-container,
+.editor__floating-blocknote-scope {
   color: var(--text-primary);
   font-size: 15px;
   /* Override BlockNote's internal color variables so .bn-editor background
@@ -141,22 +139,10 @@ body.mac-chrome .app:not(:has(.app__sidebar)):not(:has(.app__note-list)) .breadc
   --bn-colors-side-menu: var(--text-muted);
 }
 
-.editor__floating-blocknote-scope {
-  color: var(--text-primary);
-  font-size: 15px;
-  --bn-colors-editor-background: var(--bg-primary);
-  --bn-colors-editor-text: var(--text-primary);
-  --bn-colors-menu-background: var(--surface-popover);
-  --bn-colors-menu-text: var(--text-primary);
-  --bn-colors-tooltip-background: var(--state-hover-subtle);
-  --bn-colors-tooltip-text: var(--text-primary);
-  --bn-colors-hovered-background: var(--state-hover);
-  --bn-colors-hovered-text: var(--text-primary);
-  --bn-colors-selected-background: var(--bg-selected);
-  --bn-colors-selected-text: var(--text-primary);
-  --bn-colors-border: var(--border-dialog);
-  --bn-colors-shadow: var(--shadow-dialog);
-  --bn-colors-side-menu: var(--text-muted);
+.editor__blocknote-container .bn-container {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-primary);
 }
 
 .editor__blocknote-container .bn-editor {

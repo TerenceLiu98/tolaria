@@ -37,7 +37,7 @@ import { WikilinkSuggestionMenu, type WikilinkSuggestionItem } from './WikilinkS
 import type { VaultEntry } from '../types'
 import type { AiSelectedTextContext } from '../utils/ai-context'
 import type { EditorCommentOptions } from './comments/commentAnchors'
-import { _wikilinkEntriesRef } from './editorSchema'
+import { _editorLocaleRef, _wikilinkEntriesRef } from './editorSchema'
 import {
   handleEditorFileBlockClick,
   openEditorAttachmentOrUrl,
@@ -95,8 +95,9 @@ import {
   selectedEditorRange,
   writeRichEditorClipboardPayload,
 } from './editorRichCopy'
-import { selectedImageContextFromTarget } from './editorSelectedContext'
+import { selectedImageContextFromTarget, selectedTextContextFromText } from './editorSelectedContext'
 import { EditorFloatingPortalProvider } from './editorFloatingPortal'
+import type { SapientiaEditorAdapter } from './editorAdapter'
 
 const TEST_TABLE_MARKDOWN = `| Head 1 | Head 2 | Head 3 |
 | --- | --- | --- |
@@ -993,6 +994,10 @@ function useSuggestionMenuItems(options: {
       return guardSuggestionMenuItems(
         await Promise.resolve(getTolariaSlashMenuItems(editor, query, {
           mathTitle: t('editor.slash.math'),
+          mediaGroup: t('editor.slash.mediaGroup'),
+          mermaidEditPlaceholder: t('editor.slash.mermaidEditPlaceholder'),
+          mermaidTitle: t('editor.slash.mermaid'),
+          whiteboardTitle: t('editor.slash.whiteboard'),
         })),
         runEditorAction,
       )
@@ -1219,14 +1224,16 @@ function refreshCodeBlockSyntaxHighlighting(editor: ReturnType<typeof useCreateB
 }
 
 /** Single BlockNote editor view — content is swapped via replaceBlocks */
-export function SingleEditorView({ commentOptions, editor, entries, onNavigateWikilink, onChange, onRequestInlineAiSuggestion, onRequestMediaReplacement, onSelectedTextContextChange, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
+export function SingleEditorView({ commentOptions, editor, editorAdapter, entries, onNavigateWikilink, onChange, onRequestInlineAiSuggestion, onRequestMediaReplacement, onSelectedAttachmentContextChange, onSelectedTextContextChange, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
   commentOptions?: EditorCommentOptions
   editor: ReturnType<typeof useCreateBlockNote>
+  editorAdapter?: SapientiaEditorAdapter
   entries: VaultEntry[]
   onNavigateWikilink: (target: string) => void
   onChange?: () => void
   onRequestInlineAiSuggestion?: InlineAiSuggestionHandler
   onRequestMediaReplacement?: MediaReplacementHandler
+  onSelectedAttachmentContextChange?: (context: AiSelectedTextContext | null) => void
   onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   sourceEntry?: VaultEntry | null
   vaultPath?: string
@@ -1235,6 +1242,7 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
 }) {
   const { cssVars } = useEditorTheme()
   const themeMode = useDocumentThemeMode()
+  const t = useMemo(() => createTranslator(locale), [locale])
   const previousThemeModeRef = useRef(themeMode)
   const containerRef = useRef<HTMLDivElement>(null)
   const [floatingPortalElement, setFloatingPortalElement] = useState<HTMLDivElement | null>(null)
@@ -1269,6 +1277,10 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
   useEffect(() => {
     _wikilinkEntriesRef.current = entries
   }, [entries])
+
+  useEffect(() => {
+    _editorLocaleRef.current = locale
+  }, [locale])
 
   useEffect(() => {
     if (previousThemeModeRef.current === themeMode) return
@@ -1316,6 +1328,7 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
   const handleImageSelectionContextClick = useCallback((event: React.MouseEvent<HTMLDivElement>): boolean => {
     if (!sourceEntry || !onSelectedTextContextChange) {
       selectedImageContextRef.current = null
+      onSelectedAttachmentContextChange?.(null)
       return false
     }
 
@@ -1327,13 +1340,15 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
     })
     if (!context) {
       selectedImageContextRef.current = null
+      onSelectedAttachmentContextChange?.(null)
       return false
     }
 
     selectedImageContextRef.current = context
+    onSelectedAttachmentContextChange?.(context)
     onSelectedTextContextChange(context)
     return true
-  }, [editor, onSelectedTextContextChange, sourceEntry, vaultPath])
+  }, [editor, onSelectedAttachmentContextChange, onSelectedTextContextChange, sourceEntry, vaultPath])
   const handleMouseDownCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     activatePlainTextPaste()
     if (handleImageSelectionContextClick(event)) return
@@ -1356,7 +1371,7 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
       return
     }
     if (selection.isCollapsed) {
-      const selectedImageContext = selectedImageContextRef.current
+      const selectedImageContext = editorAdapter?.getSelectedAttachmentContext() ?? selectedImageContextRef.current
       if (selectedImageContext) {
         onSelectedTextContextChange(selectedImageContext)
       }
@@ -1365,13 +1380,13 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
 
     const text = selection.toString().trim()
     if (!text) {
-      const selectedImageContext = selectedImageContextRef.current
+      const selectedImageContext = editorAdapter?.getSelectedAttachmentContext() ?? selectedImageContextRef.current
       if (selectedImageContext) {
         onSelectedTextContextChange(selectedImageContext)
       }
       return
     }
-  }, [onSelectedTextContextChange, sourceEntry])
+  }, [editorAdapter, onSelectedTextContextChange, sourceEntry])
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -1403,13 +1418,15 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
     if (!sourceEntry || !onSelectedTextContextChange) return
 
     selectedImageContextRef.current = null
-    onSelectedTextContextChange({
-      kind: 'text',
-      entryPath: sourceEntry.path,
-      entryTitle: sourceEntry.title,
+    onSelectedAttachmentContextChange?.(null)
+    const context = editorAdapter?.getSelectionContext() ?? selectedTextContextFromText({
+      sourceEntry,
       text,
     })
-  }, [onSelectedTextContextChange, sourceEntry])
+    if (!context) return
+
+    onSelectedTextContextChange(context)
+  }, [editorAdapter, onSelectedAttachmentContextChange, onSelectedTextContextChange, sourceEntry])
 
   const insertWikilink = useInsertWikilink(editor, runEditorAction)
   const suggestionMenuItems = useSuggestionMenuItems({
@@ -1427,7 +1444,7 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
     <div
       ref={containerRef}
       role="application"
-      aria-label="Rich text editor"
+      aria-label={t('editor.rich.ariaLabel')}
       className={`editor__blocknote-container${isDragOver ? ' editor__blocknote-container--drag-over' : ''}`}
       style={cssVars as React.CSSProperties}
       onCopyCapture={handleCopyCapture}
@@ -1441,7 +1458,7 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
     >
       {isDragOver && (
         <div className="editor__drop-overlay">
-          <div className="editor__drop-overlay-label">Drop image here</div>
+          <div className="editor__drop-overlay-label">{t('editor.dropImageHere')}</div>
         </div>
       )}
       <EditorFloatingPortalProvider value={floatingPortalElement}>

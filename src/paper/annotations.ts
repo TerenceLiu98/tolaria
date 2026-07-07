@@ -9,6 +9,8 @@ export type {
   PaperAnnotationKind,
   PaperAnnotationLineError,
   PaperAnnotationParseResult,
+  PaperAnnotationReaction,
+  PaperAnnotationReply,
   PaperAnnotationsState,
 } from './paperAnnotations'
 export {

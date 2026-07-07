@@ -6,6 +6,8 @@ Target: Tolaria fork / research edition
 Working name: Sapientia for Tolaria  
 Primary thesis: Tolaria is the local knowledge-base operating system; Sapientia is the paper research workflow layer.
 
+> Implementation note: this document is a historical product draft. The current Paper ownership and editor contract is superseded by ADR 0160 and ADR 0167 plus `docs/PAPER_ENTITY_MVP_DESIGN.md`: Paper entries are editable normal Notes with source provenance, comments are sidecar-backed, long-form research notes are ordinary `Note` entries, and the app does not provide a standalone Ask Paper surface or Marginalia workflow. Older Paper Reader / Ask / memory phases below should be read as background unless they match those current contracts.
+
 ## 1. Executive Summary
 
 This PRD defines a Tolaria-based research product that adds Sapientia's paper-reading, block citation, sidecar annotations, research memory, and grounded AI capabilities to Tolaria's local-first Markdown vault.
@@ -398,7 +400,7 @@ normalized text or caption hash
 
 ### 9.3 Paper Comments
 
-Paper comments are user-created notes attached to parsed paper blocks. They are stored outside `paper.md` so parser-owned paper text and user commentary stay separate.
+Paper comments are user-created notes attached to parsed paper blocks. They are stored outside `paper.md` so editable Paper text and user commentary stay separate.
 
 Stored in:
 
@@ -695,7 +697,7 @@ Parser providers:
 Requirements:
 
 - Parser output normalizes into `blocks.jsonl`.
-- Parser output also rewrites the parser-owned `paper.md` body as readable Markdown.
+- Parser output writes or refreshes editable `paper.md` as readable Markdown.
 - Each parsed Markdown block includes a hidden stable `tolaria:block` anchor with block id, page, kind, and hash.
 - Parser status is visible in UI.
 - Parse failures are recoverable.
@@ -762,7 +764,7 @@ Requirements:
 
 Acceptance criteria:
 
-- User can cite Paper evidence from ordinary notes without mixing notes into parser-owned `paper.md`.
+- User can cite Paper evidence from ordinary notes without mixing those notes into editable `paper.md`.
 - New note appears in the normal Notes section or wherever the user creates it.
 - Note links back to Paper.
 
@@ -1020,7 +1022,7 @@ interface PaperParseResult {
 Output writer:
 
 - Writes `blocks.jsonl`.
-- Writes the parser-owned Markdown projection into `paper.md` body with hidden block anchors.
+- Writes anchored Markdown into the editable `paper.md` body with hidden block anchors.
 - Writes extracted assets under `assets/` if needed.
 - Writes parse metadata into `paper.md` system fields or a future `_parse` sidecar.
 - Preserves previous block IDs when matching confidence is high.

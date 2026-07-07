@@ -143,7 +143,7 @@ proposed → active → superseded
 | [0084](0084-app-localization-foundation.md) | App-owned localization foundation | superseded → [0087](0087-json-catalogs-and-lara-cli-localization.md) |
 | [0085](0085-non-git-vault-support.md) | Non-git vaults open with explicit later Git initialization | active |
 | [0086](0086-in-app-image-file-preview.md) | In-app image previews for binary vault files | superseded → [0098](0098-in-app-image-and-pdf-file-previews.md) |
-| [0087](0087-json-catalogs-and-lara-cli-localization.md) | JSON locale catalogs with Lara CLI synchronization | active |
+| [0087](0087-json-catalogs-and-lara-cli-localization.md) | JSON locale catalogs with Lara CLI synchronization | superseded → [0168](0168-manual-json-catalog-localization.md) |
 | [0088](0088-markdown-durable-mermaid-diagrams.md) | Markdown-durable Mermaid diagrams in notes | active |
 | [0089](0089-active-vault-filesystem-watcher.md) | Active vault filesystem watcher | active |
 | [0090](0090-pi-cli-agent-adapter.md) | Pi CLI agent adapter | active |
@@ -224,3 +224,4 @@ proposed → active → superseded
 | [0163](0163-paper-aware-ai-context-and-tools.md) | Paper-Aware AI Context and Tools | active |
 | [0166](0166-editor-adapter-boundary.md) | Keep BlockNote behind a Sapientia editor adapter boundary | active |
 | [0167](0167-blocknote-native-editor-capabilities.md) | Use BlockNote-native editor capabilities before parallel UI | active |
+| [0168](0168-manual-json-catalog-localization.md) | Manual JSON catalog localization | active |

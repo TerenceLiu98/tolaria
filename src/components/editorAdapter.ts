@@ -1,8 +1,11 @@
 import type { useCreateBlockNote } from '@blocknote/react'
 import type { AiSelectedTextContext } from '../utils/ai-context'
+import type { VaultEntry } from '../types'
+import { selectedTextContextFromSelection } from './editorSelectedContext'
 
 export interface SapientiaEditorAdapter {
   focus: () => void
+  focusBlock: (blockId: string, placement?: 'start' | 'end') => void
   getMarkdown: () => string
   getSelectedAttachmentContext: () => AiSelectedTextContext | null
   getSelectionContext: () => AiSelectedTextContext | null
@@ -16,6 +19,12 @@ export interface SapientiaEditorAdapter {
 
 type BlockNoteEditor = ReturnType<typeof useCreateBlockNote>
 
+export interface BlockNoteEditorAdapterOptions {
+  getSelectedAttachmentContext?: () => AiSelectedTextContext | null
+  getSelectionContainer?: () => HTMLElement | null
+  getSourceEntry?: () => VaultEntry | null | undefined
+}
+
 function replaceBlockNoteDocument(editor: BlockNoteEditor, markdown: string): void {
   const parsedBlocks = editor.tryParseMarkdownToBlocks(markdown)
   void Promise.resolve(parsedBlocks).then((blocks) => {
@@ -23,19 +32,33 @@ function replaceBlockNoteDocument(editor: BlockNoteEditor, markdown: string): vo
   })
 }
 
-export function createBlockNoteEditorAdapter(editor: BlockNoteEditor): SapientiaEditorAdapter {
+export function createBlockNoteEditorAdapter(
+  editor: BlockNoteEditor,
+  options: BlockNoteEditorAdapterOptions = {},
+): SapientiaEditorAdapter {
   return {
     focus() {
       editor.focus()
+    },
+    focusBlock(blockId, placement = 'start') {
+      editor.focus()
+      editor.setTextCursorPosition?.(blockId, placement)
     },
     getMarkdown() {
       return editor.blocksToMarkdownLossy(editor.document)
     },
     getSelectedAttachmentContext() {
-      return null
+      return options.getSelectedAttachmentContext?.() ?? null
     },
     getSelectionContext() {
-      return null
+      const sourceEntry = options.getSourceEntry?.()
+      if (!sourceEntry) return null
+
+      return selectedTextContextFromSelection({
+        container: options.getSelectionContainer?.() ?? null,
+        selection: window.getSelection(),
+        sourceEntry,
+      })
     },
     insertMarkdown(markdown) {
       editor.insertInlineContent(markdown, { updateSelection: true })

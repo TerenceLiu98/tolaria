@@ -28,13 +28,15 @@ Red → Green → Refactor → Commit. One cycle per commit. For bugs: write fai
 
 ### Localization (mandatory for UI copy)
 
-All user-facing UI labels/copy must live in `src/lib/locales/en.json` and be translated into every target listed in `lara.yaml`. When adding or changing interface copy:
+All user-facing UI labels/copy must live in `src/lib/locales/en.json` and be manually translated into every checked-in target catalog under `src/lib/locales/`. External localization services are deprecated; do not use Lara or add service-generated locale sync back.
+
+When adding or changing interface copy, edit `src/lib/locales/*.json` in the same change and run:
 
 ```bash
-pnpm l10n:translate
+pnpm l10n:validate
 ```
 
-Use `pnpm l10n:translate:force` only when intentionally regenerating existing translations. Commit `src/lib/locales/*.json`, `lara.yaml`/`lara.lock` changes if produced, and verify placeholders/product names stayed intact.
+Verify placeholders/product names stayed intact.
 
 ### Product analytics (mandatory for meaningful features)
 
@@ -117,7 +119,7 @@ Before pushing or moving a task to In Review, verify the release gates and add a
 - CodeScene: before/after touched-file checks plus final Hotspot and Average scores after push; final scores must pass `.codescene-thresholds`.
 - Coverage commands passed (`pnpm test:coverage` and `cargo llvm-cov ... --fail-under-lines 85`) or the change is docs-only.
 - Codacy: MCP/CLI scan summary; confirm no new Critical/High findings.
-- Localization: any user-facing copy lives in `src/lib/locales/en.json`, `pnpm l10n:translate` was run, and `pnpm l10n:validate` passes. If no copy changed, say “Localization: no UI copy changes”.
+- Localization: any user-facing copy lives in `src/lib/locales/en.json`, all checked-in locale catalogs were manually updated, and `pnpm l10n:validate` passes. If no copy changed, say “Localization: no UI copy changes”.
 - PostHog: meaningful new user actions/events are instrumented with safe metadata; noisy/minor changes explicitly say “PostHog: no event needed because …”.
 - Refactoring: any files refactored to meet the CodeScene gate, or "none needed".
 - ADRs: any new/updated ADRs, or "none".

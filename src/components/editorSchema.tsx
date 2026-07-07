@@ -45,6 +45,7 @@ import {
   isStaleBlockReferenceError,
   reportRecoveredEditorTransformError,
 } from './richEditorTransformErrorRecoveryExtension'
+import { translate, type AppLocale } from '../lib/i18n'
 
 const TldrawWhiteboard = lazy(() => import('./TldrawWhiteboard').then(module => ({
   default: module.TldrawWhiteboard,
@@ -61,6 +62,7 @@ type MediaBlockPreviewProps = {
 
 // Module-level cache so the WikiLink renderer (defined outside React) can access entries
 export const _wikilinkEntriesRef: { current: VaultEntry[] } = { current: [] }
+export const _editorLocaleRef: { current: AppLocale } = { current: 'en' }
 
 function resolveWikilinkColor(target: string) {
   return resolveColor(_wikilinkEntriesRef.current, target)
@@ -112,9 +114,10 @@ export const WikiLink = createReactInlineContentSpec(
 function MathRender({ latex, displayMode }: { latex: string; displayMode: boolean }) {
   const normalizedLatex = normalizeLatexSource(latex)
   const source = displayMode ? `$$\n${normalizedLatex}\n$$` : `$${normalizedLatex}$`
+  const mathLabel = translate(_editorLocaleRef.current, 'editor.math.ariaLabel', { latex: normalizedLatex })
   return (
     <SafeHtmlSpan
-      aria-label={`Math: ${normalizedLatex}`}
+      aria-label={mathLabel}
       className={displayMode ? 'math math--block' : 'math math--inline'}
       data-latex={normalizedLatex}
       markup={renderMathToHtml({ latex: normalizedLatex, displayMode })}
@@ -138,6 +141,25 @@ type MathInlineEditorProps = {
   updateInlineContent: (update: { content?: undefined; props: { latex: string }; type: typeof MATH_INLINE_TYPE }) => void
 }
 
+function updateInlineMathLatexSafely(
+  updateInlineContent: MathInlineEditorProps['updateInlineContent'],
+  latex: string,
+) {
+  try {
+    updateInlineContent({
+      content: undefined,
+      props: { latex },
+      type: MATH_INLINE_TYPE,
+    })
+    return true
+  } catch (error) {
+    if (!isStaleBlockReferenceError(error)) throw error
+
+    reportRecoveredEditorTransformError('stale_block_reference', error)
+    return false
+  }
+}
+
 function stopInlineMathPopoverEvent(event: { stopPropagation: () => void }) {
   event.stopPropagation()
 }
@@ -148,6 +170,7 @@ export function MathInlineEditor({
   updateInlineContent,
 }: MathInlineEditorProps) {
   const currentLatex = normalizeLatexSource(inlineContent.props.latex)
+  const locale = _editorLocaleRef.current
   const inputRef = useRef<HTMLInputElement>(null)
   const [draftLatex, setDraftLatex] = useState(currentLatex)
   const [open, setOpen] = useState(false)
@@ -173,12 +196,8 @@ export function MathInlineEditor({
   const save = () => {
     const nextLatex = normalizeLatexSource(draftLatex.trim())
     if (nextLatex.length > 0 && nextLatex !== currentLatex) {
-      updateInlineContent({
-        content: undefined,
-        props: { latex: nextLatex },
-        type: MATH_INLINE_TYPE,
-      })
-      dispatchRichEditorExternalChange(editor, editor.domElement ?? undefined)
+      const updated = updateInlineMathLatexSafely(updateInlineContent, nextLatex)
+      if (updated) dispatchRichEditorExternalChange(editor, editor.domElement ?? undefined)
     }
     close()
   }
@@ -191,7 +210,7 @@ export function MathInlineEditor({
           variant="ghost"
           className="math-inline-trigger inline-flex h-auto w-auto max-w-none shrink-0 whitespace-nowrap rounded px-0.5 py-0 align-baseline font-inherit text-inherit hover:bg-accent/60 [&_.katex]:whitespace-nowrap [&_.math--inline]:whitespace-nowrap"
           contentEditable={false}
-          aria-label={`Math: ${currentLatex}`}
+          aria-label={translate(locale, 'editor.math.ariaLabel', { latex: currentLatex })}
         >
           <MathRender latex={currentLatex} displayMode={false} />
         </Button>
@@ -216,17 +235,17 @@ export function MathInlineEditor({
       >
         <Input
           ref={inputRef}
-          aria-label="Inline math"
+          aria-label={translate(locale, 'editor.formatting.inlineMath')}
           className="h-8 font-mono text-xs"
           value={draftLatex}
           onChange={(event) => setDraftLatex(event.currentTarget.value)}
         />
         <div className="flex justify-end gap-1">
           <Button type="button" variant="ghost" size="sm" onClick={close}>
-            Cancel
+            {translate(locale, 'common.cancel')}
           </Button>
           <Button type="button" size="sm" disabled={draftLatex.trim().length === 0} onClick={save}>
-            Save
+            {translate(locale, 'common.save')}
           </Button>
         </div>
       </PopoverContent>
@@ -340,7 +359,7 @@ export function MathBlockEditor({ block, editor }: MathBlockEditorProps) {
         <div contentEditable={false} onMouseDown={stopMathEditorEvent}>
           <Textarea
             ref={textareaRef}
-            aria-label={`Math: ${currentLatex}`}
+            aria-label={translate(_editorLocaleRef.current, 'editor.math.ariaLabel', { latex: currentLatex })}
             className="math-block-source min-h-24 font-mono text-sm selection:bg-[var(--colors-selection)] selection:text-[var(--colors-text)] focus-visible:ring-0"
             value={draftLatex}
             onBlur={finishEditing}

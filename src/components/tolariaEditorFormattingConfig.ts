@@ -30,13 +30,15 @@ import {
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 import { trackEvent } from '../lib/telemetry'
+import type { TranslationKey } from '../lib/i18n'
 import { MATH_BLOCK_TYPE } from '../utils/mathMarkdown'
 import { MERMAID_BLOCK_TYPE, mermaidFenceSource } from '../utils/mermaidMarkdown'
 import { TLDRAW_BLOCK_TYPE, TLDRAW_DEFAULT_HEIGHT } from '../utils/tldrawMarkdown'
+import { MARKDOWN_UNSTABLE_SLASH_MENU_KEYS } from './formatting/blockCoverageModel'
 
 type TolariaSlashMenuItem = DefaultReactSuggestionItem & { key: string }
 type TolariaBlockTypeSelectItem = {
-  name: string
+  labelKey: TranslationKey
   type: string
   props?: Record<string, boolean | number | string>
   icon: PhosphorIcon
@@ -48,6 +50,7 @@ type SlashInsertEditor = {
 type BlockSlashMenuItemConfig = {
   aliases: string[]
   eventName?: string
+  group: string
   key: string
   props: Record<string, unknown>
   title: string
@@ -55,12 +58,34 @@ type BlockSlashMenuItemConfig = {
 }
 type TolariaSlashMenuLabels = {
   mathTitle: string
+  mediaGroup: string
+  mermaidEditPlaceholder: string
+  mermaidTitle: string
+  whiteboardTitle: string
 }
 
-export const MERMAID_SLASH_COMMAND_DIAGRAM = [
-  'flowchart TD',
-  '    edit["Switch to the raw editor to edit"]',
-].join('\n')
+const DEFAULT_TOLARIA_SLASH_MENU_LABELS: TolariaSlashMenuLabels = {
+  mathTitle: 'Math',
+  mediaGroup: 'Media',
+  mermaidEditPlaceholder: 'Switch to the raw editor to edit',
+  mermaidTitle: 'Mermaid',
+  whiteboardTitle: 'Whiteboard',
+}
+
+function mermaidLabelText(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+export function createMermaidSlashCommandDiagram(
+  editPlaceholder: string = DEFAULT_TOLARIA_SLASH_MENU_LABELS.mermaidEditPlaceholder,
+) {
+  return [
+    'flowchart TD',
+    `    edit["${mermaidLabelText(editPlaceholder)}"]`,
+  ].join('\n')
+}
+
+export const MERMAID_SLASH_COMMAND_DIAGRAM = createMermaidSlashCommandDiagram()
 export const MATH_SLASH_COMMAND_LATEX = '\\sqrt{a^2 + b^2}'
 
 const UNSUPPORTED_FORMATTING_TOOLBAR_KEYS = new Set([
@@ -71,28 +96,19 @@ const UNSUPPORTED_FORMATTING_TOOLBAR_KEYS = new Set([
   'colorStyleButton',
 ])
 
-const UNSUPPORTED_SLASH_MENU_KEYS = new Set([
-  'heading_5',
-  'heading_6',
-  'toggle_heading',
-  'toggle_heading_2',
-  'toggle_heading_3',
-  'toggle_list',
-])
-
 const TOLARIA_BLOCK_TYPE_SELECT_ITEMS: TolariaBlockTypeSelectItem[] = [
-  { name: 'Paragraph', type: 'paragraph', icon: Paragraph },
-  { name: 'Heading 1', type: 'heading', props: { level: 1 }, icon: TextHOne },
-  { name: 'Heading 2', type: 'heading', props: { level: 2 }, icon: TextHTwo },
-  { name: 'Heading 3', type: 'heading', props: { level: 3 }, icon: TextHThree },
-  { name: 'Heading 4', type: 'heading', props: { level: 4 }, icon: TextHFour },
-  { name: 'Heading 5', type: 'heading', props: { level: 5 }, icon: TextHFive },
-  { name: 'Heading 6', type: 'heading', props: { level: 6 }, icon: TextHSix },
-  { name: 'Quote', type: 'quote', icon: Quotes },
-  { name: 'Bullet List', type: 'bulletListItem', icon: ListBullets },
-  { name: 'Numbered List', type: 'numberedListItem', icon: ListNumbers },
-  { name: 'Checklist', type: 'checkListItem', icon: ListChecks },
-  { name: 'Code Block', type: 'codeBlock', icon: CodeBlock },
+  { labelKey: 'editor.blockType.paragraph', type: 'paragraph', icon: Paragraph },
+  { labelKey: 'editor.blockType.heading1', type: 'heading', props: { level: 1 }, icon: TextHOne },
+  { labelKey: 'editor.blockType.heading2', type: 'heading', props: { level: 2 }, icon: TextHTwo },
+  { labelKey: 'editor.blockType.heading3', type: 'heading', props: { level: 3 }, icon: TextHThree },
+  { labelKey: 'editor.blockType.heading4', type: 'heading', props: { level: 4 }, icon: TextHFour },
+  { labelKey: 'editor.blockType.heading5', type: 'heading', props: { level: 5 }, icon: TextHFive },
+  { labelKey: 'editor.blockType.heading6', type: 'heading', props: { level: 6 }, icon: TextHSix },
+  { labelKey: 'editor.blockType.quote', type: 'quote', icon: Quotes },
+  { labelKey: 'editor.blockType.bulletList', type: 'bulletListItem', icon: ListBullets },
+  { labelKey: 'editor.blockType.numberedList', type: 'numberedListItem', icon: ListNumbers },
+  { labelKey: 'editor.blockType.checklist', type: 'checkListItem', icon: ListChecks },
+  { labelKey: 'editor.blockType.codeBlock', type: 'codeBlock', icon: CodeBlock },
 ]
 
 const TOLARIA_SLASH_MENU_ICONS: Partial<Record<string, PhosphorIcon>> = {
@@ -114,10 +130,6 @@ const TOLARIA_SLASH_MENU_ICONS: Partial<Record<string, PhosphorIcon>> = {
   paragraph: Paragraph,
   quote: Quotes,
   table: Table,
-  toggle_heading: TextHOne,
-  toggle_heading_2: TextHTwo,
-  toggle_heading_3: TextHThree,
-  toggle_list: ListBullets,
   video: Video,
   whiteboard: ScribbleLoop,
 }
@@ -132,11 +144,13 @@ function createBoardId(): string {
 
 function createWhiteboardSlashMenuItem(
   editor: Parameters<typeof getDefaultReactSlashMenuItems>[0],
+  labels: TolariaSlashMenuLabels = DEFAULT_TOLARIA_SLASH_MENU_LABELS,
 ): TolariaSlashMenuItem {
   return createBlockSlashMenuItem(editor, {
     key: 'whiteboard',
-    title: 'Whiteboard',
+    title: labels.whiteboardTitle,
     aliases: ['tldraw', 'drawing', 'canvas', 'sketch'],
+    group: labels.mediaGroup,
     type: TLDRAW_BLOCK_TYPE,
     props: {
       boardId: createBoardId(),
@@ -149,28 +163,33 @@ function createWhiteboardSlashMenuItem(
 
 function createMermaidSlashMenuItem(
   editor: Parameters<typeof getDefaultReactSlashMenuItems>[0],
+  labels: TolariaSlashMenuLabels = DEFAULT_TOLARIA_SLASH_MENU_LABELS,
 ): TolariaSlashMenuItem {
+  const diagram = createMermaidSlashCommandDiagram(labels.mermaidEditPlaceholder)
+
   return createBlockSlashMenuItem(editor, {
     key: 'mermaid',
-    title: 'Mermaid',
+    title: labels.mermaidTitle,
     aliases: ['diagram', 'flowchart', 'graph', 'chart'],
+    group: labels.mediaGroup,
     type: MERMAID_BLOCK_TYPE,
     props: {
-      diagram: MERMAID_SLASH_COMMAND_DIAGRAM,
-      source: mermaidFenceSource({ diagram: MERMAID_SLASH_COMMAND_DIAGRAM }),
+      diagram,
+      source: mermaidFenceSource({ diagram }),
     },
   })
 }
 
 export function createMathSlashMenuItem(
   editor: Parameters<typeof getDefaultReactSlashMenuItems>[0],
-  labels: TolariaSlashMenuLabels = { mathTitle: 'Math' },
+  labels: TolariaSlashMenuLabels = DEFAULT_TOLARIA_SLASH_MENU_LABELS,
 ): TolariaSlashMenuItem {
   return createBlockSlashMenuItem(editor, {
     key: 'math',
     title: labels.mathTitle,
     aliases: ['equation', 'latex', 'formula', 'sqrt'],
     eventName: 'editor_math_slash_command_used',
+    group: labels.mediaGroup,
     type: MATH_BLOCK_TYPE,
     props: {
       latex: MATH_SLASH_COMMAND_LATEX,
@@ -188,7 +207,7 @@ function createBlockSlashMenuItem(
     key: config.key,
     title: config.title,
     aliases: config.aliases,
-    group: 'Media',
+    group: config.group,
     onItemClick: () => {
       const block = blockEditor.getTextCursorPosition().block
       blockEditor.replaceBlocks([block], [{
@@ -251,7 +270,7 @@ export function filterTolariaSlashMenuItems<T extends TolariaSlashMenuItem>(
   items: T[],
 ): T[] {
   return items
-    .filter((item) => !UNSUPPORTED_SLASH_MENU_KEYS.has(item.key))
+    .filter((item) => !MARKDOWN_UNSTABLE_SLASH_MENU_KEYS.has(item.key))
     .map((item) => {
       const TolariaIcon = TOLARIA_SLASH_MENU_ICONS[item.key]
 
@@ -266,14 +285,14 @@ export function filterTolariaSlashMenuItems<T extends TolariaSlashMenuItem>(
 export function getTolariaSlashMenuItems(
   editor: Parameters<typeof getDefaultReactSlashMenuItems>[0],
   query: string,
-  labels?: TolariaSlashMenuLabels,
+  labels: TolariaSlashMenuLabels = DEFAULT_TOLARIA_SLASH_MENU_LABELS,
 ) {
   const items = addItemsToMediaGroup(
     getDefaultReactSlashMenuItems(editor) as TolariaSlashMenuItem[],
     [
-      createMermaidSlashMenuItem(editor),
+      createMermaidSlashMenuItem(editor, labels),
       createMathSlashMenuItem(editor, labels),
-      createWhiteboardSlashMenuItem(editor),
+      createWhiteboardSlashMenuItem(editor, labels),
     ],
   )
 

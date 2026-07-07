@@ -68,6 +68,7 @@ describe('SingleEditorView', () => {
     state.blockNoteViewErrorOnce = false
     state.imageDropState.isDragOver = false
     state.personMentionCandidates = []
+    state.editorLocaleRef.current = 'en'
     state.wikilinkEntriesRef.current = []
     state.wikilinkCandidates = []
     mockOpenExternalUrl.mockClear()
@@ -292,9 +293,11 @@ describe('SingleEditorView', () => {
     )
 
     const portal = screen.getByTestId('editor-floating-portal')
+    const blockNoteView = screen.getByTestId('blocknote-view')
     expect(portal).toHaveClass('pointer-events-none', 'absolute', 'inset-0')
     expect(portal).not.toHaveClass('bn-container')
-    expect(screen.getByTestId('blocknote-view').closest('.editor__blocknote-container')).toContainElement(portal)
+    expect(blockNoteView).not.toContainElement(portal)
+    expect(blockNoteView.closest('.editor__blocknote-container')).toContainElement(portal)
   })
 
   it('does not refresh selected AI context while the formatting toolbar is being clicked', () => {

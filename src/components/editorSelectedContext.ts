@@ -1,5 +1,5 @@
 import type { VaultEntry } from '../types'
-import type { AiSelectedImageContext } from '../utils/ai-context'
+import type { AiSelectedImageContext, AiSelectedTextSelectionContext } from '../utils/ai-context'
 import { portableAttachmentPathFromCurrentVaultAssetUrl } from '../utils/vaultAttachments'
 
 const IMAGE_BLOCK_CONTAINER_SELECTOR = '[data-node-type="blockContainer"][data-id]'
@@ -45,6 +45,38 @@ export function selectedImageContextFromBlock(options: {
     path: displayImagePath(url, options.vaultPath),
     sourceUrl: url,
   }
+}
+
+export function selectedTextContextFromText(options: {
+  sourceEntry: VaultEntry
+  text: string
+}): AiSelectedTextSelectionContext | null {
+  const text = options.text.trim()
+  if (!text) return null
+
+  return {
+    kind: 'text',
+    entryPath: options.sourceEntry.path,
+    entryTitle: options.sourceEntry.title,
+    text,
+  }
+}
+
+export function selectedTextContextFromSelection(options: {
+  container: HTMLElement | null
+  selection: Selection | null
+  sourceEntry: VaultEntry
+}): AiSelectedTextSelectionContext | null {
+  const { container, selection, sourceEntry } = options
+  if (!container || !selection || selection.rangeCount === 0 || selection.isCollapsed) return null
+
+  const range = selection.getRangeAt(0)
+  if (!container.contains(range.commonAncestorContainer)) return null
+
+  return selectedTextContextFromText({
+    sourceEntry,
+    text: selection.toString(),
+  })
 }
 
 function blockContainerForTarget(target: EventTarget | null): HTMLElement | null {

@@ -222,7 +222,7 @@ function NoteListBody({
       onClickCapture={focusNoteList}
       data-testid="note-list-container"
     >
-      {paperCatalogControls && <PaperCatalogControls {...paperCatalogControls} />}
+      {paperCatalogControls && <PaperCatalogControls {...paperCatalogControls} locale={locale} />}
       <NoteListContent
         entitySelection={entitySelection}
         searchedGroups={searchedGroups}

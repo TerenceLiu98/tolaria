@@ -8,6 +8,7 @@ vi.mock('../lib/telemetry', () => ({
 
 import {
   addItemsToMediaGroup,
+  createMermaidSlashCommandDiagram,
   createMathSlashMenuItem,
   filterTolariaFormattingToolbarItems,
   filterTolariaSlashMenuItems,
@@ -42,22 +43,22 @@ describe('tolariaEditorFormatting', () => {
 
   it('returns the audited markdown-safe block types for the toolbar select', () => {
     expect(getTolariaBlockTypeSelectItems()).toEqual([
-      expect.objectContaining({ name: 'Paragraph', type: 'paragraph' }),
-      expect.objectContaining({ name: 'Heading 1', type: 'heading', props: { level: 1 } }),
-      expect.objectContaining({ name: 'Heading 2', type: 'heading', props: { level: 2 } }),
-      expect.objectContaining({ name: 'Heading 3', type: 'heading', props: { level: 3 } }),
-      expect.objectContaining({ name: 'Heading 4', type: 'heading', props: { level: 4 } }),
-      expect.objectContaining({ name: 'Heading 5', type: 'heading', props: { level: 5 } }),
-      expect.objectContaining({ name: 'Heading 6', type: 'heading', props: { level: 6 } }),
-      expect.objectContaining({ name: 'Quote', type: 'quote' }),
-      expect.objectContaining({ name: 'Bullet List', type: 'bulletListItem' }),
-      expect.objectContaining({ name: 'Numbered List', type: 'numberedListItem' }),
-      expect.objectContaining({ name: 'Checklist', type: 'checkListItem' }),
-      expect.objectContaining({ name: 'Code Block', type: 'codeBlock' }),
+      expect.objectContaining({ labelKey: 'editor.blockType.paragraph', type: 'paragraph' }),
+      expect.objectContaining({ labelKey: 'editor.blockType.heading1', type: 'heading', props: { level: 1 } }),
+      expect.objectContaining({ labelKey: 'editor.blockType.heading2', type: 'heading', props: { level: 2 } }),
+      expect.objectContaining({ labelKey: 'editor.blockType.heading3', type: 'heading', props: { level: 3 } }),
+      expect.objectContaining({ labelKey: 'editor.blockType.heading4', type: 'heading', props: { level: 4 } }),
+      expect.objectContaining({ labelKey: 'editor.blockType.heading5', type: 'heading', props: { level: 5 } }),
+      expect.objectContaining({ labelKey: 'editor.blockType.heading6', type: 'heading', props: { level: 6 } }),
+      expect.objectContaining({ labelKey: 'editor.blockType.quote', type: 'quote' }),
+      expect.objectContaining({ labelKey: 'editor.blockType.bulletList', type: 'bulletListItem' }),
+      expect.objectContaining({ labelKey: 'editor.blockType.numberedList', type: 'numberedListItem' }),
+      expect.objectContaining({ labelKey: 'editor.blockType.checklist', type: 'checkListItem' }),
+      expect.objectContaining({ labelKey: 'editor.blockType.codeBlock', type: 'codeBlock' }),
     ])
   })
 
-  it('filters unsupported toggle slash-menu variants and removes command descriptions', () => {
+  it('filters markdown-unstable slash-menu variants and removes command descriptions', () => {
     type TolariaSlashMenuTestItem = {
       key: string
       title: string
@@ -181,6 +182,13 @@ describe('tolariaEditorFormatting', () => {
     ].join('\n'))
   })
 
+  it('escapes localized Mermaid placeholder labels', () => {
+    expect(createMermaidSlashCommandDiagram('Edit "raw" \\ source')).toBe([
+      'flowchart TD',
+      '    edit["Edit \\"raw\\" \\\\ source"]',
+    ].join('\n'))
+  })
+
   it('places custom media commands before the existing non-media slash-menu group', () => {
     type TolariaSlashMenuTestItem = {
       key: string
@@ -250,5 +258,26 @@ describe('tolariaEditorFormatting', () => {
     }])
     expect(updateBlock).not.toHaveBeenCalled()
     expect(trackEvent).toHaveBeenCalledWith('editor_math_slash_command_used')
+  })
+
+  it('localizes custom slash-menu command labels and groups', () => {
+    const editor = {
+      getTextCursorPosition: () => ({ block: { id: 'active-block' } }),
+      replaceBlocks: () => {},
+    }
+
+    const mathItem = createMathSlashMenuItem(editor as never, {
+      mathTitle: 'Equation',
+      mediaGroup: 'Insert',
+      mermaidEditPlaceholder: 'Edit source',
+      mermaidTitle: 'Diagram',
+      whiteboardTitle: 'Canvas',
+    })
+
+    expect(mathItem).toEqual(expect.objectContaining({
+      group: 'Insert',
+      key: 'math',
+      title: 'Equation',
+    }))
   })
 })
