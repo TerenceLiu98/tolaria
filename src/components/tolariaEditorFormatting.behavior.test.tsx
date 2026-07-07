@@ -156,6 +156,7 @@ vi.mock('../utils/url', () => ({
 }))
 
 import { openLocalFile } from '../utils/url'
+import { EditorFloatingPortalProvider } from './editorFloatingPortal'
 import {
   TolariaFormattingToolbar,
   TolariaFormattingToolbarController,
@@ -384,6 +385,23 @@ describe('tolariaEditorFormatting behavior', () => {
 
     expect(formattingToolbarStore.setState).toHaveBeenCalledWith(false)
     expect(editor.focus).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the floating toolbar into the shared editor portal when available', () => {
+    const editor = createMockEditor()
+    const portalHost = document.createElement('div')
+    document.body.appendChild(portalHost)
+    const toolbarComponent = () => <div data-testid="custom-toolbar">Toolbar</div>
+    useBlockNoteEditorMock.mockReturnValue(editor)
+
+    render(
+      <EditorFloatingPortalProvider value={portalHost}>
+        <TolariaFormattingToolbarController formattingToolbar={toolbarComponent} />
+      </EditorFloatingPortalProvider>,
+    )
+
+    expect(portalHost).toContainElement(screen.getByTestId('mock-position-popover'))
+    expect(portalHost).toContainElement(screen.getByTestId('custom-toolbar'))
   })
 
   it('uses block alignment when deciding the floating placement', () => {

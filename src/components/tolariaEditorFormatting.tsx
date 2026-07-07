@@ -40,6 +40,7 @@ import {
   type ReactElement,
   type SetStateAction,
 } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Button as MantineButton,
   CheckIcon as MantineCheckIcon,
@@ -75,6 +76,7 @@ import {
   isStaleBlockReferenceError,
   reportRecoveredEditorTransformError,
 } from './richEditorTransformErrorRecoveryExtension'
+import { useEditorFloatingPortal } from './editorFloatingPortal'
 
 type TolariaBasicTextStyle =
   | 'bold'
@@ -1062,6 +1064,7 @@ export function TolariaFormattingToolbarController(props: {
     editor,
     selector: ({ editor }) => getFormattingToolbarBridgeBlockId(editor),
   })
+  const portalElement = useEditorFloatingPortal()
 
   useBlockNoteFormattingToolbarHoverGuard({
     editor,
@@ -1139,10 +1142,11 @@ export function TolariaFormattingToolbarController(props: {
 
   const Component = props.formattingToolbar || TolariaFormattingToolbar
 
-  return (
+  const toolbar = (
     <PositionPopover position={position} {...floatingUIOptions}>
       {shouldRenderFloatingToolbar && (
         <div
+          className="pointer-events-auto"
           onPointerEnter={() => {
             setToolbarHovered(true)
           }}
@@ -1170,4 +1174,8 @@ export function TolariaFormattingToolbarController(props: {
       )}
     </PositionPopover>
   )
+
+  return portalElement
+    ? createPortal(toolbar, portalElement)
+    : toolbar
 }
