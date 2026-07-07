@@ -94,6 +94,7 @@ import {
   writeRichEditorClipboardPayload,
 } from './editorRichCopy'
 import { selectedImageContextFromTarget } from './editorSelectedContext'
+import { EditorFloatingPortalProvider } from './editorFloatingPortal'
 
 const TEST_TABLE_MARKDOWN = `| Head 1 | Head 2 | Head 3 |
 | --- | --- | --- |
@@ -1226,6 +1227,7 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
   const themeMode = useDocumentThemeMode()
   const previousThemeModeRef = useRef(themeMode)
   const containerRef = useRef<HTMLDivElement>(null)
+  const [floatingPortalElement, setFloatingPortalElement] = useState<HTMLDivElement | null>(null)
   const selectedImageContextRef = useRef<AiSelectedTextContext | null>(null)
   const suppressSelectedContextRefreshRef = useRef(false)
   const suppressNextContainerClickRef = useRef(false)
@@ -1432,33 +1434,40 @@ export function SingleEditorView({ commentOptions, editor, entries, onNavigateWi
           <div className="editor__drop-overlay-label">Drop image here</div>
         </div>
       )}
-      <BlockNoteRenderRecoveryBoundary onRecover={(_, reason) => repairEditorDocumentForRenderRecovery(editor, reason)}>
-        {(recoveryKey) => (
-          <SharedContextBlockNoteView
-            key={recoveryKey}
-            editor={editor}
-            theme={themeMode}
-            onChange={handleEditorChange}
-            editable={editable}
-            emojiPicker={false}
-            formattingToolbar={false}
-            linkToolbar={false}
-            slashMenu={false}
-            sideMenu={false}
-          >
-            <EditorInteractionControllers
-              {...suggestionMenuItems}
-              commentOptions={commentOptions}
-              locale={locale}
-              onAttachSelectedTextContext={handleAttachSelectedTextContext}
-              onToolbarInteractionEnd={handleToolbarInteractionEnd}
-              onToolbarInteractionStart={handleToolbarInteractionStart}
-              runEditorAction={runEditorAction}
-              vaultPath={vaultPath}
-            />
-          </SharedContextBlockNoteView>
-        )}
-      </BlockNoteRenderRecoveryBoundary>
+      <EditorFloatingPortalProvider value={floatingPortalElement}>
+        <BlockNoteRenderRecoveryBoundary onRecover={(_, reason) => repairEditorDocumentForRenderRecovery(editor, reason)}>
+          {(recoveryKey) => (
+            <SharedContextBlockNoteView
+              key={recoveryKey}
+              editor={editor}
+              theme={themeMode}
+              onChange={handleEditorChange}
+              editable={editable}
+              emojiPicker={false}
+              formattingToolbar={false}
+              linkToolbar={false}
+              slashMenu={false}
+              sideMenu={false}
+            >
+              <EditorInteractionControllers
+                {...suggestionMenuItems}
+                commentOptions={commentOptions}
+                locale={locale}
+                onAttachSelectedTextContext={handleAttachSelectedTextContext}
+                onToolbarInteractionEnd={handleToolbarInteractionEnd}
+                onToolbarInteractionStart={handleToolbarInteractionStart}
+                runEditorAction={runEditorAction}
+                vaultPath={vaultPath}
+              />
+            </SharedContextBlockNoteView>
+          )}
+        </BlockNoteRenderRecoveryBoundary>
+      </EditorFloatingPortalProvider>
+      <div
+        ref={setFloatingPortalElement}
+        className="pointer-events-none absolute inset-0 z-50"
+        data-testid="editor-floating-portal"
+      />
       {copyTarget && <CodeBlockCopyButton copyTarget={copyTarget} locale={locale} />}
       <ImageLightbox image={lightbox.image} locale={locale} onClose={lightbox.close} />
     </div>

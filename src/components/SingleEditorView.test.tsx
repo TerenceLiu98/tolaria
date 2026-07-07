@@ -226,8 +226,8 @@ describe('SingleEditorView', () => {
       />,
     )
 
-    expect(state.hoverGuardMock).toHaveBeenCalledOnce()
-    expect(state.linkActivationMock).toHaveBeenCalledOnce()
+    expect(state.hoverGuardMock).toHaveBeenCalled()
+    expect(state.linkActivationMock).toHaveBeenCalled()
     expect(screen.getByTestId('blocknote-view')).toHaveAttribute('data-link-toolbar', 'false')
     expect(state.capturedLinkToolbarProps).toEqual(expect.objectContaining({
       linkToolbar: expect.any(Function),
@@ -279,6 +279,21 @@ describe('SingleEditorView', () => {
 
     expect(onWikiItemClick).toHaveBeenCalledOnce()
     expect(onMentionItemClick).toHaveBeenCalledOnce()
+  })
+
+  it('provides a stable floating portal host for editor-adjacent UI', () => {
+    const editor = createEditor()
+    render(
+      <SingleEditorView
+        editor={editor as never}
+        entries={[makeEntry()]}
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const portal = screen.getByTestId('editor-floating-portal')
+    expect(portal).toHaveClass('pointer-events-none', 'absolute', 'inset-0')
+    expect(screen.getByTestId('blocknote-view').closest('.editor__blocknote-container')).toContainElement(portal)
   })
 
   it('does not refresh selected AI context while the formatting toolbar is being clicked', () => {

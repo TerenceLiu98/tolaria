@@ -11,6 +11,7 @@ import {
   TolariaSideMenu,
 } from './tolariaBlockNoteSideMenu'
 import type { EditorCommentOptions } from './comments/commentAnchors'
+import { EditorFloatingPortalProvider } from './editorFloatingPortal'
 
 type MockBlock = {
   children?: MockBlock[]
@@ -666,6 +667,47 @@ describe('TolariaSideMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Second source block' }))
 
     expect(onOpenThread).toHaveBeenCalledWith('b0002')
+  })
+
+  it('portals the selected comment thread through the editor floating portal when available', () => {
+    const block = testBlock('second-block', 'paragraph', ['Second'])
+    const portal = document.createElement('div')
+    document.body.appendChild(portal)
+    Object.defineProperty(portal, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        bottom: 400,
+        height: 400,
+        left: 0,
+        right: 600,
+        top: 0,
+        width: 600,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }),
+    })
+    const commentOptions: EditorCommentOptions = {
+      anchors: [
+        { comments: [{ anchorId: 'b0002', body: 'Existing', id: 'c1', kind: 'comment' }], id: 'b0002', title: 'Second source block' },
+      ],
+      onOpenThread: vi.fn(),
+      renderThread: (anchorId) => <section data-testid="side-menu-comment-thread">Thread for {anchorId}</section>,
+      selectedAnchorId: 'b0002',
+    }
+    mockEditor.document = [block]
+    mockEditor.getBlock.mockReturnValue(block)
+    sideMenuBlock = block
+
+    render(
+      <EditorFloatingPortalProvider value={portal}>
+        <TolariaSideMenu commentOptions={commentOptions} locale="en" />
+      </EditorFloatingPortalProvider>,
+    )
+
+    const threadLayer = screen.getByTestId('tolaria-side-menu-comment-thread-layer-b0002')
+    expect(portal).toContainElement(threadLayer)
+    expect(threadLayer).toContainElement(screen.getByTestId('side-menu-comment-thread'))
   })
 
   it('localizes heading collapse and expand labels', () => {

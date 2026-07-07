@@ -23,12 +23,16 @@ import {
 import { translate, type AppLocale } from '../lib/i18n'
 import {
   useCallback,
+  useLayoutEffect,
+  useState,
   type ComponentType,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { CommentGutter } from './comments/CommentUI'
 import type { EditorCommentAnchor, EditorCommentOptions } from './comments/commentAnchors'
+import { useEditorFloatingPortal } from './editorFloatingPortal'
 import { usePointerBlockReorder } from './tolariaBlockReorder'
 import { useSideMenuTextAlignment } from './tolariaSideMenuAlignment'
 import {
@@ -405,23 +409,85 @@ function commentAnchorForSideMenuBlock({
   return index >= 0 ? anchors[index] ?? null : null
 }
 
+function useCommentThreadPortalPosition({
+  isOpen,
+  markerElement,
+  portalElement,
+}: {
+  isOpen: boolean
+  markerElement: HTMLElement | null
+  portalElement: HTMLElement | null
+}) {
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
+
+  useLayoutEffect(() => {
+    if (!isOpen || !markerElement || !portalElement) {
+      return undefined
+    }
+
+    const updatePosition = () => {
+      const markerRect = markerElement.getBoundingClientRect()
+      const portalRect = portalElement.getBoundingClientRect()
+      const panelWidth = Math.min(352, Math.max(0, portalRect.width - 80))
+      const maxLeft = Math.max(0, portalRect.width - panelWidth - 8)
+      const left = Math.min(
+        Math.max(0, markerRect.right - portalRect.left + 8),
+        maxLeft,
+      )
+      const top = Math.max(0, markerRect.top - portalRect.top)
+      setPosition({ left, top })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [isOpen, markerElement, portalElement])
+
+  return position
+}
+
 function TolariaCommentSideMenuButton({
   commentOptions,
 }: {
   commentOptions: EditorCommentOptions
 }) {
+  const [markerElement, setMarkerElement] = useState<HTMLDivElement | null>(null)
+  const portalElement = useEditorFloatingPortal()
   const { block, editor } = useSideMenuBlock()
   const anchor = commentAnchorForSideMenuBlock({
     anchors: commentOptions.anchors,
     block,
     editor,
   })
+  const isOpen = Boolean(anchor && commentOptions.selectedAnchorId === anchor.id)
+  const portalPosition = useCommentThreadPortalPosition({
+    isOpen,
+    markerElement,
+    portalElement,
+  })
+  const handleMarkerRef = useCallback((element: HTMLDivElement | null) => {
+    setMarkerElement(element)
+  }, [])
+
   if (!anchor) return null
 
-  const isOpen = commentOptions.selectedAnchorId === anchor.id
+  const thread = isOpen ? (
+    <div
+      className="pointer-events-auto absolute z-50 w-[min(22rem,calc(100vw-5rem))] max-w-[80vw]"
+      data-testid={`tolaria-side-menu-comment-thread-layer-${anchor.id}`}
+      style={portalElement && portalPosition ? portalPosition : { left: 36, top: 0 }}
+    >
+      {commentOptions.renderThread(anchor.id)}
+    </div>
+  ) : null
 
   return (
     <div
+      ref={handleMarkerRef}
       className="group/comment-anchor relative"
       data-testid={`tolaria-side-menu-comment-anchor-${anchor.id}`}
     >
@@ -432,11 +498,7 @@ function TolariaCommentSideMenuButton({
         onOpenThread={commentOptions.onOpenThread}
         title={anchor.title}
       />
-      {isOpen ? (
-        <div className="absolute left-9 top-0 z-50 w-[min(22rem,calc(100vw-5rem))] max-w-[80vw]">
-          {commentOptions.renderThread(anchor.id)}
-        </div>
-      ) : null}
+      {thread && portalElement && portalPosition ? createPortal(thread, portalElement) : thread}
     </div>
   )
 }
