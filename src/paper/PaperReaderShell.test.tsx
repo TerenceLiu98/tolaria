@@ -773,6 +773,16 @@ describe('PaperReaderShell', () => {
     const editor = await screen.findByTestId(/paper-reader-annotation-editor-/u)
     expect(within(editor).queryByRole('combobox', { name: 'Annotation kind' })).not.toBeInTheDocument()
     expect(within(editor).queryByRole('combobox', { name: 'Annotation color' })).not.toBeInTheDocument()
+    fireEvent.click(within(editor).getByRole('button', { name: 'Resolve' }))
+    await waitFor(() => {
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"resolved_at"')
+      expect(screen.getByText('Resolved')).toBeInTheDocument()
+    })
+    fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-editor-/u)).getByRole('button', { name: 'Reopen' }))
+    await waitFor(() => {
+      expect(MOCK_CONTENT[annotationsPath]).not.toContain('"resolved_at"')
+      expect(screen.queryByTestId(/paper-reader-annotation-resolved-/u)).not.toBeInTheDocument()
+    })
     fireEvent.change(within(editor).getByLabelText('Comment'), {
       target: { value: 'Updated interpretation' },
     })

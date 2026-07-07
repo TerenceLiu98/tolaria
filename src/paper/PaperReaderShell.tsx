@@ -820,6 +820,7 @@ function PaperAnnotationEditor({
   onSaveAnnotation: (annotation: PaperAnnotation) => void
 }) {
   const [note, setNote] = useState(annotation.note ?? annotation.text ?? '')
+  const isResolved = typeof annotation.resolved_at === 'string' && annotation.resolved_at.trim().length > 0
 
   const saveAnnotation = useCallback(() => {
     onSaveAnnotation({
@@ -828,6 +829,13 @@ function PaperAnnotationEditor({
       updated_at: new Date().toISOString(),
     })
   }, [annotation, note, onSaveAnnotation])
+  const toggleResolved = useCallback(() => {
+    onSaveAnnotation({
+      ...annotation,
+      resolved_at: isResolved ? undefined : new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+  }, [annotation, isResolved, onSaveAnnotation])
 
   return (
     <li
@@ -835,6 +843,14 @@ function PaperAnnotationEditor({
       data-testid={`paper-reader-annotation-editor-${annotation.id}`}
     >
       <div className="flex flex-wrap items-center gap-2">
+        {isResolved ? (
+          <span
+            className="rounded bg-background px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+            data-testid={`paper-reader-annotation-resolved-${annotation.id}`}
+          >
+            {translate(locale, 'paper.reader.commentResolved')}
+          </span>
+        ) : null}
         <Button
           type="button"
           variant="secondary"
@@ -843,6 +859,14 @@ function PaperAnnotationEditor({
         >
           <Check className="size-3.5" />
           {translate(locale, 'common.save')}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          onClick={toggleResolved}
+        >
+          {isResolved ? translate(locale, 'paper.reader.reopenComment') : translate(locale, 'paper.reader.resolveComment')}
         </Button>
         <Button
           type="button"

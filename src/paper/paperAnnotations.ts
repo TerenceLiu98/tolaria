@@ -30,6 +30,7 @@ export interface PaperAnnotation {
   note?: string
   page?: number
   bbox?: number[]
+  resolved_at?: string
   updated_at?: string
   deleted_at?: string
   [key: string]: unknown

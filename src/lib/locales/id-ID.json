@@ -1083,5 +1083,8 @@
   "ai.panel.selectedText.tooltip": "Include {count} selected characters in the next AI context.",
   "ai.panel.selectedText.emptyTooltip": "Select text in the note to include it in AI context.",
   "editor.formatting.inlineMath": "Inline math",
-  "editor.formatting.inlineMathTooltip": "Convert selection to inline math"
+  "editor.formatting.inlineMathTooltip": "Convert selection to inline math",
+  "paper.reader.resolveComment": "Resolve",
+  "paper.reader.reopenComment": "Reopen",
+  "paper.reader.commentResolved": "Resolved"
 }
