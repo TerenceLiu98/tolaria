@@ -28,12 +28,19 @@ vi.mock('../components/NoteSurface', () => ({
     commentOptions,
     editable,
     onChange,
+    onSelectedTextContextChange,
     sourceEntry,
   }: {
     className?: string
     commentOptions?: NoteSurfaceCommentOptions
     editable?: boolean
     onChange?: () => void
+    onSelectedTextContextChange?: (context: {
+      entryPath: string
+      entryTitle: string
+      kind: 'text'
+      text: string
+    }) => void
     sourceEntry?: VaultEntry | null
   }) => (
     <section
@@ -43,6 +50,20 @@ vi.mock('../components/NoteSurface', () => ({
       data-readonly={!editable ? 'true' : 'false'}
       data-source-path={sourceEntry?.path}
     >
+      {sourceEntry && onSelectedTextContextChange ? (
+        <button
+          type="button"
+          data-testid="mock-select-paper-text"
+          onClick={() => onSelectedTextContextChange({
+            entryPath: sourceEntry.path,
+            entryTitle: sourceEntry.title,
+            kind: 'text',
+            text: 'Selected evidence quote',
+          })}
+        >
+          Select text
+        </button>
+      ) : null}
       {commentOptions ? (
         <aside data-testid="mock-side-menu-comment-seam">
           {commentOptions.anchors.map((anchor) => (
@@ -729,6 +750,9 @@ describe('PaperReaderShell', () => {
     fireEvent.click(within(reopenedThread).getByRole('button', { name: 'Copy block citation' }))
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('@block[attention#b0002]'))
 
+    fireEvent.click(screen.getByTestId('mock-select-paper-text'))
+    await waitFor(() => expect(within(reopenedThread).getByTestId('paper-reader-comment-selected-quote-b0002')).toHaveTextContent('Selected evidence quote'))
+
     const controls = within(reopenedThread).getByTestId('paper-reader-annotation-controls-b0002')
     expect(within(controls).queryByRole('combobox', { name: 'Annotation kind' })).not.toBeInTheDocument()
     expect(within(controls).queryByRole('combobox', { name: 'Annotation color' })).not.toBeInTheDocument()
@@ -741,6 +765,7 @@ describe('PaperReaderShell', () => {
     await waitFor(() => {
       expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"comment"')
       expect(MOCK_CONTENT[annotationsPath]).not.toContain('"color"')
+      expect(MOCK_CONTENT[annotationsPath]).toContain('"text":"Selected evidence quote"')
       expect(MOCK_CONTENT[annotationsPath]).toContain('"note":"This claim needs a citation."')
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })

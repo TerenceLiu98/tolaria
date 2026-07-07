@@ -766,6 +766,7 @@ function BlockAnnotationComposer({
   block,
   locale,
   onCreateAnnotation,
+  selectedQuote,
 }: {
   block: SourceBlock
   locale: AppLocale
@@ -774,19 +775,29 @@ function BlockAnnotationComposer({
     note?: string
     text?: string
   }) => void
+  selectedQuote?: string | null
 }) {
   const createAnnotation = useCallback((note: string) => {
     onCreateAnnotation(block, {
       kind: PAPER_COMMENT_KIND,
       note: cleanOptionalNote(note),
+      text: cleanOptionalNote(selectedQuote ?? undefined),
     })
-  }, [block, onCreateAnnotation])
+  }, [block, onCreateAnnotation, selectedQuote])
 
   return (
     <div
       className="grid gap-2 rounded-md border border-border/60 bg-muted/30 p-2"
       data-testid={`paper-reader-annotation-controls-${block.id}`}
     >
+      {selectedQuote ? (
+        <blockquote
+          className="line-clamp-3 rounded border-l-2 border-primary/50 bg-background/70 px-2 py-1 text-xs text-muted-foreground"
+          data-testid={`paper-reader-comment-selected-quote-${block.id}`}
+        >
+          {selectedQuote}
+        </blockquote>
+      ) : null}
       <CommentComposer
         label={translate(locale, 'paper.reader.addComment')}
         placeholder={translate(locale, 'paper.reader.addComment')}
@@ -864,6 +875,7 @@ function BlockCommentThread({
   onSaveAnnotation,
   onCopyCitation,
   onClose,
+  selectedQuote,
 }: {
   annotations: PaperAnnotation[]
   block: SourceBlock
@@ -877,6 +889,7 @@ function BlockCommentThread({
   onSaveAnnotation: (annotation: PaperAnnotation) => void
   onCopyCitation: (block: SourceBlock) => void
   onClose: () => void
+  selectedQuote?: string | null
 }) {
   const comments = annotations
     .map(paperAnnotationToComment)
@@ -920,6 +933,7 @@ function BlockCommentThread({
         block={block}
         locale={locale}
         onCreateAnnotation={onCreateAnnotation}
+        selectedQuote={selectedQuote}
       />
     </CommentThreadPanel>
   )
@@ -954,6 +968,7 @@ function PaperMarkdownNoteSurface({
   onToggleCommentThread,
   openCommentBlockId,
   selectedBlockId,
+  selectedTextContext,
   sourceEntry,
   vaultPath,
 }: {
@@ -984,6 +999,7 @@ function PaperMarkdownNoteSurface({
   onToggleCommentThread: (blockId: string) => void
   openCommentBlockId: string | null
   selectedBlockId: string | null
+  selectedTextContext: AiSelectedTextContext | null
   sourceEntry: VaultEntry
   vaultPath?: string
 }) {
@@ -1022,6 +1038,10 @@ function PaperMarkdownNoteSurface({
   const renderCommentThread = useCallback((blockId: string) => {
     const block = blocksById.get(blockId)
     if (!block) return null
+    const selectedQuote = selectedTextContext?.kind === 'text'
+      && selectedTextContext.entryPath === sourceEntry.path
+      ? selectedTextContext.text.trim()
+      : null
     return (
       <BlockCommentThread
         annotations={annotationsByBlockId[block.id] ?? []}
@@ -1032,6 +1052,7 @@ function PaperMarkdownNoteSurface({
         onCreateAnnotation={onCreateAnnotation}
         onDeleteAnnotation={onDeleteAnnotation}
         onSaveAnnotation={onSaveAnnotation}
+        selectedQuote={selectedQuote}
       />
     )
   }, [
@@ -1043,6 +1064,8 @@ function PaperMarkdownNoteSurface({
     onCreateAnnotation,
     onDeleteAnnotation,
     onSaveAnnotation,
+    selectedTextContext,
+    sourceEntry.path,
   ])
 
   return (
@@ -1168,6 +1191,7 @@ export function PaperReaderShell({
   const [parsePaperPending, setParsePaperPending] = useState(false)
   const [metadataPending, setMetadataPending] = useState(false)
   const [pendingConfirmation, setPendingConfirmation] = useState<PaperActionConfirmation | null>(null)
+  const [selectedPaperTextContext, setSelectedPaperTextContext] = useState<AiSelectedTextContext | null>(null)
   const autoMetadataRequestRef = useRef<string | null>(null)
   const handleReaderModeChange = useCallback((nextValue: string) => {
     if (nextValue === 'markdown' || nextValue === 'pdf') setReaderMode(nextValue)
@@ -1305,6 +1329,10 @@ export function PaperReaderShell({
       return blockId
     })
   }, [handleSelectBlock])
+  const handleSelectedTextContextChange = useCallback((context: AiSelectedTextContext | null) => {
+    setSelectedPaperTextContext(context?.kind === 'text' ? context : null)
+    onSelectedTextContextChange?.(context)
+  }, [onSelectedTextContextChange])
   const handleFocusBlockFromCitation = useCallback((blockId: string) => {
     setReaderMode('markdown')
     handleSelectBlock(blockId)
@@ -1404,12 +1432,13 @@ export function PaperReaderShell({
             onDeleteAnnotation={deleteAnnotation}
             onEditorChange={onEditorChange}
             onNavigateWikilink={onNavigateWikilink}
-            onSelectedTextContextChange={onSelectedTextContextChange}
+            onSelectedTextContextChange={handleSelectedTextContextChange}
             onResetAnnotations={resetAnnotations}
             onSaveAnnotation={saveAnnotation}
             onToggleCommentThread={handleToggleCommentThread}
             openCommentBlockId={openCommentBlockId}
             selectedBlockId={selectedBlockId}
+            selectedTextContext={selectedPaperTextContext}
             sourceEntry={entry}
             vaultPath={vaultPath}
           />
