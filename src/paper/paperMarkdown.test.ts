@@ -136,6 +136,39 @@ describe('paperMarkdown', () => {
     expect(markdown).toContain('| Method | Score |')
   })
 
+  it('normalizes tab-separated table SourceBlocks into durable Markdown tables', () => {
+    const markdown = paperMarkdownFromSourceBlocks([{
+      hash: 'sha256:table-tsv',
+      id: 'b0008',
+      kind: 'table',
+      page: 8,
+      paper_id: 'attention',
+      text: 'Method\tScore\nKAN\t0.92',
+    }])
+
+    expect(markdown).toContain('| Method | Score |')
+    expect(markdown).toContain('| --- | --- |')
+    expect(markdown).toContain('| KAN | 0.92 |')
+  })
+
+  it('normalizes tab-separated table text before appending image fallback captions', () => {
+    const markdown = paperMarkdownFromSourceBlocks([{
+      asset_path: 'assets/table-0002.jpg',
+      caption: 'Table 2. Scores',
+      hash: 'sha256:table-image-tsv',
+      id: 'b0009',
+      kind: 'table',
+      page: 9,
+      paper_id: 'attention',
+      text: 'Method\tScore\nMLP\t0.88',
+    }])
+
+    expect(markdown).toContain('![Table 2. Scores](assets/table-0002.jpg)')
+    expect(markdown).toContain('*Table 2. Scores*')
+    expect(markdown).toContain('| Method | Score |')
+    expect(markdown).toContain('| MLP | 0.88 |')
+  })
+
   it('formats image-only table SourceBlocks with a clean fallback alt label', () => {
     const markdown = paperMarkdownFromSourceBlocks([{
       asset_path: 'assets/table-only.jpg',

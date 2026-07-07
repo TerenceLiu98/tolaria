@@ -66,6 +66,28 @@ function meaningfulAssetAlt(text: string, fallbackKind: string): string {
   return trimmed
 }
 
+function normalizeTableMarkdown(text: string): string {
+  const trimmed = text.trim()
+  if (trimmed.includes('|')) return trimmed
+
+  const rows = trimmed
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => line
+      .split('\t')
+      .map((cell) => cell.trim())
+      .filter((cell) => cell.length > 0))
+    .filter((cells) => cells.length > 1)
+
+  if (rows.length < 2) return trimmed
+
+  const header = `| ${rows[0].join(' | ')} |`
+  const separator = `| ${rows[0].map(() => '---').join(' | ')} |`
+  const body = rows.slice(1).map((row) => `| ${row.join(' | ')} |`).join('\n')
+  return `${header}\n${separator}\n${body}`
+}
+
 function decodeMathTokenPayload(encoded: string): string {
   try {
     return decodeURIComponent(encoded)
@@ -188,17 +210,18 @@ function sourceBlockMarkdown(block: SourceBlock): string {
   }
   if (kind === 'table') {
     const caption = typeof block.caption === 'string' ? block.caption.trim() : ''
+    const table = normalizeTableMarkdown(text)
     if (typeof block.asset_path === 'string' && block.asset_path.trim().length > 0) {
       const alt = caption || (text !== 'table' ? text : '') || 'Table'
       const image = `![${alt.replace(/\[/gu, '\\[').replace(/\]/gu, '\\]')}](${block.asset_path.trim()})`
       const parts = [image]
       if (caption.length > 0) parts.push(`*${caption}*`)
-      if (text.length > 0 && text !== 'table' && (caption.length === 0 || !text.includes(caption))) {
-        parts.push(text)
+      if (table.length > 0 && table !== 'table' && (caption.length === 0 || !table.includes(caption))) {
+        parts.push(table)
       }
       return parts.join('\n\n')
     }
-    return caption.length > 0 && caption !== text ? `${text}\n\n*${caption}*` : text
+    return caption.length > 0 && !table.includes(caption) ? `${table}\n\n*${caption}*` : table
   }
   if (typeof block.asset_path === 'string' && block.asset_path.trim().length > 0) {
     const alt = meaningfulAssetAlt(text, block.kind) || 'Figure'
