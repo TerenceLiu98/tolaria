@@ -220,3 +220,6 @@ proposed → active → superseded
 | [0159](0159-paper-reader-without-outline-column.md) | Paper Reader without a standalone outline column | active |
 | [0160](0160-ordinary-notes-for-research-and-editable-paper.md) | Ordinary notes for research and editable Paper Markdown | active |
 | [0161](0161-paper-metadata-sidecar-and-provenance.md) | Paper metadata sidecar and provenance | active |
+| [0162](0162-derived-paper-catalog-and-duplicate-review.md) | Derived Paper Catalog and Duplicate Review | active |
+| [0163](0163-paper-aware-ai-context-and-tools.md) | Paper-Aware AI Context and Tools | active |
+| [0166](0166-editor-adapter-boundary.md) | Keep BlockNote behind a Sapientia editor adapter boundary | active |
