@@ -111,6 +111,8 @@ interface PaperReaderShellProps {
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error'
 type ReaderMode = 'markdown' | 'pdf'
 type PaperActionConfirmation = 'parse' | 'refreshMetadata'
+type CommentThreadFilter = 'all' | 'open' | 'resolved'
+type CommentThreadSort = 'newest' | 'oldest'
 
 interface PdfFocusRequest {
   blockId: string
@@ -426,6 +428,15 @@ function createAnnotationReaction(emoji: string, now = new Date()): PaperAnnotat
     count: 1,
     created_at: now.toISOString(),
   }
+}
+
+function annotationIsResolved(annotation: PaperAnnotation): boolean {
+  return typeof annotation.resolved_at === 'string' && annotation.resolved_at.trim().length > 0
+}
+
+function annotationThreadTimestamp(annotation: PaperAnnotation): number {
+  const timestamp = Date.parse(annotation.updated_at ?? annotation.created_at)
+  return Number.isFinite(timestamp) ? timestamp : 0
 }
 
 function PaperActionConfirmDialog({
@@ -1025,19 +1036,66 @@ function BlockCommentThread({
   onClose: () => void
   selectedQuote?: string | null
 }) {
-  const comments = annotations
+  const [filter, setFilter] = useState<CommentThreadFilter>('all')
+  const [sort, setSort] = useState<CommentThreadSort>('newest')
+  const visibleAnnotations = useMemo(() => {
+    const filteredAnnotations = annotations.filter((annotation) => {
+      if (filter === 'open') return !annotationIsResolved(annotation)
+      if (filter === 'resolved') return annotationIsResolved(annotation)
+      return true
+    })
+    return [...filteredAnnotations].sort((left, right) => {
+      const delta = annotationThreadTimestamp(left) - annotationThreadTimestamp(right)
+      return sort === 'oldest' ? delta : -delta
+    })
+  }, [annotations, filter, sort])
+  const comments = visibleAnnotations
     .map(paperAnnotationToComment)
     .filter((comment): comment is NoteComment => comment !== null)
+  const emptyText = annotations.length === 0
+    ? translate(locale, 'paper.reader.noBlockComments')
+    : translate(locale, 'paper.reader.noMatchingBlockComments')
+  const filterOptions: Array<{ label: string; value: CommentThreadFilter }> = [
+    { label: translate(locale, 'paper.reader.commentFilterAll'), value: 'all' },
+    { label: translate(locale, 'paper.reader.commentFilterOpen'), value: 'open' },
+    { label: translate(locale, 'paper.reader.commentFilterResolved'), value: 'resolved' },
+  ]
 
   return (
     <CommentThreadPanel
       commentsListTestId={`paper-reader-annotations-${block.id}`}
       comments={comments}
-      emptyText={translate(locale, 'paper.reader.noBlockComments')}
+      emptyText={emptyText}
       closeLabel={translate(locale, 'window.close')}
       onClose={onClose}
       testId={`paper-reader-comment-thread-${block.id}`}
       title={translate(locale, 'paper.reader.commentThread')}
+      toolbar={(
+        <div className="flex flex-wrap items-center gap-1" data-testid={`paper-reader-comment-thread-controls-${block.id}`}>
+          {filterOptions.map((option) => (
+            <Button
+              key={option.value}
+              type="button"
+              variant={filter === option.value ? 'secondary' : 'ghost'}
+              size="xs"
+              aria-pressed={filter === option.value}
+              onClick={() => setFilter(option.value)}
+            >
+              {option.label}
+            </Button>
+          ))}
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => setSort(sort === 'newest' ? 'oldest' : 'newest')}
+          >
+            {sort === 'newest'
+              ? translate(locale, 'paper.reader.commentSortNewest')
+              : translate(locale, 'paper.reader.commentSortOldest')}
+          </Button>
+        </div>
+      )}
       actions={(
         <Button
           type="button"
@@ -1050,7 +1108,7 @@ function BlockCommentThread({
         </Button>
       )}
       renderComment={(comment) => {
-        const annotation = annotations.find((candidate) => candidate.id === comment.id)
+        const annotation = visibleAnnotations.find((candidate) => candidate.id === comment.id)
         if (!annotation) return null
         return (
           <PaperAnnotationEditor

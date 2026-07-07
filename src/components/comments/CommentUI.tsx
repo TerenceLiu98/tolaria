@@ -100,6 +100,7 @@ export function CommentThreadPanel({
   subtitle,
   testId,
   title,
+  toolbar,
 }: {
   actions?: ReactNode
   children?: ReactNode
@@ -112,6 +113,7 @@ export function CommentThreadPanel({
   subtitle?: string
   testId?: string
   title: string
+  toolbar?: ReactNode
 }) {
   return (
     <aside
@@ -147,6 +149,7 @@ export function CommentThreadPanel({
           </div>
         ) : null}
       </div>
+      {toolbar}
       {comments.length === 0 ? (
         <p className="text-xs text-muted-foreground">{emptyText}</p>
       ) : (

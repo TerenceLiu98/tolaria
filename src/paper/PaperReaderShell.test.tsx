@@ -733,6 +733,48 @@ describe('PaperReaderShell', () => {
     expect(screen.queryByTestId('paper-reader-comment-thread-b0002')).not.toBeInTheDocument()
   })
 
+  it('filters and sorts Paper comment threads', async () => {
+    readyBlocks()
+    MOCK_CONTENT[annotationsPath] = `${JSON.stringify({
+      block_id: 'b0002',
+      created_at: '2026-07-02T10:15:00Z',
+      id: 'ann-old-resolved',
+      kind: 'comment',
+      note: 'Old resolved comment',
+      paper_id: 'attention',
+      resolved_at: '2026-07-02T10:30:00Z',
+    })}\n${JSON.stringify({
+      block_id: 'b0002',
+      created_at: '2026-07-02T11:15:00Z',
+      id: 'ann-new-open',
+      kind: 'comment',
+      note: 'New open comment',
+      paper_id: 'attention',
+    })}\n`
+
+    renderPaperReader()
+
+    fireEvent.click(await screen.findByTestId('note-surface-anchor-b0002'))
+    const thread = await screen.findByTestId('paper-reader-comment-thread-b0002')
+    const list = await within(thread).findByTestId('paper-reader-annotations-b0002')
+    const newestFirstText = list.textContent ?? ''
+    expect(newestFirstText.indexOf('New open comment')).toBeLessThan(newestFirstText.indexOf('Old resolved comment'))
+
+    fireEvent.click(within(thread).getByRole('button', { name: 'Newest' }))
+    await waitFor(() => {
+      const oldestFirstText = list.textContent ?? ''
+      expect(oldestFirstText.indexOf('Old resolved comment')).toBeLessThan(oldestFirstText.indexOf('New open comment'))
+    })
+
+    fireEvent.click(within(thread).getByRole('button', { name: 'Open' }))
+    expect(within(thread).getByText('New open comment')).toBeInTheDocument()
+    expect(within(thread).queryByText('Old resolved comment')).not.toBeInTheDocument()
+
+    fireEvent.click(within(thread).getByRole('button', { name: 'Resolved' }))
+    expect(within(thread).getByText('Old resolved comment')).toBeInTheDocument()
+    expect(within(thread).queryByText('New open comment')).not.toBeInTheDocument()
+  })
+
   it('creates, updates, deletes, and copies citations from a Paper comment thread without changing paper.md', async () => {
     readyBlocks()
     MOCK_CONTENT[paperEntry().path] = paperContent
