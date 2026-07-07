@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { forwardRef, useImperativeHandle, useMemo, type ReactNode } from 'react'
 import type { useCreateBlockNote } from '@blocknote/react'
 import { cn } from '@/lib/utils'
 import type { NoteComment } from '../comments/commentProvider'
@@ -6,6 +6,7 @@ import type { AppLocale } from '../lib/i18n'
 import type { AiSelectedTextContext } from '../utils/ai-context'
 import type { VaultEntry } from '../types'
 import { CommentGutter } from './comments/CommentUI'
+import { createBlockNoteEditorAdapter, type SapientiaEditorAdapter } from './editorAdapter'
 import { SingleEditorView } from './SingleEditorView'
 
 export interface NoteSurfaceCommentAnchor {
@@ -21,19 +22,9 @@ export interface NoteSurfaceCommentOptions {
   selectedAnchorId: string | null
 }
 
-export function NoteSurface({
-  className,
-  commentOptions,
-  editable = true,
-  editor,
-  entries,
-  locale = 'en',
-  onChange,
-  onSelectedTextContextChange,
-  onNavigateWikilink,
-  sourceEntry,
-  vaultPath,
-}: {
+export type NoteSurfaceAdapter = SapientiaEditorAdapter
+
+export interface NoteSurfaceProps {
   className?: string
   commentOptions?: NoteSurfaceCommentOptions
   editable?: boolean
@@ -45,7 +36,24 @@ export function NoteSurface({
   onNavigateWikilink: (target: string) => void
   sourceEntry?: VaultEntry | null
   vaultPath?: string
-}) {
+}
+
+export const NoteSurface = forwardRef<NoteSurfaceAdapter, NoteSurfaceProps>(function NoteSurface({
+  className,
+  commentOptions,
+  editable = true,
+  editor,
+  entries,
+  locale = 'en',
+  onChange,
+  onSelectedTextContextChange,
+  onNavigateWikilink,
+  sourceEntry,
+  vaultPath,
+}, ref) {
+  const editorAdapter = useMemo(() => createBlockNoteEditorAdapter(editor), [editor])
+  useImperativeHandle(ref, () => editorAdapter, [editorAdapter])
+
   return (
     <div
       className={cn(
@@ -104,4 +112,4 @@ export function NoteSurface({
       ) : null}
     </div>
   )
-}
+})
