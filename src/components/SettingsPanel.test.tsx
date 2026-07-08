@@ -135,6 +135,7 @@ describe('SettingsPanel', () => {
     const aiAgentsStatus: AiAgentsStatus = {
       claude_code: { status: 'installed', version: '2.1.18' },
       codex: { status: 'missing', version: null },
+      copilot: { status: 'missing', version: null },
       opencode: { status: 'missing', version: null },
       pi: { status: 'missing', version: null },
       antigravity: { status: 'missing', version: null },
