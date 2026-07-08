@@ -75,7 +75,7 @@ interface SerializeContext {
 }
 
 const DIRECT_MARKDOWN_METHOD = 'blocksToMarkdownDirect'
-const ESCAPE_TEXT_RE = /([\\`*_{}<>()#!])/g
+const ESCAPE_TEXT_RE = /([\\`*_<>#!])/g
 const ESCAPE_TABLE_CELL_RE = /[|\n\r]/g
 const TEXT_CONTENT_BLOCK_TYPES = new Set([
   'bulletListItem',
@@ -169,6 +169,16 @@ export function serializeInlineContent(content: InlineItem[] | undefined): strin
   return content?.map(serializeInlineItem).join('') ?? ''
 }
 
+function literalInlineText(item: InlineItem): string {
+  if (typeof item.text === 'string') return item.text
+  if (Array.isArray(item.content)) return literalTextContent(item.content)
+  return ''
+}
+
+function literalTextContent(content: InlineItem[] | undefined): string {
+  return content?.map(literalInlineText).join('') ?? ''
+}
+
 function blockPrefix(block: BlockLike, depth: number, context: SerializeContext): MarkdownLinePrefix | null {
   const indent = '  '.repeat(depth)
   if (block.type === 'numberedListItem') {
@@ -203,7 +213,7 @@ function prependLinePrefix(markdown: string, prefix: MarkdownLinePrefix): string
 
 function codeBlockMarkdown(block: BlockLike): string {
   const language = typeof block.props?.language === 'string' ? block.props.language : ''
-  const code = serializeInlineContent(contentArray(block.content)).replace(/\n$/u, '')
+  const code = literalTextContent(contentArray(block.content)).replace(/\n$/u, '')
   const fence = code.includes('```') ? '~~~' : '```'
   return `${fence}${language === 'text' ? '' : language}\n${code}\n${fence}`
 }

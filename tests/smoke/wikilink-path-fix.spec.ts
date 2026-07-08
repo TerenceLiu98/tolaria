@@ -4,8 +4,22 @@ const SOURCE_NOTE_TITLE = 'Grow Newsletter'
 const INSERTED_WIKILINK_QUERY = '[[Mana'
 const INSERTED_WIKILINK_TITLE = 'Manage Sponsorships'
 const INSERTED_WIKILINK_TARGET = 'manage-sponsorships'
+const INSERTED_PERSON_MENTION_QUERY = '@Mat'
+const INSERTED_PERSON_MENTION_TITLE = 'Matteo Cellini'
+const INSERTED_PERSON_MENTION_TARGET = 'person-matteo-cellini'
 
-async function insertWikilink(page: Page) {
+async function insertWikilink(
+  page: Page,
+  {
+    query = INSERTED_WIKILINK_QUERY,
+    title = INSERTED_WIKILINK_TITLE,
+    target = INSERTED_WIKILINK_TARGET,
+  }: {
+    query?: string
+    title?: string
+    target?: string
+  } = {},
+) {
   const editor = page.locator('.bn-editor')
   await expect(editor).toBeVisible({ timeout: 5000 })
 
@@ -23,13 +37,13 @@ async function insertWikilink(page: Page) {
   await page.keyboard.press('Enter')
   await page.waitForTimeout(200)
 
-  await page.keyboard.type(INSERTED_WIKILINK_QUERY)
+  await page.keyboard.type(query)
 
   const suggestionMenu = page.locator('.wikilink-menu')
   await expect(suggestionMenu).toBeVisible({ timeout: 5000 })
-  const matchingWikilinks = editor.locator(`.wikilink[data-target="${INSERTED_WIKILINK_TARGET}"]`)
+  const matchingWikilinks = editor.locator(`.wikilink[data-target="${target}"]`)
   const existingCount = await matchingWikilinks.count()
-  await expect(suggestionMenu.getByText(INSERTED_WIKILINK_TITLE, { exact: true })).toBeVisible()
+  await expect(suggestionMenu.getByText(title, { exact: true })).toBeVisible()
   await page.keyboard.press('Enter')
   await page.waitForTimeout(500)
 
@@ -58,6 +72,22 @@ test.describe('Wikilink insertion and navigation', () => {
 
     const target = await wikilink.getAttribute('data-target')
     expect(target).toBeTruthy()
+  })
+
+  test('@ autocomplete inserts person wikilink that is not broken', async ({ page }) => {
+    const wikilink = await insertWikilink(page, {
+      query: INSERTED_PERSON_MENTION_QUERY,
+      title: INSERTED_PERSON_MENTION_TITLE,
+      target: INSERTED_PERSON_MENTION_TARGET,
+    })
+
+    const isBroken = await wikilink.evaluate(
+      el => el.classList.contains('wikilink--broken'),
+    )
+    expect(isBroken).toBe(false)
+
+    const target = await wikilink.getAttribute('data-target')
+    expect(target).toBe(INSERTED_PERSON_MENTION_TARGET)
   })
 
   test('@smoke Cmd+clicking an inserted wikilink navigates to the note', async ({ page }) => {

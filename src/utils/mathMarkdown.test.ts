@@ -16,6 +16,22 @@ describe('math markdown round-trip', () => {
     expect(preProcessMathMarkdown({ markdown })).toBe(markdown)
   })
 
+  it('does not treat plain prose words between dollars as inline math', () => {
+    const markdown = 'Use $variable$ as prose, but keep $x$ and $E=mc^2$ as math.'
+    const preprocessed = preProcessMathMarkdown({ markdown })
+
+    expect(preprocessed).toContain('$variable$')
+    expect(preprocessed).toContain('@@TOLARIA_MATH_INLINE')
+    expect(preprocessed).not.toContain('$x$')
+    expect(preprocessed).not.toContain('$E=mc^2$')
+  })
+
+  it('does not treat likely currency shorthand as math', () => {
+    const markdown = 'The model cost is $24.59M/user and not a formula.'
+
+    expect(preProcessMathMarkdown({ markdown })).toBe(markdown)
+  })
+
   it('injects inline math placeholders into BlockNote inline content', () => {
     const preprocessed = preProcessMathMarkdown({ markdown: 'Energy is $E=mc^2$ in prose.' })
     const blocks = [{

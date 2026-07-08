@@ -169,6 +169,41 @@ describe('BlockNote direct Markdown serialization', () => {
     ].join('\n'))
   })
 
+  it('preserves prose parentheses while escaping actual markdown delimiters', () => {
+    const blocks = [{
+      type: 'paragraph',
+      content: [{
+        type: 'text',
+        text: 'Plain parentheses (Smith, 2024) and braces {metadata} stay readable.',
+        styles: {},
+      }],
+      children: [],
+    }]
+
+    expect(blocksToMarkdownDirect(blocks).markdown).toBe(
+      'Plain parentheses (Smith, 2024) and braces {metadata} stay readable.',
+    )
+  })
+
+  it('keeps code block content literal instead of escaping markdown-sensitive characters', () => {
+    const blocks = [{
+      type: 'codeBlock',
+      props: { language: 'sh' },
+      content: [{
+        type: 'text',
+        text: 'container_name USER_UID markdown_chars=*_{}<>()#!',
+        styles: {},
+      }],
+      children: [],
+    }]
+
+    expect(blocksToMarkdownDirect(blocks).markdown).toBe([
+      '```sh',
+      'container_name USER_UID markdown_chars=*_{}<>()#!',
+      '```',
+    ].join('\n'))
+  })
+
   it('caches unchanged block objects across rich-editor body serialization', () => {
     const block = {
       type: 'paragraph',
