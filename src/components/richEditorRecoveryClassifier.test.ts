@@ -29,6 +29,23 @@ describe('richEditorRecoveryClassifier', () => {
     expect(classifyRichEditorRecoveryError(paragraphError, 'transform')).toBe('paragraph_index_out_of_range')
   })
 
+  it('normalizes empty fragment index failures across render and transform recovery', () => {
+    const error = new RangeError('Index 0 out of range for <>')
+
+    expect(classifyRichEditorRecoveryError(error, 'render')).toBe('empty_fragment_index_out_of_range')
+    expect(classifyRichEditorRecoveryError(error, 'transform')).toBe('empty_fragment_index_out_of_range')
+    expect(richEditorRecoveryErrorNeedsDocumentRepair(error)).toBe(true)
+  })
+
+  it('classifies React update-depth loops as render-recoverable editor failures', () => {
+    const developmentError = new Error('Maximum update depth exceeded. This can happen when a component repeatedly calls setState.')
+    const productionError = new Error('Minified React error #185; visit https://react.dev/errors/185')
+
+    expect(classifyRichEditorRecoveryError(developmentError, 'render')).toBe('react_update_depth_exceeded')
+    expect(classifyRichEditorRecoveryError(productionError, 'render')).toBe('react_update_depth_exceeded')
+    expect(classifyRichEditorRecoveryError(developmentError, 'transform')).toBeNull()
+  })
+
   it('classifies missing-id failures across render and transform recovery', () => {
     expect(classifyRichEditorRecoveryError(new Error("Block doesn't have id"), 'render')).toBe('block_missing_id')
     expect(classifyRichEditorRecoveryError(new Error("Block doesn't have id"), 'transform')).toBe('block_missing_id')

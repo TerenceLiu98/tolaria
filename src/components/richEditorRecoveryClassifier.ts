@@ -1,8 +1,11 @@
 const BLOCKNOTE_MISSING_ID_ERROR = "Block doesn't have id"
 const BLOCKNOTE_BLOCK_TYPE_MISMATCH_ERROR = 'Block type does not match'
+const BLOCKNOTE_EMPTY_FRAGMENT_INDEX_ERROR = /^Index \d+ out of range for <>$/
 const BLOCKNOTE_TABLE_ROW_INDEX_ERROR = /^Index \d+ out of range for <tableRow\(/
 const BLOCKNOTE_PARAGRAPH_INDEX_ERROR = /^Index \d+ out of range for <paragraph\(/
 const NULL_APPEND_PROPERTY_ERROR = "Cannot read properties of null (reading 'append')"
+const REACT_UPDATE_DEPTH_EXCEEDED_ERROR = 'Maximum update depth exceeded'
+const REACT_MINIFIED_UPDATE_DEPTH_ERROR = /\b(?:React error #185|errors\/185|#185)\b/
 const WEBKIT_DOM_NOT_FOUND_MESSAGES = [
   'The object can not be found here',
   'A requested file or directory could not be found at the time an operation was processed',
@@ -12,7 +15,9 @@ export type BlockNoteRenderRecoveryReason =
   | 'block_type_mismatch'
   | 'block_missing_id'
   | 'dom_not_found'
+  | 'empty_fragment_index_out_of_range'
   | 'paragraph_index_out_of_range'
+  | 'react_update_depth_exceeded'
   | 'stale_block_reference'
   | 'table_row_index_out_of_range'
 
@@ -21,6 +26,7 @@ export type RichEditorTransformRecoveryReason =
   | 'block_missing_id'
   | 'dom_index_size'
   | 'dom_not_found'
+  | 'empty_fragment_index_out_of_range'
   | 'invalid_block_join'
   | 'invalid_insertion_depth'
   | 'mismatched_transaction'
@@ -64,6 +70,14 @@ function isMismatchedTransactionError(error: unknown): boolean {
 
 function isInvalidContentTransactionError(error: unknown): boolean {
   return error instanceof RangeError && error.message.startsWith('Invalid content for node ')
+}
+
+function isReactUpdateDepthExceededError(error: unknown): boolean {
+  return error instanceof Error
+    && (
+      error.message.includes(REACT_UPDATE_DEPTH_EXCEEDED_ERROR)
+      || REACT_MINIFIED_UPDATE_DEPTH_ERROR.test(error.message)
+    )
 }
 
 function isInvalidInsertionDepthError(error: unknown): boolean {
@@ -116,6 +130,12 @@ const RECOVERY_ERROR_MATCHERS: RecoveryErrorMatcher[] = [
     surfaces: ['render', 'transform'],
   },
   {
+    matches: (error) => messageMatches(error, BLOCKNOTE_EMPTY_FRAGMENT_INDEX_ERROR),
+    reason: 'empty_fragment_index_out_of_range',
+    repairsDocument: true,
+    surfaces: ['render', 'transform'],
+  },
+  {
     matches: (error) => messageMatches(error, BLOCKNOTE_TABLE_ROW_INDEX_ERROR),
     reason: 'table_row_index_out_of_range',
     repairsDocument: true,
@@ -126,6 +146,11 @@ const RECOVERY_ERROR_MATCHERS: RecoveryErrorMatcher[] = [
     reason: 'paragraph_index_out_of_range',
     repairsDocument: true,
     surfaces: ['render', 'transform'],
+  },
+  {
+    matches: isReactUpdateDepthExceededError,
+    reason: 'react_update_depth_exceeded',
+    surfaces: ['render'],
   },
   {
     matches: isDomIndexSizeError,

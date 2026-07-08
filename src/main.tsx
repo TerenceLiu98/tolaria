@@ -16,7 +16,10 @@ import {
   type AppCommandShortcutEventInit,
   type AppCommandShortcutEventOptions,
 } from './hooks/appCommandCatalog'
-import { isRecoverableBlockNoteRenderError } from './components/blockNoteRenderRecovery'
+import {
+  blockNoteRenderRecoveryReason,
+  isRecoverableBlockNoteRenderError,
+} from './components/blockNoteRenderRecovery'
 import { isRecoveredActionTooltipError } from './components/ui/actionTooltipRecovery'
 import { isMac, shouldUseCustomWindowChrome } from './utils/platform'
 import { reloadFrontendOnceIfStartupFailed } from './utils/frontendReady'
@@ -172,13 +175,22 @@ function captureReactRootError(
   reloadFrontendOnceIfStartupFailed()
 }
 
+function isRecoverableBlockNoteRootError(error: unknown, componentStack: string): boolean {
+  const reason = blockNoteRenderRecoveryReason(error)
+  if (reason !== 'react_update_depth_exceeded') return isRecoverableBlockNoteRenderError(error)
+
+  return componentStack.includes('BlockNote')
+    || componentStack.includes('SingleEditorView')
+    || componentStack.includes('EditorContent')
+}
+
 function captureRecoverableReactRootError(
   error: unknown,
   errorInfo: { componentStack?: string },
 ): void {
   const componentStack = errorInfo.componentStack ?? ''
   if (isResizeObserverLoopError(error)) return
-  if (isRecoverableBlockNoteRenderError(error)) return
+  if (isRecoverableBlockNoteRootError(error, componentStack)) return
   if (isRecoveredActionTooltipError(error, componentStack)) return
 
   captureReactRootError(error, { componentStack })

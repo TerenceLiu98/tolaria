@@ -55,6 +55,20 @@ describe('blockNoteRenderRecovery', () => {
     expect(isRecoverableBlockNoteRenderError(error)).toBe(true)
   })
 
+  it('recognizes empty fragment index render errors', () => {
+    const error = new RangeError('Index 0 out of range for <>')
+
+    expect(blockNoteRenderRecoveryReason(error)).toBe('empty_fragment_index_out_of_range')
+    expect(isRecoverableBlockNoteRenderError(error)).toBe(true)
+  })
+
+  it('recognizes React update-depth render loops', () => {
+    const error = new Error('Maximum update depth exceeded')
+
+    expect(blockNoteRenderRecoveryReason(error)).toBe('react_update_depth_exceeded')
+    expect(isRecoverableBlockNoteRenderError(error)).toBe(true)
+  })
+
   it('recognizes recovered BlockNote block type mismatch render errors', () => {
     const error = new Error('Block type does not match')
 

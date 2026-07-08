@@ -149,6 +149,19 @@ describe('main entrypoint', () => {
     expect(mocks.sentryHandler).toHaveBeenCalledWith(error, { componentStack: '\n    in App' })
   }, MAIN_ENTRYPOINT_IMPORT_TIMEOUT_MS)
 
+  it('suppresses update-depth loops only when they come from the editor stack', async () => {
+    await importEntrypoint()
+
+    const error = new Error('Maximum update depth exceeded')
+    window.__tolariaFrontendReady = true
+
+    rootOptions().onCaughtError?.(error, { componentStack: '\n    in BlockNoteView\n    in SingleEditorView' })
+    expect(mocks.sentryHandler).not.toHaveBeenCalled()
+
+    rootOptions().onCaughtError?.(error, { componentStack: '\n    in App' })
+    expect(mocks.sentryHandler).toHaveBeenCalledWith(error, { componentStack: '\n    in App' })
+  }, MAIN_ENTRYPOINT_IMPORT_TIMEOUT_MS)
+
   it('normalizes missing React component stacks before handing errors to Sentry', async () => {
     await importEntrypoint()
 
