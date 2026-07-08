@@ -24,6 +24,8 @@ const REMOTE_STATUS: GitRemoteStatus = {
   ahead: 0,
   behind: 0,
   hasRemote: true,
+  hasUpstream: true,
+  upstream: null,
 }
 
 function upToDate(): GitPullResult {

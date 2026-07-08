@@ -181,6 +181,8 @@ export interface GitRemoteStatus {
   ahead: number
   behind: number
   hasRemote: boolean
+  hasUpstream?: boolean
+  upstream?: string | null
 }
 
 export interface SearchResult {

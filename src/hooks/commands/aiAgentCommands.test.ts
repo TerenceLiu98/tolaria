@@ -9,6 +9,7 @@ describe('buildAiAgentCommands', () => {
       aiAgentsStatus: {
         claude_code: { status: 'installed', version: '1.0.20' },
         codex: { status: 'missing', version: null },
+        copilot: { status: 'missing', version: null },
         opencode: { status: 'missing', version: null },
         pi: { status: 'missing', version: null },
         antigravity: { status: 'missing', version: null },

@@ -111,12 +111,20 @@ function uniqueVaultPaths(paths: string[]): string[] {
 
 function aggregateRemoteStatuses(statuses: GitRemoteStatus[]): GitRemoteStatus | null {
   if (statuses.length === 0) return null
+  const hasRemote = statuses.some((status) => status.hasRemote === true)
+  const remoteStatuses = statuses.filter((status) => status.hasRemote === true)
+  const hasUpstream = remoteStatuses.length > 0 && remoteStatuses.every((status) => status.hasUpstream !== false)
+  const upstreams = remoteStatuses
+    .map((status) => status.upstream)
+    .filter((upstream): upstream is string => typeof upstream === 'string' && upstream.length > 0)
 
   return {
     branch: statuses.length === 1 ? statuses[0].branch : '',
     ahead: statuses.reduce((sum, status) => sum + (status.ahead ?? 0), 0),
     behind: statuses.reduce((sum, status) => sum + (status.behind ?? 0), 0),
-    hasRemote: statuses.some((status) => status.hasRemote === true),
+    hasRemote,
+    hasUpstream,
+    upstream: upstreams.length === 1 ? upstreams[0] : null,
   }
 }
 

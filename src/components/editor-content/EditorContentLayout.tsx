@@ -454,6 +454,7 @@ function EditorCanvas({
     >
       <div className="editor-content-wrapper" data-note-pdf-export-root="true">
         <NoteSurface
+          currentContent={activeTab?.content ?? ''}
           editor={editor}
           entries={entries}
           onNavigateWikilink={onNavigateWikilink}

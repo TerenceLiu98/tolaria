@@ -82,6 +82,10 @@ function hasRemote(remoteStatus: GitRemoteStatus | null): boolean {
   return remoteStatus?.hasRemote ?? false
 }
 
+function hasSyncTarget(remoteStatus: GitRemoteStatus | null): boolean {
+  return hasRemote(remoteStatus) && remoteStatus?.hasUpstream !== false
+}
+
 function isRemoteMissing(remoteStatus: GitRemoteStatus | null | undefined): boolean {
   return remoteStatus?.hasRemote === false
 }
@@ -227,7 +231,7 @@ type RemoteSummaryState =
   | { kind: 'diverged'; ahead: number; behind: number }
 
 function getRemoteSummaryState(remoteStatus: GitRemoteStatus | null): RemoteSummaryState {
-  if (!hasRemote(remoteStatus)) return { kind: 'missing' }
+  if (!hasSyncTarget(remoteStatus)) return { kind: 'missing' }
 
   const ahead = remoteStatus?.ahead ?? 0
   const behind = remoteStatus?.behind ?? 0
@@ -412,7 +416,7 @@ function PullAction({
   onPull?: () => void
   onClose: () => void
 }) {
-  if (!hasRemote(remoteStatus)) return null
+  if (!hasSyncTarget(remoteStatus)) return null
 
   return (
     <div style={{ display: 'flex', gap: 4, marginTop: 6, borderTop: '1px solid var(--border)', paddingTop: 6 }}>

@@ -96,6 +96,7 @@ interface CommitDialogProps {
   selectedRepositoryPath?: string
   suggestedMessage?: string
   onRepositoryChange?: (path: string) => void
+  onGenerateMessage?: () => Promise<string | null>
   onCommit: (message: string) => void
   onClose: () => void
 }
@@ -111,10 +112,12 @@ export function CommitDialog(props: CommitDialogProps) {
     selectedRepositoryPath = '',
     suggestedMessage,
     onRepositoryChange,
+    onGenerateMessage,
     onCommit,
     onClose,
   } = props
   const [message, setMessage] = useState('')
+  const [generatingMessage, setGeneratingMessage] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const suggestedMessageRef = useRef(suggestedMessage)
   const copy = getDialogCopy(commitMode)
@@ -125,7 +128,7 @@ export function CommitDialog(props: CommitDialogProps) {
 
   useEffect(() => {
     if (open) {
-      setMessage(suggestedMessageRef.current ?? '') // eslint-disable-line react-hooks/set-state-in-effect -- reset on dialog open
+      setMessage(suggestedMessageRef.current ?? '')
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [open])
@@ -134,6 +137,17 @@ export function CommitDialog(props: CommitDialogProps) {
     const trimmed = message.trim()
     if (!trimmed) return
     onCommit(trimmed)
+  }
+
+  const handleGenerateMessage = async () => {
+    if (!onGenerateMessage || generatingMessage) return
+    setGeneratingMessage(true)
+    try {
+      const nextMessage = await onGenerateMessage()
+      if (nextMessage) setMessage(nextMessage)
+    } finally {
+      setGeneratingMessage(false)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -179,6 +193,13 @@ export function CommitDialog(props: CommitDialogProps) {
         <DialogFooter className="flex-row items-center justify-between sm:justify-between">
           <span className="text-[11px] text-muted-foreground">{copy.shortcutHint}</span>
           <div className="flex gap-2">
+            {onGenerateMessage && (
+              <Button variant="outline" onClick={handleGenerateMessage} disabled={generatingMessage}>
+                {generatingMessage
+                  ? translate(locale, 'git.commitDialog.generatingFromDiff')
+                  : translate(locale, 'git.commitDialog.generateFromDiff')}
+              </Button>
+            )}
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>

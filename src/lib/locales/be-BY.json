@@ -1150,5 +1150,14 @@
   "paper.catalog.allMetadata": "Усе метаданыя",
   "paper.catalog.parseLabel": "Парсінг",
   "paper.catalog.parseStatusLabel": "Стан парсінгу",
-  "paper.catalog.allParseStates": "Усе станы парсінгу"
+  "paper.catalog.allParseStates": "Усе станы парсінгу",
+  "editor.htmlBlock.previewTitle": "Sandboxed HTML block preview",
+  "editor.htmlBlock.toolbar": "HTML block actions",
+  "editor.htmlBlock.copySource": "Copy source",
+  "editor.htmlBlock.openRawEditor": "Open raw editor",
+  "editor.htmlBlock.resetHeight": "Reset height",
+  "editor.htmlBlock.resizeHeight": "Resize height",
+  "editor.htmlBlock.blockedFallback": "This HTML was blocked by the sandbox rules.",
+  "git.commitDialog.generateFromDiff": "Generate from diff",
+  "git.commitDialog.generatingFromDiff": "Generating..."
 }

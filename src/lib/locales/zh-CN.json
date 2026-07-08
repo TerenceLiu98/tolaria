@@ -1150,5 +1150,14 @@
   "paper.catalog.allMetadata": "所有元数据状态",
   "paper.catalog.parseLabel": "解析",
   "paper.catalog.parseStatusLabel": "解析状态",
-  "paper.catalog.allParseStates": "所有解析状态"
+  "paper.catalog.allParseStates": "所有解析状态",
+  "editor.htmlBlock.previewTitle": "Sandboxed HTML block preview",
+  "editor.htmlBlock.toolbar": "HTML block actions",
+  "editor.htmlBlock.copySource": "Copy source",
+  "editor.htmlBlock.openRawEditor": "Open raw editor",
+  "editor.htmlBlock.resetHeight": "Reset height",
+  "editor.htmlBlock.resizeHeight": "Resize height",
+  "editor.htmlBlock.blockedFallback": "This HTML was blocked by the sandbox rules.",
+  "git.commitDialog.generateFromDiff": "Generate from diff",
+  "git.commitDialog.generatingFromDiff": "Generating..."
 }

@@ -137,6 +137,34 @@ describe('useAutoSync', () => {
     })
   })
 
+  it('preserves missing-upstream state in aggregated remote status', async () => {
+    mockInvokeFn.mockImplementation((cmd: string) => {
+      if (cmd === 'get_last_commit_info') return Promise.resolve(MOCK_COMMIT_INFO)
+      if (cmd === 'get_conflict_files') return Promise.resolve([])
+      if (cmd === 'git_remote_status') {
+        return Promise.resolve({
+          branch: 'sapientia',
+          ahead: 0,
+          behind: 0,
+          hasRemote: true,
+          hasUpstream: false,
+          upstream: null,
+        })
+      }
+      return Promise.resolve(upToDate())
+    })
+
+    const { result } = renderSync()
+
+    await waitFor(() => {
+      expect(result.current.remoteStatus).toMatchObject({
+        hasRemote: true,
+        hasUpstream: false,
+        upstream: null,
+      })
+    })
+  })
+
   it('calls onVaultUpdated and onToast when pull has updates', async () => {
     mockInvokeFn.mockImplementation((cmd: string) => {
       if (cmd === 'get_last_commit_info') return Promise.resolve(MOCK_COMMIT_INFO)

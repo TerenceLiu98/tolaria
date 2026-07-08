@@ -225,3 +225,5 @@ proposed → active → superseded
 | [0166](0166-editor-adapter-boundary.md) | Keep BlockNote behind a Sapientia editor adapter boundary | active |
 | [0167](0167-blocknote-native-editor-capabilities.md) | Use BlockNote-native editor capabilities before parallel UI | active |
 | [0168](0168-manual-json-catalog-localization.md) | Manual JSON catalog localization | active |
+| [0169](0169-upstream-reference-reimplementation-policy.md) | Use upstream Tolaria as a reference, not a merge source | active |
+| [0170](0170-upstream-workflow-and-editor-feature-adoption.md) | Adopt upstream workflow and advanced editor features as scoped Sapientia work | active |

@@ -255,8 +255,8 @@ describe('useCommitFlow', () => {
     })
 
     expect(savePending).toHaveBeenCalledTimes(1)
-    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/vault')
-    expect(mockInvokeFn).toHaveBeenNthCalledWith(1, 'git_commit', { vaultPath: '/vault', message: 'Updated 1 note' })
+    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/vault', { includeStats: true })
+    expect(mockInvokeFn).toHaveBeenNthCalledWith(1, 'git_commit', { vaultPath: '/vault', message: 'Update a' })
     expect(mockInvokeFn).toHaveBeenNthCalledWith(2, 'git_push', { vaultPath: '/vault' })
     expect(setToastMessage).toHaveBeenCalledWith('Committed and pushed')
   })
@@ -309,12 +309,12 @@ describe('useCommitFlow', () => {
       await result.current.runAutomaticCheckpoint()
     })
 
-    expect(mockInvokeFn).toHaveBeenCalledWith('git_commit', { vaultPath: '/vault', message: 'Updated 1 note' })
+    expect(mockInvokeFn).toHaveBeenCalledWith('git_commit', { vaultPath: '/vault', message: 'Update note' })
     expect(mockInvokeFn).toHaveBeenCalledWith('git_push', { vaultPath: '/vault' })
-    expect(mockInvokeFn).toHaveBeenCalledWith('git_commit', { vaultPath: '/work', message: 'Updated 1 note' })
+    expect(mockInvokeFn).toHaveBeenCalledWith('git_commit', { vaultPath: '/work', message: 'Update note' })
     expect(mockInvokeFn).toHaveBeenCalledWith('git_push', { vaultPath: '/work' })
-    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/vault')
-    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/work')
+    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/vault', { includeStats: true })
+    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/work', { includeStats: true })
     expect(resolveRemoteStatusForVaultPath).toHaveBeenCalledWith('/vault')
     expect(resolveRemoteStatusForVaultPath).toHaveBeenCalledWith('/work')
     expect(loadModifiedFiles).toHaveBeenCalled()
@@ -344,8 +344,8 @@ describe('useCommitFlow', () => {
     })
 
     expect(didHandleCheckpoint).toBe(true)
-    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/vault')
-    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/work')
+    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/vault', { includeStats: true })
+    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/work', { includeStats: true })
     expect(setToastMessage).toHaveBeenCalledWith(
       'Set a Git author before AutoGit can commit. Run git config --global user.name "Your Name" and git config --global user.email you@example.com.',
     )
@@ -366,10 +366,33 @@ describe('useCommitFlow', () => {
       await result.current.runAutomaticCheckpoint()
     })
 
-    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/vault')
+    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/vault', { includeStats: true })
     expect(mockInvokeFn).toHaveBeenCalledTimes(1)
     expect(mockInvokeFn).toHaveBeenNthCalledWith(1, 'git_push', { vaultPath: '/vault' })
     expect(setToastMessage).toHaveBeenCalledWith('Pushed committed changes')
+    expect(mockTrackEvent).not.toHaveBeenCalled()
+  })
+
+  it('runAutomaticCheckpoint does not retry push-only without an upstream branch', async () => {
+    resolveRemoteStatusForVaultPath.mockResolvedValue({
+      branch: 'sapientia',
+      ahead: 2,
+      behind: 0,
+      hasRemote: true,
+      hasUpstream: false,
+      upstream: null,
+    })
+    loadModifiedFilesForVaultPath.mockResolvedValue([])
+
+    const { result } = renderCommitFlow()
+
+    await act(async () => {
+      await result.current.runAutomaticCheckpoint()
+    })
+
+    expect(loadModifiedFilesForVaultPath).toHaveBeenCalledWith('/vault', { includeStats: true })
+    expect(mockInvokeFn).not.toHaveBeenCalled()
+    expect(setToastMessage).toHaveBeenCalledWith('Nothing to commit or push')
     expect(mockTrackEvent).not.toHaveBeenCalled()
   })
 
@@ -390,6 +413,31 @@ describe('useCommitFlow', () => {
     resolveRemoteStatusForVaultPath.mockResolvedValue({ branch: 'main', ahead: 0, behind: 0, hasRemote: false })
     mockInvokeFn.mockImplementation((command: string) => {
       if (command === 'git_commit') return Promise.resolve('[main abc1234] test message')
+      throw new Error(`Unexpected command: ${command}`)
+    })
+    const { result } = renderCommitFlow()
+
+    await act(async () => {
+      await result.current.handleCommitPush('test message')
+    })
+
+    expect(mockInvokeFn).toHaveBeenCalledTimes(1)
+    expect(mockInvokeFn).toHaveBeenCalledWith('git_commit', { vaultPath: '/vault', message: 'test message' })
+    expect(setToastMessage).toHaveBeenCalledWith('Committed locally (no remote configured)')
+    expect(onPushRejected).not.toHaveBeenCalled()
+  })
+
+  it('handleCommitPush commits locally and skips push when the remote has no upstream', async () => {
+    resolveRemoteStatusForVaultPath.mockResolvedValue({
+      branch: 'sapientia',
+      ahead: 0,
+      behind: 0,
+      hasRemote: true,
+      hasUpstream: false,
+      upstream: null,
+    })
+    mockInvokeFn.mockImplementation((command: string) => {
+      if (command === 'git_commit') return Promise.resolve('[sapientia abc1234] test message')
       throw new Error(`Unexpected command: ${command}`)
     })
     const { result } = renderCommitFlow()

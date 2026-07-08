@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { CommitDialog } from './CommitDialog'
 import { formatShortcutDisplay } from '../hooks/appCommandCatalog'
 
@@ -154,5 +154,27 @@ describe('CommitDialog', () => {
     expect(screen.getByText('Commit author')).toBeInTheDocument()
     expect(screen.getByText('Unexpected User <unexpected@example.com>')).toBeInTheDocument()
     expect(screen.getByText("Repository Git author differs from your global Git author. Cancel and update this vault's git config before committing if it looks wrong.")).toBeInTheDocument()
+  })
+
+  it('generates an editable message from the current diff on demand', async () => {
+    const onGenerateMessage = vi.fn().mockResolvedValue('Refine Paper metadata flow')
+    render(
+      <CommitDialog
+        open={true}
+        modifiedCount={2}
+        onGenerateMessage={onGenerateMessage}
+        onCommit={onCommit}
+        onClose={onClose}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate from diff' }))
+
+    expect(screen.getByRole('button', { name: 'Generating...' })).toBeDisabled()
+    await waitFor(() => expect(screen.getByPlaceholderText('Commit message...')).toHaveValue('Refine Paper metadata flow'))
+    expect(onGenerateMessage).toHaveBeenCalledTimes(1)
+    fireEvent.change(screen.getByPlaceholderText('Commit message...'), { target: { value: 'Refine metadata retry flow' } })
+    fireEvent.click(getActionButton())
+    expect(onCommit).toHaveBeenCalledWith('Refine metadata retry flow')
   })
 })

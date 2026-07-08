@@ -8,6 +8,7 @@ import type { EditorCommentAnchor, EditorCommentOptions } from './comments/comme
 import { selectedTextContextFromSelection } from './editorSelectedContext'
 import { createBlockNoteEditorAdapter, type SapientiaEditorAdapter } from './editorAdapter'
 import { SingleEditorView } from './SingleEditorView'
+import { VaultExpressionProvider } from './VaultExpressionContext'
 
 export type NoteSurfaceCommentAnchor = EditorCommentAnchor
 export type NoteSurfaceCommentOptions = EditorCommentOptions
@@ -17,6 +18,7 @@ export type NoteSurfaceAdapter = SapientiaEditorAdapter
 export interface NoteSurfaceProps {
   className?: string
   commentOptions?: NoteSurfaceCommentOptions
+  currentContent?: string
   editable?: boolean
   editor: ReturnType<typeof useCreateBlockNote>
   entries: VaultEntry[]
@@ -31,6 +33,7 @@ export interface NoteSurfaceProps {
 export const NoteSurface = forwardRef<NoteSurfaceAdapter, NoteSurfaceProps>(function NoteSurface({
   className,
   commentOptions,
+  currentContent = '',
   editable = true,
   editor,
   entries,
@@ -74,20 +77,27 @@ export const NoteSurface = forwardRef<NoteSurfaceAdapter, NoteSurfaceProps>(func
       data-testid="note-surface"
       data-note-surface-readonly={!editable ? 'true' : undefined}
     >
-      <SingleEditorView
-        commentOptions={commentOptions}
-        editor={editor}
+      <VaultExpressionProvider
+        currentContent={currentContent}
         entries={entries}
-        onNavigateWikilink={onNavigateWikilink}
-        onChange={onChange}
-        onSelectedTextContextChange={onSelectedTextContextChange}
-        editorAdapter={editorAdapter}
-        onSelectedAttachmentContextChange={handleSelectedAttachmentContextChange}
-        sourceEntry={sourceEntry}
-        vaultPath={vaultPath}
-        editable={editable}
         locale={locale}
-      />
+        sourceEntry={sourceEntry ?? null}
+      >
+        <SingleEditorView
+          commentOptions={commentOptions}
+          editor={editor}
+          entries={entries}
+          onNavigateWikilink={onNavigateWikilink}
+          onChange={onChange}
+          onSelectedTextContextChange={onSelectedTextContextChange}
+          editorAdapter={editorAdapter}
+          onSelectedAttachmentContextChange={handleSelectedAttachmentContextChange}
+          sourceEntry={sourceEntry}
+          vaultPath={vaultPath}
+          editable={editable}
+          locale={locale}
+        />
+      </VaultExpressionProvider>
     </div>
   )
 })

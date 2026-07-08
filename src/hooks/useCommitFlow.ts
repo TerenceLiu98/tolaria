@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { GitAuthorIdentity, GitPushResult, GitRemoteStatus, ModifiedFile } from '../types'
 import { trackEvent } from '../lib/telemetry'
 import { isTauri, mockInvoke } from '../mock-tauri'
-import { generateAutomaticCommitMessage } from '../utils/automaticCommitMessage'
+import { generateDeterministicCommitMessage } from '../utils/commitMessageDraft'
 import { createTranslator, type AppLocale } from '../lib/i18n'
 
 export type CommitMode = 'push' | 'local'
@@ -20,10 +20,14 @@ interface AutomaticCheckpointOptions {
   savePendingBeforeCommit?: boolean
 }
 
+interface LoadModifiedFilesOptions {
+  includeStats?: boolean
+}
+
 interface CommitFlowConfig {
   savePending: () => Promise<void | boolean>
   loadModifiedFiles: () => Promise<void>
-  loadModifiedFilesForVaultPath: (vaultPath: string) => Promise<ModifiedFile[]>
+  loadModifiedFilesForVaultPath: (vaultPath: string, options?: LoadModifiedFilesOptions) => Promise<ModifiedFile[]>
   resolveRemoteStatusForVaultPath: (vaultPath: string) => Promise<GitRemoteStatus | null>
   setToastMessage: (msg: string | null) => void
   onPushRejected?: () => void
@@ -98,7 +102,7 @@ interface FinalizeCheckpointArgs extends FinalizeCheckpointConfig {
 }
 
 function commitModeFromRemoteStatus(remoteStatus: GitRemoteStatus | null): CommitMode {
-  return remoteStatus?.hasRemote === false ? 'local' : 'push'
+  return remoteStatus?.hasRemote === false || remoteStatus?.hasUpstream === false ? 'local' : 'push'
 }
 
 async function commitLocally({ vaultPath, message }: CommitArgs): Promise<void> {
@@ -197,7 +201,7 @@ function formatAutoGitFailureToast(error: unknown, t: Translator): string {
 }
 
 function shouldRetryPush(remoteStatus: GitRemoteStatus | null): boolean {
-  return remoteStatus?.hasRemote === true && remoteStatus.ahead > 0
+  return remoteStatus?.hasRemote === true && remoteStatus.hasUpstream !== false && remoteStatus.ahead > 0
 }
 
 function nothingToCommitToast(remoteStatus: GitRemoteStatus | null): string {
@@ -275,8 +279,8 @@ async function checkpointRepository(
   config: Pick<CommitFlowConfig, 'loadModifiedFilesForVaultPath' | 'resolveRemoteStatusForVaultPath'>,
 ): Promise<RepositoryCheckpointResult> {
   const remoteStatus = await config.resolveRemoteStatusForVaultPath(vaultPath)
-  const modifiedFiles = await config.loadModifiedFilesForVaultPath(vaultPath)
-  const message = generateAutomaticCommitMessage(modifiedFiles)
+  const modifiedFiles = await config.loadModifiedFilesForVaultPath(vaultPath, { includeStats: true })
+  const message = generateDeterministicCommitMessage(modifiedFiles)
   const command = createAutomaticCheckpointCommand({ remoteStatus, vaultPath, message })
 
   if (!command) {
@@ -342,8 +346,8 @@ async function runSingleRepositoryCheckpoint(
   config: AutomaticCheckpointRunConfig,
 ): Promise<boolean> {
   const remoteStatus = await config.resolveRemoteStatusForVaultPath(targetVaultPath)
-  const modifiedFiles = await config.loadModifiedFilesForVaultPath(targetVaultPath)
-  const message = generateAutomaticCommitMessage(modifiedFiles)
+  const modifiedFiles = await config.loadModifiedFilesForVaultPath(targetVaultPath, { includeStats: true })
+  const message = generateDeterministicCommitMessage(modifiedFiles)
   const command = createAutomaticCheckpointCommand({
     remoteStatus,
     vaultPath: targetVaultPath,

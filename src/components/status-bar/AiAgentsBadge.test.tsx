@@ -13,6 +13,7 @@ vi.mock('../../utils/url', async () => {
 const installedStatuses = {
   claude_code: { status: 'installed' as const, version: '1.0.20' },
   codex: { status: 'installed' as const, version: '0.37.0' },
+  copilot: { status: 'installed' as const, version: '0.0.329' },
   opencode: { status: 'installed' as const, version: '0.3.1' },
   pi: { status: 'installed' as const, version: '0.70.2' },
   antigravity: { status: 'installed' as const, version: '0.5.1' },
@@ -122,6 +123,7 @@ describe('AiAgentsBadge', () => {
       statuses: {
         claude_code: { status: 'installed', version: '1.0.20' },
         codex: { status: 'missing', version: null },
+        copilot: { status: 'missing', version: null },
         opencode: { status: 'missing', version: null },
         pi: { status: 'missing', version: null },
         antigravity: { status: 'missing', version: null },
@@ -133,6 +135,7 @@ describe('AiAgentsBadge', () => {
 
     expect(screen.queryByText('Install')).not.toBeInTheDocument()
     expect(screen.queryByText('Install Codex')).not.toBeInTheDocument()
+    expect(screen.queryByText('Install GitHub Copilot')).not.toBeInTheDocument()
     expect(screen.queryByText('Install OpenCode')).not.toBeInTheDocument()
     expect(screen.queryByText('Install Pi')).not.toBeInTheDocument()
     expect(screen.queryByText('Install Antigravity CLI')).not.toBeInTheDocument()

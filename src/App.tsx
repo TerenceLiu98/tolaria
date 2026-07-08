@@ -35,7 +35,7 @@ import { useGitRepositories } from './hooks/useGitRepositories'
 import { useEntryActions } from './hooks/useEntryActions'
 import { useAppCommands } from './hooks/useAppCommands'
 import { triggerCommitEntryAction } from './utils/commitEntryAction'
-import { generateCommitMessage } from './utils/commitMessage'
+import { generateCommitMessageDraft, generateDeterministicCommitMessage } from './utils/commitMessageDraft'
 import { useDialogs } from './hooks/useDialogs'
 import { useVaultSwitcher } from './hooks/useVaultSwitcher'
 import { useGitHistory } from './hooks/useGitHistory'
@@ -82,7 +82,7 @@ import { DeleteProgressNotice } from './components/DeleteProgressNotice'
 import { UpdateBanner } from './components/UpdateBanner'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri, mockInvoke } from './mock-tauri'
-import type { AiWorkspaceConversationSetting, GitSetupPreference, SidebarSelection, InboxPeriod, VaultEntry, WorkspaceIdentity } from './types'
+import type { AiWorkspaceConversationSetting, GitSetupPreference, SidebarSelection, InboxPeriod, ModifiedFile, VaultEntry, WorkspaceIdentity } from './types'
 import { initializeNoteProperties } from './utils/initializeNoteProperties'
 import { type NoteListFilter } from './utils/noteListHelpers'
 import { openNoteInNewWindow } from './utils/openNoteWindow'
@@ -1016,7 +1016,22 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     manualVaultPath: gitSurfaces.commitRepositoryPath,
     vaultPath: resolvedPath,
   })
-  const suggestedCommitMessage = useMemo(() => generateCommitMessage(commitModifiedFiles), [commitModifiedFiles])
+  const suggestedCommitMessage = useMemo(() => generateDeterministicCommitMessage(commitModifiedFiles), [commitModifiedFiles])
+  const generateCommitMessageFromDiff = useCallback(async (): Promise<string | null> => {
+    const draft = await generateCommitMessageDraft({
+      aiFeaturesEnabled,
+      files: commitModifiedFiles,
+      loadFileDiff: (file: ModifiedFile) => loadDiffForPath(file.path),
+      target: quickPromptTarget,
+      targetReady: quickPromptTargetReady,
+    })
+    trackEvent('git_commit_message_generated', {
+      ai_attempted: draft.aiAttempted ? 'true' : 'false',
+      file_count: draft.fileCount,
+      source: draft.source,
+    })
+    return draft.message
+  }, [aiFeaturesEnabled, commitModifiedFiles, loadDiffForPath, quickPromptTarget, quickPromptTargetReady])
   const isGitVault = gitFeaturesEnabled && gitRepoState !== 'missing'
   const {
     activitySignature: autoGitActivitySignature,
@@ -1911,6 +1926,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
           selectedRepositoryPath={gitSurfaces.commitRepositoryPath}
           suggestedMessage={suggestedCommitMessage}
           onRepositoryChange={gitSurfaces.setCommitRepositoryPath}
+          onGenerateMessage={generateCommitMessageFromDiff}
           onCommit={commitFlow.handleCommitPush}
           onClose={commitFlow.closeCommitDialog}
         />

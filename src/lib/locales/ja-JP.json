@@ -1150,5 +1150,14 @@
   "paper.catalog.allMetadata": "すべてのメタデータ",
   "paper.catalog.parseLabel": "解析",
   "paper.catalog.parseStatusLabel": "解析状態",
-  "paper.catalog.allParseStates": "すべての解析状態"
+  "paper.catalog.allParseStates": "すべての解析状態",
+  "editor.htmlBlock.previewTitle": "Sandboxed HTML block preview",
+  "editor.htmlBlock.toolbar": "HTML block actions",
+  "editor.htmlBlock.copySource": "Copy source",
+  "editor.htmlBlock.openRawEditor": "Open raw editor",
+  "editor.htmlBlock.resetHeight": "Reset height",
+  "editor.htmlBlock.resizeHeight": "Resize height",
+  "editor.htmlBlock.blockedFallback": "This HTML was blocked by the sandbox rules.",
+  "git.commitDialog.generateFromDiff": "Generate from diff",
+  "git.commitDialog.generatingFromDiff": "Generating..."
 }

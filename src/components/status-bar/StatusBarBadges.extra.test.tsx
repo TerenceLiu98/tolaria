@@ -116,6 +116,30 @@ describe('StatusBarBadges extra coverage', () => {
     expect(screen.getByTestId('git-status-popup')).toHaveTextContent('No remote configured')
   })
 
+  it('hides pull actions when a remote exists without an upstream branch', () => {
+    const onTriggerSync = vi.fn()
+    render(
+      <SyncBadge
+        status="idle"
+        lastSyncTime={null}
+        remoteStatus={{
+          branch: 'sapientia',
+          ahead: 0,
+          behind: 0,
+          hasRemote: true,
+          hasUpstream: false,
+          upstream: null,
+        }}
+        onTriggerSync={onTriggerSync}
+      />,
+    )
+
+    fireEvent.click(screen.getByTestId('status-sync'))
+
+    expect(screen.getByTestId('git-status-popup')).toHaveTextContent('No remote configured')
+    expect(screen.queryByRole('button', { name: 'Pull' })).not.toBeInTheDocument()
+  })
+
   it('routes conflict and pull-required sync states to their dedicated actions', () => {
     const onOpenConflictResolver = vi.fn()
     const onPullAndPush = vi.fn()

@@ -1150,5 +1150,14 @@
   "paper.catalog.allMetadata": "모든 메타데이터",
   "paper.catalog.parseLabel": "파싱",
   "paper.catalog.parseStatusLabel": "파싱 상태",
-  "paper.catalog.allParseStates": "모든 파싱 상태"
+  "paper.catalog.allParseStates": "모든 파싱 상태",
+  "editor.htmlBlock.previewTitle": "Sandboxed HTML block preview",
+  "editor.htmlBlock.toolbar": "HTML block actions",
+  "editor.htmlBlock.copySource": "Copy source",
+  "editor.htmlBlock.openRawEditor": "Open raw editor",
+  "editor.htmlBlock.resetHeight": "Reset height",
+  "editor.htmlBlock.resizeHeight": "Resize height",
+  "editor.htmlBlock.blockedFallback": "This HTML was blocked by the sandbox rules.",
+  "git.commitDialog.generateFromDiff": "Generate from diff",
+  "git.commitDialog.generatingFromDiff": "Generating..."
 }

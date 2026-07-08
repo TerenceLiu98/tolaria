@@ -1150,5 +1150,14 @@
   "paper.catalog.allMetadata": "Wszystkie metadane",
   "paper.catalog.parseLabel": "Parsowanie",
   "paper.catalog.parseStatusLabel": "Status parsowania",
-  "paper.catalog.allParseStates": "Wszystkie statusy parsowania"
+  "paper.catalog.allParseStates": "Wszystkie statusy parsowania",
+  "editor.htmlBlock.previewTitle": "Sandboxed HTML block preview",
+  "editor.htmlBlock.toolbar": "HTML block actions",
+  "editor.htmlBlock.copySource": "Copy source",
+  "editor.htmlBlock.openRawEditor": "Open raw editor",
+  "editor.htmlBlock.resetHeight": "Reset height",
+  "editor.htmlBlock.resizeHeight": "Resize height",
+  "editor.htmlBlock.blockedFallback": "This HTML was blocked by the sandbox rules.",
+  "git.commitDialog.generateFromDiff": "Generate from diff",
+  "git.commitDialog.generatingFromDiff": "Generating..."
 }

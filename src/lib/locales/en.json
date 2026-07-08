@@ -789,6 +789,13 @@
   "editor.formatting.inlineMath": "Inline math",
   "editor.formatting.inlineMathTooltip": "Convert selection to inline math",
   "editor.math.ariaLabel": "Math: {latex}",
+  "editor.htmlBlock.previewTitle": "Sandboxed HTML block preview",
+  "editor.htmlBlock.toolbar": "HTML block actions",
+  "editor.htmlBlock.copySource": "Copy source",
+  "editor.htmlBlock.openRawEditor": "Open raw editor",
+  "editor.htmlBlock.resetHeight": "Reset height",
+  "editor.htmlBlock.resizeHeight": "Resize height",
+  "editor.htmlBlock.blockedFallback": "This HTML was blocked by the sandbox rules.",
   "editor.inlineAi.suggest": "Suggest inline AI edit",
   "editor.inlineAi.streaming": "Writing inline AI draft...",
   "editor.inlineAi.ready": "Review the inline AI draft.",
@@ -1150,5 +1157,7 @@
   "paper.catalog.allMetadata": "All metadata",
   "paper.catalog.parseLabel": "Parse",
   "paper.catalog.parseStatusLabel": "Parse status",
-  "paper.catalog.allParseStates": "All parse states"
+  "paper.catalog.allParseStates": "All parse states",
+  "git.commitDialog.generateFromDiff": "Generate from diff",
+  "git.commitDialog.generatingFromDiff": "Generating..."
 }
