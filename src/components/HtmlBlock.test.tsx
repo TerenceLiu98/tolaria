@@ -107,4 +107,23 @@ describe('HtmlBlock', () => {
     })
     expect(liveBlock.props.height).toBe('344')
   })
+
+  it('can convert an HTML block back into an editable HTML code block', () => {
+    const { editor } = renderHtmlBlock({
+      height: HTML_BLOCK_DEFAULT_HEIGHT,
+      html: '<p>Edit me</p>',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit as code' }))
+
+    expect(editor.updateBlock).toHaveBeenCalledWith('html-block', {
+      content: [{
+        styles: {},
+        text: '<p>Edit me</p>',
+        type: 'text',
+      }],
+      props: { language: 'html' },
+      type: 'codeBlock',
+    })
+  })
 })

@@ -50,6 +50,7 @@ import {
   InlineAiSuggestionButton,
   type InlineAiSuggestionHandler,
 } from './formatting/InlineAiSuggestion'
+import { HtmlBlockConversionButton } from './formatting/HtmlBlockConversionButton'
 import { InlineMathButton } from './formatting/InlineMathButton'
 import {
   MediaCaptionButton,
@@ -194,7 +195,10 @@ function replaceToolbarControls(
   return items.flatMap((item) => {
     switch (String(item.key)) {
       case 'blockTypeSelect':
-        return [<TolariaBlockTypeSelect key={item.key} locale={locale} />]
+        return [
+          <TolariaBlockTypeSelect key={item.key} locale={locale} />,
+          <HtmlBlockConversionButton key="htmlBlockConversionButton" locale={locale} />,
+        ]
       case 'fileDownloadButton':
         return [
           <MediaDownloadButton key={item.key} locale={locale} vaultPath={vaultPath} />,

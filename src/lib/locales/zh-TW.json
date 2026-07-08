@@ -1154,10 +1154,14 @@
   "editor.htmlBlock.previewTitle": "Sandboxed HTML block preview",
   "editor.htmlBlock.toolbar": "HTML block actions",
   "editor.htmlBlock.copySource": "Copy source",
+  "editor.htmlBlock.renderAsHtml": "渲染為 HTML",
+  "editor.htmlBlock.renderAsHtmlTooltip": "在沙盒區塊中預覽這段 HTML 程式碼",
   "editor.htmlBlock.openRawEditor": "Open raw editor",
+  "editor.htmlBlock.editAsCode": "以程式碼編輯",
   "editor.htmlBlock.resetHeight": "Reset height",
   "editor.htmlBlock.resizeHeight": "Resize height",
   "editor.htmlBlock.blockedFallback": "This HTML was blocked by the sandbox rules.",
   "git.commitDialog.generateFromDiff": "Generate from diff",
-  "git.commitDialog.generatingFromDiff": "Generating..."
+  "git.commitDialog.generatingFromDiff": "Generating...",
+  "editor.slash.html": "HTML"
 }

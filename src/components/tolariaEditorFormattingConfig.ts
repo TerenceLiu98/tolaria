@@ -5,6 +5,7 @@ import {
 } from '@blocknote/react'
 import { createElement, type ReactElement } from 'react'
 import {
+  Code,
   CodeBlock,
   File,
   FlowArrow,
@@ -31,6 +32,7 @@ import {
 } from '@phosphor-icons/react'
 import { trackEvent } from '../lib/telemetry'
 import type { TranslationKey } from '../lib/i18n'
+import { HTML_BLOCK_DEFAULT_HEIGHT, HTML_BLOCK_TYPE } from '../utils/htmlBlockMarkdown'
 import { MATH_BLOCK_TYPE } from '../utils/mathMarkdown'
 import { MERMAID_BLOCK_TYPE, mermaidFenceSource } from '../utils/mermaidMarkdown'
 import { TLDRAW_BLOCK_TYPE, TLDRAW_DEFAULT_HEIGHT } from '../utils/tldrawMarkdown'
@@ -57,6 +59,7 @@ type BlockSlashMenuItemConfig = {
   type: string
 }
 type TolariaSlashMenuLabels = {
+  htmlTitle: string
   mathTitle: string
   mediaGroup: string
   mermaidEditPlaceholder: string
@@ -65,6 +68,7 @@ type TolariaSlashMenuLabels = {
 }
 
 const DEFAULT_TOLARIA_SLASH_MENU_LABELS: TolariaSlashMenuLabels = {
+  htmlTitle: 'HTML',
   mathTitle: 'Math',
   mediaGroup: 'Media',
   mermaidEditPlaceholder: 'Switch to the raw editor to edit',
@@ -123,6 +127,7 @@ const TOLARIA_SLASH_MENU_ICONS: Partial<Record<string, PhosphorIcon>> = {
   heading_2: TextHTwo,
   heading_3: TextHThree,
   heading_4: TextHFour,
+  html: Code,
   image: ImageSquare,
   math: Pi,
   mermaid: FlowArrow,
@@ -132,6 +137,24 @@ const TOLARIA_SLASH_MENU_ICONS: Partial<Record<string, PhosphorIcon>> = {
   table: Table,
   video: Video,
   whiteboard: ScribbleLoop,
+}
+
+export function createHtmlBlockSlashMenuItem(
+  editor: Parameters<typeof getDefaultReactSlashMenuItems>[0],
+  labels: TolariaSlashMenuLabels = DEFAULT_TOLARIA_SLASH_MENU_LABELS,
+): TolariaSlashMenuItem {
+  return createBlockSlashMenuItem(editor, {
+    key: 'html',
+    title: labels.htmlTitle,
+    aliases: ['html', 'iframe', 'embed', 'sandbox'],
+    eventName: 'editor_html_block_slash_command_used',
+    group: labels.mediaGroup,
+    type: HTML_BLOCK_TYPE,
+    props: {
+      height: HTML_BLOCK_DEFAULT_HEIGHT,
+      html: '<div></div>',
+    },
+  })
 }
 
 function createBoardId(): string {
@@ -290,6 +313,7 @@ export function getTolariaSlashMenuItems(
   const items = addItemsToMediaGroup(
     getDefaultReactSlashMenuItems(editor) as TolariaSlashMenuItem[],
     [
+      createHtmlBlockSlashMenuItem(editor, labels),
       createMermaidSlashMenuItem(editor, labels),
       createMathSlashMenuItem(editor, labels),
       createWhiteboardSlashMenuItem(editor, labels),

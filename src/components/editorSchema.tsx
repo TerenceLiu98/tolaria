@@ -430,22 +430,6 @@ function readMermaidPreElement(element: HTMLElement): { source: string; diagram:
   }
 }
 
-function readHtmlPreElement(element: HTMLElement): { height: string; html: string } | undefined {
-  if (element.tagName !== 'PRE') return undefined
-  if (element.childElementCount !== 1 || element.firstElementChild?.tagName !== 'CODE') return undefined
-
-  const code = element.firstElementChild
-  if (readCodeElementLanguage(code) !== 'html') return undefined
-
-  const html = code.textContent?.endsWith('\n')
-    ? code.textContent
-    : `${code.textContent ?? ''}\n`
-  return {
-    height: HTML_BLOCK_DEFAULT_HEIGHT,
-    html,
-  }
-}
-
 const MermaidBlock = createReactBlockSpec(
   {
     type: MERMAID_BLOCK_TYPE,
@@ -575,9 +559,16 @@ const HtmlBlockSpec = createReactBlockSpec(
   {
     runsBefore: ['codeBlock'],
     meta: { selectable: false },
-    parse: readHtmlPreElement,
     render: (props) => (
-      <HtmlBlock block={props.block} editor={props.editor} />
+      <HtmlBlock
+        block={props.block}
+        editor={{
+          domElement: props.editor.domElement,
+          focus: () => props.editor.focus(),
+          getBlock: blockId => props.editor.getBlock(blockId),
+          updateBlock: (blockId, update) => props.editor.updateBlock(blockId, update as never),
+        }}
+      />
     ),
   },
 )

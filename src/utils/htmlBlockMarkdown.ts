@@ -26,6 +26,12 @@ interface HtmlFenceSource {
   html: string
 }
 
+interface HtmlBlockUpdate {
+  content?: Array<Record<string, unknown>>
+  props: Record<string, unknown>
+  type: string
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -61,8 +67,10 @@ function decodeHtmlBlockPayload(payload: unknown): HtmlBlockPayload | null {
 function readHtmlFenceMetadata(info: string): Pick<HtmlBlockPayload, 'height'> | null {
   const [language = '', ...infoParts] = info.trim().split(/\s+/u)
   if (language.toLowerCase() !== 'html') return null
+  const attributes = infoParts.join(' ')
+  if (readFenceAttribute(attributes, 'render').toLowerCase() !== 'true') return null
   return {
-    height: normalizeHtmlBlockHeight(readFenceAttribute(infoParts.join(' '), 'height')),
+    height: normalizeHtmlBlockHeight(readFenceAttribute(attributes, 'height')),
   }
 }
 
@@ -88,7 +96,7 @@ function buildHtmlBlock(block: BlockLike, payload: HtmlBlockPayload): BlockLike 
   }
 }
 
-function readHtmlCodeBlock(block: BlockLike): HtmlBlockPayload | null {
+export function htmlCodeBlockPayload(block: BlockLike): HtmlBlockPayload | null {
   if (block.type !== 'codeBlock') return null
   if (readCodeBlockLanguage({ block }) !== 'html') return null
   const html = readInlineText(block.content)
@@ -111,7 +119,7 @@ export function htmlFenceSource({ height, html }: HtmlFenceSource): string {
   const normalizedHeight = normalizeHtmlBlockHeight(height)
   const fence = '`'.repeat(fenceLengthForHtml({ html }))
   const body = html.endsWith('\n') ? html : `${html}\n`
-  return `${fence}html height="${escapeFenceAttribute(normalizedHeight)}"\n${body}${fence}`
+  return `${fence}html render="true" height="${escapeFenceAttribute(normalizedHeight)}"\n${body}${fence}`
 }
 
 function isHtmlBlock(block: BlockLike): boolean {
@@ -134,9 +142,35 @@ export const htmlBlockMarkdownCodec: DurableBlockCodec = {
   buildPayload: buildHtmlBlockPayload,
   decodePayload: decodeHtmlBlockPayload,
   buildBlock: (block, payload) => buildHtmlBlock(block, payload as HtmlBlockPayload),
-  readCodeBlock: readHtmlCodeBlock,
   isBlock: isHtmlBlock,
   serializeBlock: htmlBlockMarkdown,
+}
+
+export function htmlCodeBlockToHtmlBlockUpdate(block: BlockLike): HtmlBlockUpdate | null {
+  const payload = htmlCodeBlockPayload(block)
+  if (!payload) return null
+  return {
+    props: {
+      height: payload.height,
+      html: payload.html,
+    },
+    type: HTML_BLOCK_TYPE,
+  }
+}
+
+export function htmlBlockToCodeBlockUpdate(block: BlockLike): HtmlBlockUpdate | null {
+  if (!isHtmlBlock(block)) return null
+  return {
+    content: [{
+      styles: {},
+      text: block.props?.html ?? '',
+      type: 'text',
+    }],
+    props: {
+      language: 'html',
+    },
+    type: 'codeBlock',
+  }
 }
 
 export function preProcessHtmlBlockMarkdown({ markdown }: { markdown: string }): string {

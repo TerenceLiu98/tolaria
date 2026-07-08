@@ -993,6 +993,7 @@ function useSuggestionMenuItems(options: {
     try {
       return guardSuggestionMenuItems(
         await Promise.resolve(getTolariaSlashMenuItems(editor, query, {
+          htmlTitle: t('editor.slash.html'),
           mathTitle: t('editor.slash.math'),
           mediaGroup: t('editor.slash.mediaGroup'),
           mermaidEditPlaceholder: t('editor.slash.mermaidEditPlaceholder'),

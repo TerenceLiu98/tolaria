@@ -1154,10 +1154,14 @@
   "editor.htmlBlock.previewTitle": "Sandboxed HTML block preview",
   "editor.htmlBlock.toolbar": "HTML block actions",
   "editor.htmlBlock.copySource": "Copy source",
+  "editor.htmlBlock.renderAsHtml": "Адлюстраваць як HTML",
+  "editor.htmlBlock.renderAsHtmlTooltip": "Папярэдні прагляд гэтага HTML-кода ў ізаляваным блоку",
   "editor.htmlBlock.openRawEditor": "Open raw editor",
+  "editor.htmlBlock.editAsCode": "Рэдагаваць як код",
   "editor.htmlBlock.resetHeight": "Reset height",
   "editor.htmlBlock.resizeHeight": "Resize height",
   "editor.htmlBlock.blockedFallback": "This HTML was blocked by the sandbox rules.",
   "git.commitDialog.generateFromDiff": "Generate from diff",
-  "git.commitDialog.generatingFromDiff": "Generating..."
+  "git.commitDialog.generatingFromDiff": "Generating...",
+  "editor.slash.html": "HTML"
 }

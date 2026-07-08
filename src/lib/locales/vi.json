@@ -1154,10 +1154,14 @@
   "editor.htmlBlock.previewTitle": "Sandboxed HTML block preview",
   "editor.htmlBlock.toolbar": "HTML block actions",
   "editor.htmlBlock.copySource": "Copy source",
+  "editor.htmlBlock.renderAsHtml": "Hiển thị dưới dạng HTML",
+  "editor.htmlBlock.renderAsHtmlTooltip": "Xem trước mã HTML này trong khối sandbox",
   "editor.htmlBlock.openRawEditor": "Open raw editor",
+  "editor.htmlBlock.editAsCode": "Chỉnh sửa dưới dạng mã",
   "editor.htmlBlock.resetHeight": "Reset height",
   "editor.htmlBlock.resizeHeight": "Resize height",
   "editor.htmlBlock.blockedFallback": "This HTML was blocked by the sandbox rules.",
   "git.commitDialog.generateFromDiff": "Generate from diff",
-  "git.commitDialog.generatingFromDiff": "Generating..."
+  "git.commitDialog.generatingFromDiff": "Generating...",
+  "editor.slash.html": "HTML"
 }

@@ -8,6 +8,7 @@ vi.mock('../lib/telemetry', () => ({
 
 import {
   addItemsToMediaGroup,
+  createHtmlBlockSlashMenuItem,
   createMermaidSlashCommandDiagram,
   createMathSlashMenuItem,
   filterTolariaFormattingToolbarItems,
@@ -17,6 +18,7 @@ import {
   MERMAID_SLASH_COMMAND_DIAGRAM,
 } from './tolariaEditorFormattingConfig'
 import { trackEvent } from '../lib/telemetry'
+import { HTML_BLOCK_DEFAULT_HEIGHT, HTML_BLOCK_TYPE } from '../utils/htmlBlockMarkdown'
 import { MATH_BLOCK_TYPE } from '../utils/mathMarkdown'
 import { mermaidFenceSource } from '../utils/mermaidMarkdown'
 
@@ -132,6 +134,12 @@ describe('tolariaEditorFormatting', () => {
 
     const items = filterTolariaSlashMenuItems([
       {
+        key: 'html',
+        title: 'HTML',
+        aliases: ['html', 'iframe', 'embed', 'sandbox'],
+        onItemClick: () => {},
+      },
+      {
         key: 'mermaid',
         title: 'Mermaid',
         aliases: ['diagram', 'flowchart', 'graph', 'chart'],
@@ -152,21 +160,26 @@ describe('tolariaEditorFormatting', () => {
     ] satisfies TolariaSlashMenuTestItem[])
 
     expect(items[0]).toEqual(expect.objectContaining({
+      key: 'html',
+      title: 'HTML',
+      aliases: ['html', 'iframe', 'embed', 'sandbox'],
+    }))
+    expect(items[1]).toEqual(expect.objectContaining({
       key: 'mermaid',
       title: 'Mermaid',
       aliases: ['diagram', 'flowchart', 'graph', 'chart'],
     }))
-    expect(items[1]).toEqual(expect.objectContaining({
+    expect(items[2]).toEqual(expect.objectContaining({
       key: 'math',
       title: 'Math',
       aliases: ['equation', 'latex', 'formula', 'sqrt'],
     }))
-    expect(items[2]).toEqual(expect.objectContaining({
+    expect(items[3]).toEqual(expect.objectContaining({
       key: 'whiteboard',
       title: 'Whiteboard',
       aliases: ['tldraw', 'drawing', 'canvas', 'sketch'],
     }))
-    expect(items.map((item) => isValidElement(item.icon))).toEqual([true, true, true])
+    expect(items.map((item) => isValidElement(item.icon))).toEqual([true, true, true, true])
   })
 
   it('uses a valid placeholder diagram for new Mermaid blocks', () => {
@@ -203,6 +216,12 @@ describe('tolariaEditorFormatting', () => {
       { key: 'emoji', title: 'Emoji', group: 'Others', onItemClick: () => {} },
     ] satisfies TolariaSlashMenuTestItem[], [
       {
+        key: 'html',
+        title: 'HTML',
+        group: 'Media',
+        onItemClick: () => {},
+      },
+      {
         key: 'mermaid',
         title: 'Mermaid',
         group: 'Media',
@@ -225,11 +244,40 @@ describe('tolariaEditorFormatting', () => {
     expect(items.map(item => item.key)).toEqual([
       'image',
       'file',
+      'html',
       'mermaid',
       'math',
       'whiteboard',
       'emoji',
     ])
+  })
+
+  it('creates an HTML slash command with a sandboxed block placeholder', () => {
+    const block = { id: 'active-block' }
+    const editor = {
+      getTextCursorPosition: () => ({ block }),
+      replaceBlocks: () => {},
+    }
+    const replaceBlocks = vi.spyOn(editor, 'replaceBlocks')
+
+    const htmlItem = createHtmlBlockSlashMenuItem(editor as never)
+
+    expect(htmlItem).toEqual(expect.objectContaining({
+      key: 'html',
+      title: 'HTML',
+      aliases: ['html', 'iframe', 'embed', 'sandbox'],
+    }))
+
+    htmlItem?.onItemClick()
+
+    expect(replaceBlocks).toHaveBeenCalledWith([block], [{
+      type: HTML_BLOCK_TYPE,
+      props: {
+        height: HTML_BLOCK_DEFAULT_HEIGHT,
+        html: '<div></div>',
+      },
+    }])
+    expect(trackEvent).toHaveBeenCalledWith('editor_html_block_slash_command_used')
   })
 
   it('creates a math slash command with a default display equation', () => {

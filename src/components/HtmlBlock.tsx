@@ -14,6 +14,7 @@ import {
   clampHtmlBlockHeight,
   HTML_BLOCK_DEFAULT_HEIGHT,
   HTML_BLOCK_TYPE,
+  htmlBlockToCodeBlockUpdate,
   normalizeHtmlBlockHeight,
 } from '../utils/htmlBlockMarkdown'
 import { htmlBlockPreview } from '../utils/htmlBlockSandbox'
@@ -30,12 +31,7 @@ export interface HtmlBlockEditor {
   domElement?: EventTarget | null
   focus?: () => void
   getBlock: (blockId: string) => unknown
-  updateBlock: (blockId: string, update: HtmlBlockUpdate) => unknown
-}
-
-interface HtmlBlockUpdate {
-  props: HtmlBlockProps
-  type: typeof HTML_BLOCK_TYPE
+  updateBlock: (blockId: string, update: unknown) => unknown
 }
 
 interface HtmlBlockViewProps {
@@ -196,6 +192,25 @@ export function HtmlBlock({ block, editor }: HtmlBlockViewProps) {
       })
   }
 
+  const editAsCodeBlock = (event: SyntheticEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const liveBlock = getLiveHtmlBlock(editor, block.id)
+    if (!liveBlock) return
+    const update = htmlBlockToCodeBlockUpdate({
+      id: liveBlock.id,
+      props: {
+        height: liveBlock.props.height,
+        html: liveBlock.props.html,
+      },
+      type: HTML_BLOCK_TYPE,
+    })
+    if (!update) return
+    editor.updateBlock(liveBlock.id, update)
+    dispatchEditorChange(editor)
+    trackEvent('editor_html_block_edited_as_code', { source: 'html_block_toolbar' })
+  }
+
   const startResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault()
     event.stopPropagation()
@@ -249,6 +264,9 @@ export function HtmlBlock({ block, editor }: HtmlBlockViewProps) {
         </Button>
         <Button aria-label={t('editor.htmlBlock.openRawEditor')} onClick={openRawEditorForHtmlSource} onMouseDown={stopHtmlBlockEvent} size="icon-xs" title={t('editor.htmlBlock.openRawEditor')} type="button" variant="outline">
           <Code aria-hidden="true" />
+        </Button>
+        <Button aria-label={t('editor.htmlBlock.editAsCode')} onClick={editAsCodeBlock} onMouseDown={stopHtmlBlockEvent} size="icon-xs" title={t('editor.htmlBlock.editAsCode')} type="button" variant="outline">
+          <Code aria-hidden="true" weight="duotone" />
         </Button>
         <Button aria-label={t('editor.htmlBlock.resetHeight')} onClick={resetHeight} onMouseDown={stopHtmlBlockEvent} size="icon-xs" title={t('editor.htmlBlock.resetHeight')} type="button" variant="outline">
           <ArrowsClockwise aria-hidden="true" />

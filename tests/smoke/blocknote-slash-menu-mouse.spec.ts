@@ -61,6 +61,17 @@ test('filtered slash-menu commands can be selected with the mouse', async ({ pag
   await expect(page.locator('.bn-suggestion-menu')).not.toBeVisible()
 })
 
+test('HTML slash-menu command inserts a sandboxed HTML block', async ({ page }) => {
+  await openSlashMenuOnNewLine(page)
+  await page.keyboard.type('html')
+
+  await page.getByRole('option', { name: /^HTML$/i }).click()
+
+  await expect(page.locator('[data-html-block]')).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByTitle('Sandboxed HTML block preview')).toBeVisible()
+  await expect(page.locator('.bn-suggestion-menu')).not.toBeVisible()
+})
+
 test('plain slash-menu mouse selection opens follow-up pickers', async ({ page }) => {
   await openSlashMenuOnNewLine(page)
 
