@@ -368,7 +368,8 @@ describe('ProjectCanvasSurface', () => {
 
     await screen.findByText('Source Note')
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-    fireEvent.click(screen.getByRole('button', { name: /Source Note/u }))
+    const sourceCandidates = screen.getAllByRole('button', { name: /Source Note/u })
+    fireEvent.click(sourceCandidates[sourceCandidates.length - 1])
 
     expect(projectCanvas.saveProjectCanvas).not.toHaveBeenCalled()
     expect(await screen.findByRole('button', { name: 'Selected' })).toBeInTheDocument()
@@ -424,5 +425,160 @@ describe('ProjectCanvasSurface', () => {
     expect(savedCanvas?.edges).toEqual([
       expect.objectContaining({ from: 'source', kind: 'related', to: savedCanvas?.nodes.at(-1)?.id }),
     ])
+  })
+
+  it('creates an edge by dragging a node connect handle onto another node', async () => {
+    const canvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [
+        {
+          id: 'source',
+          type: 'note' as const,
+          ref: 'notes/source.md',
+          x: 10,
+          y: 20,
+          width: 220,
+          height: 130,
+          title: 'Source Note',
+        },
+        {
+          id: 'target',
+          type: 'note' as const,
+          ref: 'notes/target.md',
+          x: 360,
+          y: 20,
+          width: 220,
+          height: 130,
+          title: 'Target Note',
+        },
+      ],
+      edges: [],
+    }
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await screen.findByText('Source Note')
+    const targetCard = screen.getByText('Target Note').closest('[data-testid="project-canvas-node"]')
+    expect(targetCard).not.toBeNull()
+    const originalElementFromPoint = document.elementFromPoint
+    const elementFromPoint = vi.fn(() => targetCard as Element)
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: elementFromPoint,
+    })
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Connect from Source Note' }), {
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+    })
+    fireEvent.pointerMove(window, { clientX: 420, clientY: 100 })
+    fireEvent.pointerUp(window, { clientX: 420, clientY: 100 })
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.edges).toEqual([
+      expect.objectContaining({ from: 'source', kind: 'related', to: 'target' }),
+    ])
+
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: originalElementFromPoint,
+    })
+  })
+
+  it('edits the selected node from the inspector', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const sourceCard = (await screen.findByText('Source Note')).closest('[data-testid="project-canvas-node"]')
+    expect(sourceCard).not.toBeNull()
+    fireEvent.click(within(sourceCard as HTMLElement).getByRole('button', { name: 'Source' }))
+
+    const titleInput = screen.getByLabelText('Title')
+    fireEvent.change(titleInput, { target: { value: 'Renamed Source' } })
+    fireEvent.blur(titleInput)
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes.find(node => node.id === 'note')?.title).toBe('Renamed Source')
+  })
+
+  it('selects and deletes an edge from the inspector', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await screen.findByText('Source Note')
+    fireEvent.pointerDown(screen.getByTestId('project-canvas-edge'), { button: 0 })
+    expect(screen.getByText('Edge')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete edge' }))
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.edges).toEqual([])
+  })
+
+  it('persists fit-to-view and auto layout actions', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await screen.findByText('Source Note')
+    fireEvent.click(screen.getByRole('button', { name: 'Fit' }))
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const fitCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(fitCanvas?.viewport.zoom).not.toBe(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto layout' }))
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(2))
+    const layoutCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(layoutCanvas?.nodes.find(node => node.id === 'paper')?.x).toBe(0)
+    expect(layoutCanvas?.nodes.find(node => node.id === 'task')?.x).toBe(1020)
   })
 })

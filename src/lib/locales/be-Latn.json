@@ -1204,5 +1204,19 @@
   "projectCanvas.selected": "Selected",
   "projectCanvas.toolbar": "Project canvas tools",
   "projectCanvas.selectTool": "Select tool",
-  "projectCanvas.addToCanvas": "Add to Canvas"
+  "projectCanvas.addToCanvas": "Add to Canvas",
+  "projectCanvas.fit": "Fit",
+  "projectCanvas.autoLayout": "Auto layout",
+  "projectCanvas.connectFrom": "Connect from {title}",
+  "projectCanvas.inspector": "Project Canvas inspector",
+  "projectCanvas.edgeLabel": "Edge",
+  "projectCanvas.closeInspector": "Close inspector",
+  "projectCanvas.inspectorTitle": "Title",
+  "projectCanvas.inspectorReference": "Reference",
+  "projectCanvas.inspectorText": "Text",
+  "projectCanvas.inspectorNote": "Note",
+  "projectCanvas.edgeNotePlaceholder": "Add relationship context...",
+  "projectCanvas.openNode": "Open",
+  "projectCanvas.deleteNode": "Delete node",
+  "projectCanvas.deleteEdge": "Delete edge"
 }

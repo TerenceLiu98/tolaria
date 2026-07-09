@@ -1,7 +1,7 @@
 import type React from 'react'
-import { CheckSquare, MagnifyingGlass, Minus, Plus, Square, TextT } from '@phosphor-icons/react'
+import { CheckSquare, CornersOut, Graph, LineSegment, MagnifyingGlass, Minus, Plus, Square, TextT } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { translate, type AppLocale, type TranslationKey } from '../../lib/i18n'
+import { translate, type AppLocale } from '../../lib/i18n'
 import {
   createProjectCanvas,
   defaultProjectCanvas,
@@ -30,17 +30,26 @@ import {
   trackProjectCanvasOpened,
 } from '../../lib/productAnalytics'
 import { boundedSnippet, findEntryForProjectCanvasRef, paperSubtitle, relativeVaultPath } from './projectCanvasEntryPreview'
+import { ProjectCanvasInspector } from './ProjectCanvasInspector'
+import {
+  autoLayoutCanvas,
+  canvasBounds,
+  canvasWithFitToView,
+  clamp,
+  DEFAULT_EMBEDDED_NODE_HEIGHT,
+  DEFAULT_NODE_HEIGHT,
+  DEFAULT_NODE_WIDTH,
+  EDGE_KINDS,
+  edgeKindKey,
+  nodeKindKey,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  ZOOM_STEP,
+} from './projectCanvasDisplay'
 import './ProjectCanvasSurface.css'
 
 const MIN_NODE_WIDTH = 180
 const MIN_NODE_HEIGHT = 110
-const ZOOM_MIN = 0.35
-const ZOOM_MAX = 2
-const ZOOM_STEP = 0.1
-const DEFAULT_NODE_WIDTH = 260
-const DEFAULT_NODE_HEIGHT = 150
-const DEFAULT_EMBEDDED_NODE_HEIGHT = 160
-const EDGE_KINDS: ProjectCanvasEdgeKind[] = ['related', 'supports', 'contradicts', 'depends_on', 'needs_reading']
 
 interface ProjectCanvasSurfaceProps {
   entry: VaultEntry
@@ -76,12 +85,17 @@ type CanvasOperation =
       zoom: number
       moved: boolean
     }
+  | {
+      kind: 'connect'
+      fromNodeId: string
+      clientX: number
+      clientY: number
+      from: { x: number; y: number }
+      to: { x: number; y: number }
+      moved: boolean
+    }
 
 type AddPanelMode = 'existing' | 'text' | 'task' | 'group'
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
-}
 
 function resolvedMap(refs: ProjectCanvasResolvedRef[]): Map<string, ProjectCanvasResolvedRef> {
   return new Map(refs.map(item => [item.nodeId, item]))
@@ -91,38 +105,6 @@ function nodeCenter(node: ProjectCanvasNode) {
   return {
     x: node.x + node.width / 2,
     y: node.y + node.height / 2,
-  }
-}
-
-function nodeKindKey(node: ProjectCanvasNode): TranslationKey {
-  switch (node.type) {
-    case 'note':
-      return 'projectCanvas.node.note'
-    case 'paper':
-      return 'projectCanvas.node.paper'
-    case 'paper_block':
-      return 'projectCanvas.node.paper_block'
-    case 'text':
-      return 'projectCanvas.node.text'
-    case 'task':
-      return 'projectCanvas.node.task'
-    case 'group':
-      return 'projectCanvas.node.group'
-  }
-}
-
-function edgeKindKey(kind: ProjectCanvasEdgeKind): TranslationKey {
-  switch (kind) {
-    case 'related':
-      return 'projectCanvas.edge.related'
-    case 'supports':
-      return 'projectCanvas.edge.supports'
-    case 'contradicts':
-      return 'projectCanvas.edge.contradicts'
-    case 'depends_on':
-      return 'projectCanvas.edge.depends_on'
-    case 'needs_reading':
-      return 'projectCanvas.edge.needs_reading'
   }
 }
 
@@ -157,6 +139,7 @@ function canvasWithFocusedNode(
   }
 }
 
+
 export function ProjectCanvasSurface({
   entry,
   entries,
@@ -174,8 +157,10 @@ export function ProjectCanvasSurface({
   const [candidateQuery, setCandidateQuery] = useState('')
   const [newCardText, setNewCardText] = useState('')
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [linkFromSelected, setLinkFromSelected] = useState(true)
   const [edgeKind, setEdgeKind] = useState<ProjectCanvasEdgeKind>('related')
+  const [connectPreview, setConnectPreview] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null)
   const operationRef = useRef<CanvasOperation | null>(null)
   const canvasRef = useRef<ProjectCanvas | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
@@ -313,6 +298,19 @@ export function ProjectCanvasSurface({
     () => canvas?.nodes.find(node => node.id === selectedNodeId) ?? null,
     [canvas, selectedNodeId],
   )
+  const selectedEdge = useMemo(
+    () => canvas?.edges.find(edge => edge.id === selectedEdgeId) ?? null,
+    [canvas, selectedEdgeId],
+  )
+
+  const screenPointToCanvas = useCallback((clientX: number, clientY: number) => {
+    const viewport = canvasRef.current?.viewport ?? { x: 0, y: 0, zoom: 1 }
+    const rect = viewportRef.current?.getBoundingClientRect()
+    return {
+      x: ((clientX - (rect?.left ?? 0)) - viewport.x) / viewport.zoom,
+      y: ((clientY - (rect?.top ?? 0)) - viewport.y) / viewport.zoom,
+    }
+  }, [])
 
   const canvasCenter = useCallback((width = DEFAULT_NODE_WIDTH, height = DEFAULT_NODE_HEIGHT) => {
     const viewport = canvasRef.current?.viewport ?? { x: 0, y: 0, zoom: 1 }
@@ -335,6 +333,7 @@ export function ProjectCanvasSurface({
     setCanvas(nextCanvas)
     canvasRef.current = nextCanvas
     setSelectedNodeId(node.id)
+    setSelectedEdgeId(null)
     if (persist) void persistCanvas(nextCanvas, 'layout')
   }, [persistCanvas])
 
@@ -442,11 +441,19 @@ export function ProjectCanvasSurface({
     zoomSaveTimerRef.current = window.setTimeout(persistLatestLayout, 240)
   }, [persistLatestLayout, updateCanvas])
 
-  const handleResetView = useCallback(() => {
-    updateCanvas(current => ({
-      ...current,
-      viewport: { x: 0, y: 0, zoom: 1 },
-    }))
+  const handleFitToView = useCallback(() => {
+    const rect = viewportRef.current?.getBoundingClientRect()
+    const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
+    const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
+    updateCanvas(current => canvasWithFitToView(current, viewportWidth, viewportHeight))
+    window.setTimeout(persistLatestLayout, 0)
+  }, [persistLatestLayout, updateCanvas])
+
+  const handleAutoLayout = useCallback(() => {
+    const rect = viewportRef.current?.getBoundingClientRect()
+    const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
+    const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
+    updateCanvas(current => canvasWithFitToView(autoLayoutCanvas(current), viewportWidth, viewportHeight))
     window.setTimeout(persistLatestLayout, 0)
   }, [persistLatestLayout, updateCanvas])
 
@@ -476,6 +483,25 @@ export function ProjectCanvasSurface({
     }
   }, [])
 
+  const handleConnectPointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>, node: ProjectCanvasNode) => {
+    if (event.button !== 0) return
+    event.stopPropagation()
+    const from = nodeCenter(node)
+    const to = screenPointToCanvas(event.clientX, event.clientY)
+    setSelectedNodeId(node.id)
+    setSelectedEdgeId(null)
+    setConnectPreview({ from, to })
+    operationRef.current = {
+      kind: 'connect',
+      fromNodeId: node.id,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      from,
+      to,
+      moved: false,
+    }
+  }, [screenPointToCanvas])
+
   const handleResizePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, node: ProjectCanvasNode) => {
     if (event.button !== 0) return
     event.stopPropagation()
@@ -497,6 +523,13 @@ export function ProjectCanvasSurface({
       const dx = event.clientX - operation.clientX
       const dy = event.clientY - operation.clientY
       if (Math.abs(dx) + Math.abs(dy) > 4) operation.moved = true
+
+      if (operation.kind === 'connect') {
+        const to = screenPointToCanvas(event.clientX, event.clientY)
+        operation.to = to
+        setConnectPreview({ from: operation.from, to })
+        return
+      }
 
       if (operation.kind === 'pan') {
         updateCanvas(current => ({
@@ -532,10 +565,33 @@ export function ProjectCanvasSurface({
       }))
     }
 
-    function handlePointerUp() {
+    function handlePointerUp(event: PointerEvent) {
       const operation = operationRef.current
       if (!operation) return
       operationRef.current = null
+      if (operation.kind === 'connect') {
+        setConnectPreview(null)
+        const targetElement = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-node-id]')
+        const targetNodeId = targetElement instanceof HTMLElement ? targetElement.dataset.nodeId : null
+        const latest = canvasRef.current
+        if (!latest || !targetNodeId || targetNodeId === operation.fromNodeId) return
+        const edgeExists = latest.edges.some(edge => edge.from === operation.fromNodeId && edge.to === targetNodeId)
+        if (edgeExists) return
+        const edge = {
+          id: nextCanvasId('edge', latest.edges.map(item => item.id)),
+          from: operation.fromNodeId,
+          to: targetNodeId,
+          kind: edgeKind,
+        }
+        const nextCanvas = { ...latest, edges: [...latest.edges, edge] }
+        setCanvas(nextCanvas)
+        canvasRef.current = nextCanvas
+        setSelectedEdgeId(edge.id)
+        setSelectedNodeId(null)
+        void persistCanvas(nextCanvas, 'content')
+        trackProjectCanvasEdgeCreated({ kind: edgeKind })
+        return
+      }
       if (operation.moved) {
         suppressClickUntilRef.current = Date.now() + 250
         persistLatestLayout()
@@ -548,7 +604,7 @@ export function ProjectCanvasSurface({
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', handlePointerUp)
     }
-  }, [persistLatestLayout, updateCanvas])
+  }, [edgeKind, persistCanvas, persistLatestLayout, screenPointToCanvas, updateCanvas])
 
   const refsByNodeId = useMemo(() => resolvedMap(refs), [refs])
 
@@ -563,6 +619,12 @@ export function ProjectCanvasSurface({
 
   const handleSelectNode = useCallback((node: ProjectCanvasNode) => {
     setSelectedNodeId(node.id)
+    setSelectedEdgeId(null)
+  }, [])
+
+  const handleSelectEdge = useCallback((edgeId: string) => {
+    setSelectedEdgeId(edgeId)
+    setSelectedNodeId(null)
   }, [])
 
   const handleNodeTextChange = useCallback((nodeId: string, text: string) => {
@@ -577,6 +639,57 @@ export function ProjectCanvasSurface({
     if (!latest) return
     void persistCanvas(latest, 'content')
   }, [persistCanvas])
+
+  const updateSelectedNode = useCallback((patch: Partial<ProjectCanvasNode>, persist = false) => {
+    const current = canvasRef.current
+    if (!current || !selectedNodeId) return
+    const nextCanvas = {
+      ...current,
+      nodes: current.nodes.map(node => node.id === selectedNodeId ? { ...node, ...patch } : node),
+    }
+    setCanvas(nextCanvas)
+    canvasRef.current = nextCanvas
+    if (persist) void persistCanvas(nextCanvas, 'content')
+  }, [persistCanvas, selectedNodeId])
+
+  const updateSelectedEdge = useCallback((patch: Partial<ProjectCanvas['edges'][number]>, persist = false) => {
+    const current = canvasRef.current
+    if (!current || !selectedEdgeId) return
+    const nextCanvas = {
+      ...current,
+      edges: current.edges.map(edge => edge.id === selectedEdgeId ? { ...edge, ...patch } : edge),
+    }
+    setCanvas(nextCanvas)
+    canvasRef.current = nextCanvas
+    if (persist) void persistCanvas(nextCanvas, 'content')
+  }, [persistCanvas, selectedEdgeId])
+
+  const deleteSelectedNode = useCallback(() => {
+    const current = canvasRef.current
+    if (!current || !selectedNodeId) return
+    const nextCanvas = {
+      ...current,
+      nodes: current.nodes.filter(node => node.id !== selectedNodeId),
+      edges: current.edges.filter(edge => edge.from !== selectedNodeId && edge.to !== selectedNodeId),
+    }
+    setCanvas(nextCanvas)
+    canvasRef.current = nextCanvas
+    setSelectedNodeId(null)
+    void persistCanvas(nextCanvas, 'content')
+  }, [persistCanvas, selectedNodeId])
+
+  const deleteSelectedEdge = useCallback(() => {
+    const current = canvasRef.current
+    if (!current || !selectedEdgeId) return
+    const nextCanvas = {
+      ...current,
+      edges: current.edges.filter(edge => edge.id !== selectedEdgeId),
+    }
+    setCanvas(nextCanvas)
+    canvasRef.current = nextCanvas
+    setSelectedEdgeId(null)
+    void persistCanvas(nextCanvas, 'content')
+  }, [persistCanvas, selectedEdgeId])
 
   if (state === 'loading') {
     return <div className="project-canvas-loading">{translate(locale, 'projectCanvas.loading')}</div>
@@ -606,12 +719,7 @@ export function ProjectCanvasSurface({
     )
   }
 
-  const edgeBounds = canvas.nodes.reduce((bounds, node) => ({
-    minX: Math.min(bounds.minX, node.x),
-    minY: Math.min(bounds.minY, node.y),
-    maxX: Math.max(bounds.maxX, node.x + node.width),
-    maxY: Math.max(bounds.maxY, node.y + node.height),
-  }), { minX: -400, minY: -300, maxX: 1000, maxY: 800 })
+  const edgeBounds = canvasBounds(canvas.nodes) ?? { minX: -400, minY: -300, maxX: 1000, maxY: 800 }
   const padding = 240
   const svgMinX = edgeBounds.minX - padding
   const svgMinY = edgeBounds.minY - padding
@@ -659,14 +767,28 @@ export function ProjectCanvasSurface({
               return (
                 <line
                   key={edge.id}
-                  className="project-canvas-edge"
+                  className={cn('project-canvas-edge', edge.id === selectedEdgeId && 'project-canvas-edge--selected')}
+                  data-testid="project-canvas-edge"
                   x1={fromCenter.x - svgMinX}
                   y1={fromCenter.y - svgMinY}
                   x2={toCenter.x - svgMinX}
                   y2={toCenter.y - svgMinY}
+                  onPointerDown={(event) => {
+                    event.stopPropagation()
+                    handleSelectEdge(edge.id)
+                  }}
                 />
               )
             })}
+            {connectPreview ? (
+              <line
+                className="project-canvas-edge project-canvas-edge--preview"
+                x1={connectPreview.from.x - svgMinX}
+                y1={connectPreview.from.y - svgMinY}
+                x2={connectPreview.to.x - svgMinX}
+                y2={connectPreview.to.y - svgMinY}
+              />
+            ) : null}
           </svg>
           {canvas.nodes.map(node => (
             <ProjectCanvasNodeCard
@@ -678,6 +800,7 @@ export function ProjectCanvasSurface({
               selected={node.id === selectedNodeId}
               onClick={() => handleNodeClick(node)}
               onPointerDown={(event) => handleNodePointerDown(event, node)}
+              onConnectPointerDown={(event) => handleConnectPointerDown(event, node)}
               onResizePointerDown={(event) => handleResizePointerDown(event, node)}
               onSelect={() => handleSelectNode(node)}
               onTextBlur={handleNodeTextBlur}
@@ -685,6 +808,23 @@ export function ProjectCanvasSurface({
             />
           ))}
         </div>
+        <ProjectCanvasInspector
+          edge={selectedEdge}
+          locale={locale}
+          node={selectedNode}
+          onClose={() => {
+            setSelectedNodeId(null)
+            setSelectedEdgeId(null)
+          }}
+          onDeleteEdge={deleteSelectedEdge}
+          onDeleteNode={deleteSelectedNode}
+          onEdgeChange={updateSelectedEdge}
+          onEdgeKindDefaultChange={setEdgeKind}
+          onNavigate={selectedNode && selectedNode.type !== 'text' && selectedNode.type !== 'task' && selectedNode.type !== 'group'
+            ? () => handleNodeClick(selectedNode)
+            : undefined}
+          onNodeChange={updateSelectedNode}
+        />
         <div className="project-canvas-floating-toolbar" aria-label={translate(locale, 'projectCanvas.toolbar')}>
           <Button type="button" size="icon-sm" variant="secondary" aria-label={translate(locale, 'projectCanvas.selectTool')}>
             <Square size={15} />
@@ -789,11 +929,19 @@ export function ProjectCanvasSurface({
           <Button type="button" size="icon-sm" variant="outline" onClick={() => handleZoom(-ZOOM_STEP)} aria-label={translate(locale, 'projectCanvas.zoomOut')}>
             <Minus size={14} />
           </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={handleResetView}>
+          <Button type="button" size="sm" variant="ghost" onClick={handleFitToView}>
             {Math.round(canvas.viewport.zoom * 100)}%
           </Button>
           <Button type="button" size="icon-sm" variant="outline" onClick={() => handleZoom(ZOOM_STEP)} aria-label={translate(locale, 'projectCanvas.zoomIn')}>
             <Plus size={14} />
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={handleFitToView}>
+            <CornersOut size={14} />
+            {translate(locale, 'projectCanvas.fit')}
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={handleAutoLayout}>
+            <Graph size={14} />
+            {translate(locale, 'projectCanvas.autoLayout')}
           </Button>
         </div>
       </div>
@@ -808,6 +956,7 @@ function ProjectCanvasNodeCard({
   resolved,
   selected,
   onClick,
+  onConnectPointerDown,
   onPointerDown,
   onResizePointerDown,
   onSelect,
@@ -820,6 +969,7 @@ function ProjectCanvasNodeCard({
   resolved?: ProjectCanvasResolvedRef
   selected: boolean
   onClick: () => void
+  onConnectPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
   onResizePointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
   onSelect: () => void
@@ -888,6 +1038,17 @@ function ProjectCanvasNodeCard({
           </div>
         ) : null}
       </div>
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="secondary"
+        className="project-canvas-node__connect"
+        aria-label={translate(locale, 'projectCanvas.connectFrom', { title })}
+        onPointerDown={onConnectPointerDown}
+        onClick={event => event.stopPropagation()}
+      >
+        <LineSegment size={13} />
+      </Button>
       <div
         className="project-canvas-node__resize"
         role="presentation"
