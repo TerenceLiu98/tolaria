@@ -13,6 +13,7 @@ import { RawEditorView } from '../RawEditorView'
 import { NoteSurface } from '../NoteSurface'
 import { PaperReaderShell } from '../../paper/PaperReaderShell'
 import { shouldOpenPaperReader } from '../../paper/paperReaderModel'
+import { ProjectEditorSurface } from '../project-canvas/ProjectEditorSurface'
 import type { useEditorContentModel } from './useEditorContentModel'
 
 type EditorContentModel = ReturnType<typeof useEditorContentModel>
@@ -443,6 +444,28 @@ function EditorCanvas({
             vaultPath={vaultPath}
           />
         </Suspense>
+      </EditorFindScope>
+    )
+  }
+
+  if (activeTab?.entry.isA === 'Project') {
+    return (
+      <EditorFindScope
+        className="editor-scroll-area"
+        style={cssVars as React.CSSProperties}
+      >
+        <ProjectEditorSurface
+          currentContent={activeTab.content}
+          editor={editor}
+          entries={entries}
+          onNavigateWikilink={onNavigateWikilink}
+          onChange={onEditorChange}
+          onSelectedTextContextChange={onSelectedTextContextChange}
+          sourceEntry={activeTab.entry}
+          vaultPath={vaultPath}
+          editable={!isDeletedPreview}
+          locale={locale}
+        />
       </EditorFindScope>
     )
   }

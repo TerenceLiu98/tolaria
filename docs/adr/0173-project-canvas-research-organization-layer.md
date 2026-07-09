@@ -491,6 +491,59 @@ Avoid in this phase:
 - graph database
 - complex auto-layout
 
+#### Phase 2 Implementation Plan
+
+Implement Phase 2 as a thin UI layer over the Phase 1 file and command contract.
+The first version should prove that Project Canvas can live inside the normal
+Project note surface without becoming a separate database or replacing Markdown.
+
+1. **Mount point**
+   - Detect `type: Project` entries in the existing editor routing.
+   - Add a Project view switch between the normal editable Note surface and the Canvas surface.
+   - Keep the Project note body editable through the existing Note path.
+   - Do not route ordinary Notes, Papers, or Sheets through the Canvas surface.
+
+2. **Canvas file lifecycle**
+   - On Canvas open, call the existing `read_project_canvas` command.
+   - If the canvas file is missing, show a compact create action.
+   - Creating a canvas should call `create_project_canvas` and then render the empty canvas.
+   - Save layout through `save_project_canvas`; do not write canvas state into `project.md`.
+
+3. **Minimal renderer**
+   - Add a dedicated `ProjectCanvasSurface` component.
+   - Render compact node cards for `note`, `paper`, `paper_block`, `text`, `task`, and `group`.
+   - Render edges as simple lines between node centers.
+   - Keep previews bounded:
+     - Note cards show title and snippet.
+     - Paper cards show title plus compact bibliographic metadata when available.
+     - Paper block cards show the `@block[...]` citation and a bounded source snippet when available.
+     - Text/task cards store only short canvas-local content.
+   - Do not mount full BlockNote editors, Paper readers, PDF previews, or AI panels inside nodes.
+
+4. **Interaction**
+   - Support pan and zoom on the canvas viewport.
+   - Support node drag and resize.
+   - Persist viewport, node position, and node size after interaction.
+   - Clicking a referenced node should navigate through existing Sapientia note/Paper/block routing.
+   - Keep drag/resize separate from click navigation so moving nodes does not accidentally open targets.
+
+5. **Reference resolution**
+   - Call `resolve_project_canvas_refs` after loading or changing the canvas.
+   - Show stale or broken references on the affected node only.
+   - A stale reference must not prevent the rest of the canvas from rendering.
+   - Prefer canonical bundle paths for Papers, but accept the same references supported by Phase 1.
+
+6. **Testing and QA**
+   - Add component tests for missing-canvas creation, node rendering, stale-reference rendering, navigation, and save-on-layout-change.
+   - Add editor-routing tests showing that `type: Project` can switch to Canvas while normal Notes still use the normal editor path.
+   - Add mock Tauri handlers for Project Canvas commands so frontend tests exercise the same command boundary.
+   - Localize all new UI copy in the checked-in locale catalogs and run `pnpm l10n:validate`.
+   - Run focused Vitest tests, TypeScript, lint, and then the normal push gate.
+
+Phase 2 is intentionally not the Add-to-Project workflow. Users may need a seed
+canvas file or command-created nodes until Phase 3 adds entry points from Notes,
+Papers, and block citations.
+
 ### Phase 3: Add To Project Flows
 
 Goal: Notes, Papers, and evidence blocks can naturally enter a Project Canvas.

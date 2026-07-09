@@ -241,6 +241,8 @@ Referenced nodes point at existing vault objects through `ref`:
 
 The canvas owns position, size, grouping, viewport, and relationship edges. Notes, Papers, Paper metadata, Paper blocks, and comments remain in their existing Markdown files and sidecars. Saving a canvas writes pretty JSON with deterministic node and edge ordering by id so Git diffs stay reviewable. Reference resolution returns per-node `resolved`, `embedded`, or `stale` states plus diagnostics; missing Notes, Papers, or Paper blocks must not corrupt the canvas or prevent other nodes from resolving.
 
+Project notes mount `ProjectEditorSurface`, which keeps the normal editable Note surface as the default writing mode and adds a Canvas mode for the adjacent canvas file. `ProjectCanvasSurface` is a compact spatial renderer: it shows bounded cards for referenced Notes, Papers, Paper blocks, text cards, tasks, and groups; draws lightweight edges; persists pan/zoom plus node geometry through the Project Canvas commands; and routes node clicks through the existing Sapientia navigation path. It must not store long-form Note/Paper bodies in the canvas file or mount full editors/PDF previews inside nodes.
+
 ### Tolaria Deep Links
 
 Deep links identify existing vault items with `tolaria://<vault-slug>/<relative-path-with-extension>`. The slug is derived from the registered workspace alias, then label, then path basename; generated links append a stable short hash when two vaults share the same base slug. A manually typed ambiguous base slug is rejected instead of choosing the wrong vault.

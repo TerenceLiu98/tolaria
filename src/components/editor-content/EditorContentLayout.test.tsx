@@ -249,4 +249,23 @@ describe('EditorContentLayout', () => {
     expect(screen.queryByTestId('note-surface')).not.toBeInTheDocument()
     expect(screen.getByTestId('paper-reader-shell').closest('.editor-content-wrapper')).toBeNull()
   })
+
+  it('routes Project entries through the Project editor surface', () => {
+    render(<EditorContentLayout {...createModel({
+      activeTab: {
+        entry: {
+          path: '/vault/projects/alpha/project.md',
+          filename: 'project.md',
+          title: 'Alpha Project',
+          isA: 'Project',
+          fileKind: 'markdown',
+        },
+        content: '# Alpha Project',
+      },
+    })} />)
+
+    expect(screen.getByTestId('project-editor-surface')).toBeInTheDocument()
+    expect(screen.getByTestId('note-surface')).toBeInTheDocument()
+    expect(screen.queryByTestId('paper-reader-shell')).not.toBeInTheDocument()
+  })
 })

@@ -26,6 +26,14 @@ import { paperMarkdownFromSourceBlocks } from '../paper/paperMarkdown'
 import type { PaperMetadata, PaperMetadataValues } from '../paper/metadata'
 import { buildPaperCatalog, filterPaperCatalog } from '../paper/catalog'
 import {
+  defaultProjectCanvas,
+  normalizeProjectCanvas,
+  type ProjectCanvas,
+  type ProjectCanvasReadResult,
+  type ProjectCanvasResolvedRef,
+  type ProjectCanvasResolveResult,
+} from '../projectCanvas'
+import {
   parsePaperCommentsJsonl,
   validatePaperComment,
   type PaperComment,
@@ -178,6 +186,7 @@ let mockVaultList: { vaults: Array<{ label: string; path: string }>; active_vaul
   vaults: [DEFAULT_MOCK_VAULT],
   active_vault: DEFAULT_MOCK_VAULT_PATH,
 }
+const mockProjectCanvases = new Map<string, ProjectCanvas>()
 
 let mockVaultAiGuidanceStatus = {
   agents_state: 'managed',
@@ -201,6 +210,164 @@ function getMockRemoteState(path: string | null | undefined): boolean {
   const normalizedPath = normalizeMockVaultPath(path)
   if (!normalizedPath) return true
   return mockRemoteStateByVault.get(normalizedPath) ?? true
+}
+
+function mockRelativeVaultPath(path: string, vaultPath: string): string {
+  const prefix = vaultPath.endsWith('/') ? vaultPath : `${vaultPath}/`
+  return path.startsWith(prefix) ? path.slice(prefix.length) : path
+}
+
+function mockAbsoluteVaultPath(path: string, vaultPath: string): string {
+  return path.startsWith('/') ? path : `${vaultPath.replace(/\/$/u, '')}/${path}`
+}
+
+function mockProjectCanvasPaths(args: { vaultPath?: string; vault_path?: string; projectPath?: string; project_path?: string }) {
+  const vaultPath = args.vaultPath ?? args.vault_path ?? mockLastVaultPath ?? DEFAULT_MOCK_VAULT_PATH
+  const projectPathInput = args.projectPath ?? args.project_path ?? ''
+  const projectPath = mockRelativeVaultPath(mockAbsoluteVaultPath(projectPathInput, vaultPath), vaultPath)
+  const projectAbsolutePath = mockAbsoluteVaultPath(projectPath, vaultPath)
+  const entry = MOCK_ENTRIES.find(item => item.path === projectAbsolutePath || mockRelativeVaultPath(item.path, vaultPath) === projectPath)
+  if (entry?.isA !== 'Project') throw new Error('Project Canvas can only be attached to type: Project notes')
+  const canvasPath = projectPath.endsWith('/project.md')
+    ? projectPath.replace(/\/project\.md$/u, '/project.canvas.json')
+    : projectPath.replace(/\.md$/u, '.canvas.json')
+  return { vaultPath, projectPath, canvasPath }
+}
+
+function mockProjectCanvasKey(vaultPath: string, projectPath: string): string {
+  return `${vaultPath}::${projectPath}`
+}
+
+function handleReadProjectCanvas(args: { vaultPath?: string; vault_path?: string; projectPath?: string; project_path?: string }): ProjectCanvasReadResult {
+  const paths = mockProjectCanvasPaths(args)
+  const canvas = mockProjectCanvases.get(mockProjectCanvasKey(paths.vaultPath, paths.projectPath)) ?? null
+  return {
+    projectPath: paths.projectPath,
+    canvasPath: paths.canvasPath,
+    state: canvas ? 'ready' : 'missing',
+    canvas,
+  }
+}
+
+function handleCreateProjectCanvas(args: { vaultPath?: string; vault_path?: string; projectPath?: string; project_path?: string }): ProjectCanvasReadResult {
+  const paths = mockProjectCanvasPaths(args)
+  const canvas = defaultProjectCanvas(paths.projectPath)
+  mockProjectCanvases.set(mockProjectCanvasKey(paths.vaultPath, paths.projectPath), canvas)
+  return {
+    projectPath: paths.projectPath,
+    canvasPath: paths.canvasPath,
+    state: 'ready',
+    canvas,
+  }
+}
+
+function handleSaveProjectCanvas(args: {
+  vaultPath?: string
+  vault_path?: string
+  projectPath?: string
+  project_path?: string
+  canvas: ProjectCanvas
+}): ProjectCanvasReadResult {
+  const paths = mockProjectCanvasPaths(args)
+  const canvas = normalizeProjectCanvas(args.canvas, paths.projectPath)
+  mockProjectCanvases.set(mockProjectCanvasKey(paths.vaultPath, paths.projectPath), canvas)
+  return {
+    projectPath: paths.projectPath,
+    canvasPath: paths.canvasPath,
+    state: 'ready',
+    canvas,
+  }
+}
+
+function resolveMockProjectEntry(vaultPath: string, ref: string | undefined, requiredType?: string) {
+  if (!ref) return null
+  const normalizedRef = ref.replace(/^\[\[/u, '').replace(/\]\]$/u, '')
+  return MOCK_ENTRIES.find(entry => {
+    const relativePath = mockRelativeVaultPath(entry.path, vaultPath)
+    const pathMatches = entry.path === normalizedRef
+      || relativePath === normalizedRef
+      || relativePath.replace(/\.md$/u, '') === normalizedRef.replace(/\.md$/u, '')
+    const titleMatches = entry.title === normalizedRef
+    const typeMatches = !requiredType || entry.isA === requiredType
+    return typeMatches && (pathMatches || titleMatches)
+  }) ?? null
+}
+
+function resolveMockPaperBlock(vaultPath: string, ref: string | undefined) {
+  const match = ref?.match(/^@block\[([^#\]]+)#([^\]]+)\]$/u)
+  if (!match) return null
+  const paperId = match[1]
+  return MOCK_ENTRIES.find(entry => {
+    if (entry.isA !== 'Paper') return false
+    if (entry.properties.paper_id === paperId) return true
+    return mockRelativeVaultPath(entry.path, vaultPath).includes(`/papers/${paperId}/`)
+  }) ?? null
+}
+
+function handleResolveProjectCanvasRefs(args: {
+  vaultPath?: string
+  vault_path?: string
+  projectPath?: string
+  project_path?: string
+  canvas: ProjectCanvas
+}): ProjectCanvasResolveResult {
+  const paths = mockProjectCanvasPaths(args)
+  const canvas = normalizeProjectCanvas(args.canvas, paths.projectPath)
+  const refs: ProjectCanvasResolvedRef[] = canvas.nodes.map(node => {
+    if (!node.ref) {
+      return {
+        nodeId: node.id,
+        nodeType: node.type,
+        state: 'embedded',
+      }
+    }
+    if (node.type === 'note' || node.type === 'paper') {
+      const entry = resolveMockProjectEntry(paths.vaultPath, node.ref, node.type === 'paper' ? 'Paper' : undefined)
+      if (entry) {
+        return {
+          nodeId: node.id,
+          nodeType: node.type,
+          ref: node.ref,
+          state: 'resolved',
+          targetPath: mockRelativeVaultPath(entry.path, paths.vaultPath),
+          targetTitle: entry.title,
+        }
+      }
+    }
+    if (node.type === 'paper_block') {
+      const paper = resolveMockPaperBlock(paths.vaultPath, node.ref)
+      if (paper) {
+        return {
+          nodeId: node.id,
+          nodeType: node.type,
+          ref: node.ref,
+          state: 'resolved',
+          targetPath: mockRelativeVaultPath(paper.path, paths.vaultPath),
+          targetTitle: paper.title,
+        }
+      }
+    }
+    return {
+      nodeId: node.id,
+      nodeType: node.type,
+      ref: node.ref,
+      state: 'stale',
+      message: 'Project Canvas reference is stale',
+    }
+  })
+  return {
+    projectPath: paths.projectPath,
+    canvasPath: paths.canvasPath,
+    refs,
+    diagnostics: refs
+      .filter(item => item.state === 'stale')
+      .map(item => ({
+        nodeId: item.nodeId,
+        kind: item.nodeType === 'paper_block' ? 'missing_paper_block' : item.nodeType === 'paper' ? 'missing_paper' : 'missing_note',
+        message: item.message ?? 'Project Canvas reference is stale',
+        ref: item.ref,
+      })),
+  }
 }
 
 type MockContentPath = { path: string }
@@ -1273,6 +1440,17 @@ export const mockHandlers: Record<string, (args: any) => any> = {
   find_paper_duplicates: handleFindPaperDuplicates,
   refresh_paper_catalog: handleListPaperCatalog,
   mark_paper_duplicate_decision: handleMarkPaperDuplicateDecision,
+  read_project_canvas: handleReadProjectCanvas,
+  save_project_canvas: handleSaveProjectCanvas,
+  create_project_canvas: handleCreateProjectCanvas,
+  resolve_project_canvas_refs: handleResolveProjectCanvasRefs,
+  project_canvas_paths: (args: { vaultPath?: string; vault_path?: string; projectPath?: string; project_path?: string }) => {
+    const paths = mockProjectCanvasPaths(args)
+    return {
+      projectPath: paths.projectPath,
+      canvasPath: paths.canvasPath,
+    }
+  },
   get_note_content: (args: { path: string }) => MOCK_CONTENT[args.path] ?? '',
   validate_note_content: (args: { path: string; content: string }) => (MOCK_CONTENT[args.path] ?? '') === args.content,
   create_note_content: (args: { path: string; content: string }) => {

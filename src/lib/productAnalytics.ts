@@ -24,6 +24,7 @@ type AiAgentResponseText = string
 type AiAgentToolCount = number
 type AiAgentResponseTextFlag = 'had_text' | 'had_partial_response'
 type SheetFormulaFunctionName = string
+type ProjectCanvasOpenState = 'ready' | 'created'
 
 const ALL_NOTES_VISIBILITY_CATEGORIES: ReadonlyArray<keyof AllNotesFileVisibility> = [
   'pdfs',
@@ -134,6 +135,18 @@ export function trackPaperCommentDeleted(): void {
 
 export function trackPaperCommentSidecarReset(): void {
   trackEvent('paper_comment_sidecar_reset')
+}
+
+export function trackProjectCanvasOpened(params: { state: ProjectCanvasOpenState }): void {
+  trackEvent('project_canvas_opened', { state: params.state })
+}
+
+export function trackProjectCanvasCreated(): void {
+  trackEvent('project_canvas_created')
+}
+
+export function trackProjectCanvasLayoutSaved(): void {
+  trackEvent('project_canvas_layout_saved')
 }
 
 export function trackAllNotesVisibilityChanged(
