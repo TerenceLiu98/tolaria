@@ -193,6 +193,54 @@ Git-facing renderer code must pass an explicit repository path instead of assumi
 
 `useGitFileWorkflows` is the renderer abstraction for note-scoped Git file actions. It translates active tabs, visible entries, and modified-file surfaces into the correct repository path for diff/history commands, deleted-note previews, queued editor diff requests, and discard refresh behavior.
 
+### ProjectCanvas
+
+`ProjectCanvas` is the file-backed spatial organization model for a `type: Project` note. It is defined in Rust (`src-tauri/src/project_canvas.rs`) and TypeScript (`src/projectCanvas.ts`) and deliberately stores layout and references, not long-form research content.
+
+Canvas files are active-vault artifacts:
+
+```text
+projects/<project-id>/project.canvas.json
+projects/<project-id>.canvas.json
+```
+
+The first form is canonical for bundle-style Projects with `project.md`; the second is the adjacent form for a Project represented as a single Markdown file. Both forms require the attached Markdown file to parse as `type: Project`.
+
+```typescript
+interface ProjectCanvas {
+  version: 1
+  project: string
+  viewport: { x: number; y: number; zoom: number }
+  nodes: ProjectCanvasNode[]
+  edges: ProjectCanvasEdge[]
+  sapientia: { schema: 'project-canvas/v1' }
+}
+
+type ProjectCanvasNodeType =
+  | 'note'
+  | 'paper'
+  | 'paper_block'
+  | 'text'
+  | 'task'
+  | 'group'
+
+type ProjectCanvasEdgeKind =
+  | 'related'
+  | 'supports'
+  | 'contradicts'
+  | 'depends_on'
+  | 'needs_reading'
+```
+
+Referenced nodes point at existing vault objects through `ref`:
+
+- `note`: a vault-relative Markdown path.
+- `paper`: a vault-relative Paper note path.
+- `paper_block`: a durable `@block[paper_id#block_id]` citation.
+- `text`, `task`, and `group`: embedded canvas-local labels or short text only.
+
+The canvas owns position, size, grouping, viewport, and relationship edges. Notes, Papers, Paper metadata, Paper blocks, and comments remain in their existing Markdown files and sidecars. Saving a canvas writes pretty JSON with deterministic node and edge ordering by id so Git diffs stay reviewable. Reference resolution returns per-node `resolved`, `embedded`, or `stale` states plus diagnostics; missing Notes, Papers, or Paper blocks must not corrupt the canvas or prevent other nodes from resolving.
+
 ### Tolaria Deep Links
 
 Deep links identify existing vault items with `tolaria://<vault-slug>/<relative-path-with-extension>`. The slug is derived from the registered workspace alias, then label, then path basename; generated links append a stable short hash when two vaults share the same base slug. A manually typed ambiguous base slug is rejected instead of choosing the wrong vault.

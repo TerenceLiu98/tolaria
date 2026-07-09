@@ -35,6 +35,7 @@ pub mod pi_cli;
 mod pi_config;
 mod pi_discovery;
 mod pi_events;
+pub mod project_canvas;
 pub mod search;
 pub mod settings;
 pub mod telemetry;
@@ -554,6 +555,11 @@ macro_rules! app_invoke_handler {
             commands::save_paper_comment,
             commands::delete_paper_comment,
             commands::reset_paper_comments,
+            commands::read_project_canvas,
+            commands::save_project_canvas,
+            commands::create_project_canvas,
+            commands::resolve_project_canvas_refs,
+            commands::project_canvas_paths,
             commands::sync_note_title,
             commands::save_image,
             commands::copy_image_to_vault,

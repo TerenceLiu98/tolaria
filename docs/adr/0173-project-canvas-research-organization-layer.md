@@ -283,6 +283,79 @@ Do not combine Paper parser, comment storage, AI panel, editor toolbar, or Git-p
 8. Add compact Project Canvas AI context only after the canvas is useful without AI.
 9. Defer Paper Market candidate nodes until Paper Market exists.
 
+### Implementation Task Plan
+
+This plan turns the build order into small implementation slices. Each slice should be independently testable and should not mix unrelated Paper, editor, Git, or AI-panel cleanup.
+
+#### Slice 1: Data Contract And Commands
+
+Deliver the canvas storage contract before any visible UI:
+
+- add shared TypeScript and Rust `ProjectCanvas` models
+- support canonical canvas discovery at `projects/<project-id>/project.canvas.json`
+- support adjacent canvas discovery for Project Markdown notes
+- support node kinds: `note`, `paper`, `paper_block`, `text`, `task`, `group`
+- support edge kinds: `related`, `supports`, `contradicts`, `depends_on`, `needs_reading`
+- write stable, pretty JSON with deterministic node and edge ordering for Git diffs
+- expose active-vault Tauri commands:
+  - `read_project_canvas`
+  - `save_project_canvas`
+  - `create_project_canvas`
+  - `resolve_project_canvas_refs`
+- resolve references without failing the whole canvas when some refs are stale
+- add focused Rust and TypeScript tests for round-trip, stable ordering, discovery, and degraded missing-reference behavior
+
+#### Slice 2: Minimal Project Canvas Surface
+
+Mount a simple Project Canvas view only after the file contract is stable:
+
+- add a Project note entry point to open the canvas
+- render compact cards for Note, Paper, Paper block, text, task, and group nodes
+- keep node previews bounded; do not mount full Note editors or PDF previews inside cards
+- support pan, zoom, drag, resize, and viewport persistence
+- click a referenced node to navigate through existing Sapientia note/Paper/block routing
+- show stale references visibly without crashing
+- keep the first UI implementation deliberately plain; polish comes after persistence and navigation are correct
+
+#### Slice 3: Add-To-Project Entry Points
+
+Make the canvas useful from existing research surfaces:
+
+- add Note-to-Project, Paper-to-Project, and block-citation-to-Project actions
+- use a Project picker rather than inventing a new project selector model
+- create the target canvas automatically if it does not exist
+- place new nodes near the current viewport center
+- detect duplicates by stable ref and focus the existing node instead of adding another copy
+
+#### Slice 4: Relationship Editing
+
+Add research relationships after node placement works:
+
+- create edges between nodes
+- allow optional relationship kind selection
+- support edge inspection and deletion
+- deleting a canvas node must not delete the underlying Note, Paper, or block evidence
+- keep the vocabulary small and optional so users are not forced to classify every relation
+
+#### Slice 5: Project-Aware AI Context
+
+Add AI integration only after the canvas is useful manually:
+
+- include the active Project id, selected node, nearby connected nodes, referenced Paper metadata, and cited block snippets
+- expose context visibility for selected node, referenced Paper count, cited block count, and stale-reference count
+- add or extend compact AI tools such as `read_project_canvas`, `search_project_canvas`, `read_project_context`, and `add_node_to_project_canvas`
+- do not dump whole Papers or whole vaults into context by default
+- preserve exact `@block[...]` provenance for paper-grounded claims
+
+#### Slice 6: Paper Market Bridge
+
+Defer discovery-market behavior until Paper Market exists:
+
+- represent external Paper Candidates as candidate nodes only after candidate storage is implemented
+- allow import, save, dismiss, and link actions from candidate nodes
+- preserve candidate decisions as recommendation signals
+- do not auto-import large candidate sets into a Project Canvas
+
 ### Technical Spike Checklist
 
 Before coding Phase 2, do a short spike to decide:
