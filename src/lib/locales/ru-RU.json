@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "Проекты не найдены",
   "projectCanvas.picker.adding": "Добавление в проект...",
   "projectCanvas.addCitation": "Добавить цитату в проект",
-  "projectCanvas.aiAnswerTitle": "Ответ ИИ для исследования"
+  "projectCanvas.aiAnswerTitle": "Ответ ИИ для исследования",
+  "ai.panel.projectContext.toolsAvailable": "Инструменты проекта доступны",
+  "ai.panel.projectContext.included": "Контекст Canvas включён",
+  "ai.panel.projectContext.project": "Проект: {project}",
+  "ai.panel.projectContext.selected": "Выбрано: {node}",
+  "ai.panel.projectContext.papers": "Связанных статей: {count}",
+  "ai.panel.projectContext.citations": "Цитируемых блоков: {count}",
+  "ai.panel.projectContext.stale": "Устаревших ссылок: {count}",
+  "ai.panel.projectContext.action.menu": "Действия ИИ для проекта",
+  "ai.panel.projectContext.action.noSelection": "узел не выбран",
+  "ai.panel.projectContext.action.summarize.label": "Подвести итог проекта",
+  "ai.panel.projectContext.action.summarize.prompt": "Подведите итог проекта «{project}» (id: {projectId}), начиная с выбранного узла Canvas: {selected}. Используйте включённый компактный контекст Canvas и вызовите read_project_context, если нужна дополнительная структура графа. Объясните основные вопросы, утверждения, доказательства, разногласия, открытые задачи и пробелы. Отличайте исходные доказательства от интерпретации и сохраняйте точные ссылки @block для утверждений, основанных на статьях.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Порекомендовать следующую статью",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Порекомендуйте следующую статью, которую стоит прочитать для проекта «{project}» (id: {projectId}), уделив приоритет выбранному узлу Canvas: {selected}. Изучите контекст проекта, затем используйте search_papers для поиска и read_paper_metadata перед библиографическими утверждениями. Объясните, какой конкретный пробел или связь в Canvas закрывает каждая рекомендация. Не импортируйте и не добавляйте статью автоматически.",
+  "ai.panel.projectContext.action.cited_outline.label": "Создать план с цитатами",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Создайте исследовательский план для проекта «{project}» (id: {projectId}), начиная с выбранного узла Canvas: {selected}. Организуйте Canvas в связную аргументацию, при необходимости используйте read_project_context, а для точных доказательств — read_paper_blocks. Каждое фактическое утверждение, основанное на статье, должно содержать каноническую ссылку @block, если доказательство доступно; явно отмечайте неподтверждённые утверждения и недостающие доказательства."
 }

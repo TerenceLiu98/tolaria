@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "Nessun progetto trovato",
   "projectCanvas.picker.adding": "Aggiunta al progetto...",
   "projectCanvas.addCitation": "Aggiungi la citazione al progetto",
-  "projectCanvas.aiAnswerTitle": "Risposta di ricerca IA"
+  "projectCanvas.aiAnswerTitle": "Risposta di ricerca IA",
+  "ai.panel.projectContext.toolsAvailable": "Strumenti di progetto disponibili",
+  "ai.panel.projectContext.included": "Contesto Canvas incluso",
+  "ai.panel.projectContext.project": "Progetto: {project}",
+  "ai.panel.projectContext.selected": "Selezionato: {node}",
+  "ai.panel.projectContext.papers": "{count} paper referenziati",
+  "ai.panel.projectContext.citations": "{count} blocchi citati",
+  "ai.panel.projectContext.stale": "{count} riferimenti obsoleti",
+  "ai.panel.projectContext.action.menu": "Azioni IA del progetto",
+  "ai.panel.projectContext.action.noSelection": "nessun nodo selezionato",
+  "ai.panel.projectContext.action.summarize.label": "Riassumi progetto",
+  "ai.panel.projectContext.action.summarize.prompt": "Riassumi il progetto \"{project}\" (id: {projectId}) a partire dal nodo Canvas selezionato: {selected}. Usa il contesto Canvas compatto incluso e chiama read_project_context se serve più struttura del grafo. Spiega le principali domande, affermazioni, prove, divergenze, attività aperte e lacune. Distingui le prove delle fonti dall'interpretazione e conserva citazioni @block esatte per le affermazioni fondate sui paper.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Consiglia il prossimo paper",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Consiglia il prossimo paper da leggere per il progetto \"{project}\" (id: {projectId}), dando priorità al nodo Canvas selezionato: {selected}. Esamina il contesto del progetto, quindi usa search_papers per la scoperta e read_paper_metadata prima di fare affermazioni bibliografiche. Spiega quale lacuna o relazione concreta nel Canvas colma ogni consiglio. Non importare o aggiungere automaticamente alcun paper.",
+  "ai.panel.projectContext.action.cited_outline.label": "Genera scaletta con citazioni",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Genera una scaletta di ricerca per il progetto \"{project}\" (id: {projectId}) a partire dal nodo Canvas selezionato: {selected}. Organizza il Canvas in un'argomentazione coerente, usa read_project_context quando necessario e read_paper_blocks per prove esatte. Ogni affermazione fattuale fondata su un paper deve includere la sua citazione @block canonica quando sono disponibili prove; segnala esplicitamente le affermazioni non supportate e le prove mancanti."
 }

@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "Nie znaleziono projektów",
   "projectCanvas.picker.adding": "Dodawanie do projektu...",
   "projectCanvas.addCitation": "Dodaj cytat do projektu",
-  "projectCanvas.aiAnswerTitle": "Odpowiedź badawcza AI"
+  "projectCanvas.aiAnswerTitle": "Odpowiedź badawcza AI",
+  "ai.panel.projectContext.toolsAvailable": "Narzędzia projektu dostępne",
+  "ai.panel.projectContext.included": "Dołączono kontekst Canvas",
+  "ai.panel.projectContext.project": "Projekt: {project}",
+  "ai.panel.projectContext.selected": "Wybrano: {node}",
+  "ai.panel.projectContext.papers": "Liczba powiązanych prac: {count}",
+  "ai.panel.projectContext.citations": "Liczba cytowanych bloków: {count}",
+  "ai.panel.projectContext.stale": "Liczba nieaktualnych odwołań: {count}",
+  "ai.panel.projectContext.action.menu": "Działania AI projektu",
+  "ai.panel.projectContext.action.noSelection": "nie wybrano węzła",
+  "ai.panel.projectContext.action.summarize.label": "Podsumuj projekt",
+  "ai.panel.projectContext.action.summarize.prompt": "Podsumuj projekt „{project}” (id: {projectId}), zaczynając od wybranego węzła Canvas: {selected}. Użyj dołączonego zwięzłego kontekstu Canvas i wywołaj read_project_context, jeśli potrzebna jest szersza struktura grafu. Wyjaśnij główne pytania, twierdzenia, dowody, rozbieżności, otwarte zadania i luki. Odróżnij dowody źródłowe od interpretacji i zachowaj dokładne cytowania @block dla twierdzeń opartych na publikacjach.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Poleć następną publikację",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Poleć następną wartą przeczytania publikację dla projektu „{project}” (id: {projectId}), traktując priorytetowo wybrany węzeł Canvas: {selected}. Sprawdź kontekst projektu, następnie użyj search_papers do wyszukiwania oraz read_paper_metadata przed formułowaniem twierdzeń bibliograficznych. Wyjaśnij, jaką konkretną lukę lub relację w Canvas wypełnia każda rekomendacja. Nie importuj ani nie dodawaj publikacji automatycznie.",
+  "ai.panel.projectContext.action.cited_outline.label": "Wygeneruj konspekt z cytowaniami",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Wygeneruj konspekt badawczy dla projektu „{project}” (id: {projectId}), zaczynając od wybranego węzła Canvas: {selected}. Uporządkuj Canvas w spójną argumentację, w razie potrzeby użyj read_project_context, a do dokładnych dowodów read_paper_blocks. Każde twierdzenie faktograficzne oparte na publikacji powinno zawierać kanoniczne cytowanie @block, gdy dowód jest dostępny; wyraźnie oznacz twierdzenia bez wsparcia i brakujące dowody."
 }

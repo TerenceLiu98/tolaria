@@ -17,6 +17,8 @@ beforeEach(async () => {
   await seedVault(firstVault, {
     'note/shared.md': noteFixture('Shared Note', 'Shared content from the first vault.'),
     'note/alpha.md': noteFixture('Alpha Project', 'Project planning in the first vault.'),
+    'projects/research.md': projectFixture('Research Map', 'research-map'),
+    'projects/research.canvas.json': projectCanvasFixture(),
     'papers/kan-autoencoders/paper.md': paperFixture({
       paperId: 'kan-autoencoders',
       title: 'Kolmogorov-Arnold Network Autoencoders',
@@ -60,6 +62,7 @@ beforeEach(async () => {
     'AGENTS.md': '# Second Vault Rules\n',
     'note/shared.md': noteFixture('Shared Note', 'Shared content from the second vault.'),
     'note/beta.md': noteFixture('Beta Project', 'Project planning in the second vault.'),
+    'projects/research.md': projectFixture('Research Map Copy', 'research-map'),
     'papers/kan-autoencoders/paper.md': paperFixture({
       paperId: 'kan-autoencoders',
       title: 'Kolmogorov-Arnold Network Autoencoders Draft',
@@ -124,7 +127,7 @@ describe('createMcpToolService', () => {
   it('searches active vaults with consistent vault metadata', async () => {
     const service = makeService()
 
-    const results = await service.searchNotes({ query: 'Project', limit: 2 })
+    const results = await service.searchNotes({ query: 'planning', limit: 2 })
 
     assert.equal(results.length, 2)
     assert.deepEqual(
@@ -243,6 +246,73 @@ describe('createMcpToolService', () => {
     assert.equal(result.results[0].text.includes('\n'), false)
   })
 
+  it('reads and searches Project canvases with vault provenance', async () => {
+    const service = makeService()
+
+    await assert.rejects(
+      () => service.readProjectCanvas({ projectId: 'research-map' }),
+      /Project identifier is ambiguous across active vaults/,
+    )
+
+    const canvas = await service.readProjectCanvas({
+      projectId: 'research-map',
+      vaultPath: firstVault,
+    })
+    const search = await service.searchProjectCanvas({
+      projectId: 'research-map',
+      query: 'latent',
+      vaultPath: firstVault,
+    })
+
+    assert.equal(canvas.projectTitle, 'Research Map')
+    assert.equal(canvas.vaultPath, firstVault)
+    assert.deepEqual(search.results.map(result => result.nodeId), ['claim'])
+    assert.equal(search.results[0].vaultLabel, 'First Vault')
+  })
+
+  it('reads compact Project context with exact Paper evidence', async () => {
+    const service = makeService()
+
+    const context = await service.readProjectContext({
+      projectId: 'research-map',
+      selectedNodeId: 'claim',
+      vaultPath: firstVault,
+    })
+
+    assert.equal(context.selectedNode.id, 'claim')
+    assert.equal(context.citedBlocks[0].blockCitation, '@block[kan-autoencoders#b0002]')
+    assert.equal(context.citedBlocks[0].page, 2)
+    assert.match(context.citedBlocks[0].text, /latent representations/)
+    assert.equal(context.notes[0].path, 'note/alpha.md')
+  })
+
+  it('requires explicit writable vault and adds Project Canvas nodes without duplicates', async () => {
+    const service = makeService()
+
+    await assert.rejects(
+      () => service.addNodeToProjectCanvas({
+        projectId: 'research-map',
+        node: { type: 'note', ref: 'note/shared.md' },
+      }),
+      /Project path is ambiguous across active vaults/,
+    )
+
+    const added = await service.addNodeToProjectCanvas({
+      projectId: 'research-map',
+      node: { type: 'note', ref: 'note/shared.md', title: 'Shared Note' },
+      vaultPath: firstVault,
+    })
+    const duplicate = await service.addNodeToProjectCanvas({
+      projectId: 'research-map',
+      node: { type: 'note', ref: 'note/shared.md', title: 'Shared Note' },
+      vaultPath: firstVault,
+    })
+
+    assert.equal(added.duplicate, false)
+    assert.equal(duplicate.duplicate, true)
+    assert.equal(duplicate.vaultPath, firstVault)
+  })
+
   it('lists active vaults with agent-instruction metadata', async () => {
     const service = makeService()
 
@@ -305,6 +375,28 @@ async function seedVault(vaultPath, files) {
 
 function noteFixture(title, body) {
   return `---\ntitle: ${JSON.stringify(title)}\ntype: Note\n---\n\n# ${title}\n\n${body}\n`
+}
+
+function projectFixture(title, projectId) {
+  return `---\ntitle: ${JSON.stringify(title)}\ntype: Project\nproject_id: ${projectId}\n---\n\n# ${title}\n`
+}
+
+function projectCanvasFixture() {
+  return JSON.stringify({
+    version: 1,
+    project: 'projects/research.md',
+    viewport: { x: 0, y: 0, zoom: 1 },
+    nodes: [
+      { id: 'claim', type: 'text', x: 0, y: 0, width: 240, height: 110, title: 'Latent claim', text: 'Latent representations need evidence.' },
+      { id: 'evidence', type: 'paper_block', ref: '@block[kan-autoencoders#b0002]', x: 300, y: 0, width: 240, height: 110 },
+      { id: 'note', type: 'note', ref: 'note/alpha.md', x: 300, y: 150, width: 240, height: 110 },
+    ],
+    edges: [
+      { id: 'supports', from: 'evidence', to: 'claim', kind: 'supports' },
+      { id: 'related', from: 'claim', to: 'note', kind: 'related' },
+    ],
+    sapientia: { schema: 'project-canvas/v1' },
+  }, null, 2)
 }
 
 function paperFixture({ paperId, title, authors, year, venue, body }) {

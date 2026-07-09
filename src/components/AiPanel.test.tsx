@@ -9,6 +9,7 @@ import type { VaultEntry } from '../types'
 import { queueAiPrompt } from '../utils/aiPromptBridge'
 import type { NoteReference } from '../utils/ai-context'
 import { bindVaultConfigStore, getVaultConfig, resetVaultConfigStore } from '../utils/vaultConfigStore'
+import type { ProjectCanvasAiContext } from '../projectCanvasAiContext'
 
 const { trackEventMock } = vi.hoisted(() => ({
   trackEventMock: vi.fn(),
@@ -85,7 +86,13 @@ function render(ui: Parameters<typeof rtlRender>[0]) {
   return rtlRender(ui, { wrapper: TooltipProvider })
 }
 
-function QueuedPromptTargetHarness({ onTargetChange }: { onTargetChange: (targetId: string) => void }) {
+function QueuedPromptTargetHarness({
+  onTargetChange,
+  projectContext = null,
+}: {
+  onTargetChange: (targetId: string) => void
+  projectContext?: ProjectCanvasAiContext | null
+}) {
   const [input, setInput] = useState('')
   const [targetId, setTargetId] = useState('agent:claude_code')
   const handleTargetChange = (nextTargetId: string) => {
@@ -113,6 +120,9 @@ function QueuedPromptTargetHarness({ onTargetChange }: { onTargetChange: (target
     setInput,
     linkedEntries: [],
     paperContext: null,
+    projectContext,
+    selectedTextContext: null,
+    selectedTextIncluded: false,
     hasContext: false,
     isActive: false,
     permissionMode: 'safe',
@@ -124,6 +134,7 @@ function QueuedPromptTargetHarness({ onTargetChange }: { onTargetChange: (target
     handleNavigateWikilink: vi.fn(),
     handlePermissionModeChange: vi.fn(),
     handleNewChat: vi.fn(),
+    handleToggleSelectedTextContext: vi.fn(),
   }
 
   return (
@@ -744,6 +755,37 @@ describe('AiPanel', () => {
       expect(onTargetChange).toHaveBeenCalledWith('agent:codex')
       expect(mockClearConversation).toHaveBeenCalledOnce()
       expect(mockSendMessage).toHaveBeenCalledWith('ask codex', [])
+    })
+  })
+
+  it('starts a cited-outline prompt from the Project context action menu', async () => {
+    const projectContext: ProjectCanvasAiContext = {
+      project: { id: 'agents', path: 'projects/agents.md', title: 'Agent Research' },
+      summary: {
+        citedBlockCount: 2,
+        edgeCount: 3,
+        nodeCount: 4,
+        referencedPaperCount: 1,
+        staleReferenceCount: 0,
+      },
+      selectedNode: { id: 'claim', type: 'text', title: 'Evaluation claim' },
+      nearbyNodes: [],
+      relationships: [],
+      papers: [],
+      citedBlocks: [],
+      notes: [],
+    }
+    render(<QueuedPromptTargetHarness onTargetChange={vi.fn()} projectContext={projectContext} />)
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Project AI actions' }), { button: 0 })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Generate Cited Outline' }))
+
+    await waitFor(() => {
+      expect(mockClearConversation).toHaveBeenCalledOnce()
+      expect(mockSendMessage).toHaveBeenCalledWith(expect.stringContaining('@block'), [])
+    })
+    expect(trackEventMock).toHaveBeenCalledWith('project_canvas_ai_action_started', {
+      action: 'cited_outline',
     })
   })
 

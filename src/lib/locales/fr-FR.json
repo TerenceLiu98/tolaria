@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "Aucun projet trouvé",
   "projectCanvas.picker.adding": "Ajout au projet...",
   "projectCanvas.addCitation": "Ajouter la citation au projet",
-  "projectCanvas.aiAnswerTitle": "Réponse de recherche IA"
+  "projectCanvas.aiAnswerTitle": "Réponse de recherche IA",
+  "ai.panel.projectContext.toolsAvailable": "Outils de projet disponibles",
+  "ai.panel.projectContext.included": "Contexte du Canvas inclus",
+  "ai.panel.projectContext.project": "Projet : {project}",
+  "ai.panel.projectContext.selected": "Sélection : {node}",
+  "ai.panel.projectContext.papers": "{count} articles référencés",
+  "ai.panel.projectContext.citations": "{count} blocs cités",
+  "ai.panel.projectContext.stale": "{count} références obsolètes",
+  "ai.panel.projectContext.action.menu": "Actions IA du projet",
+  "ai.panel.projectContext.action.noSelection": "aucun nœud sélectionné",
+  "ai.panel.projectContext.action.summarize.label": "Résumer le projet",
+  "ai.panel.projectContext.action.summarize.prompt": "Résumez le projet « {project} » (id : {projectId}) à partir du nœud Canvas sélectionné : {selected}. Utilisez le contexte Canvas compact inclus et appelez read_project_context si davantage de structure du graphe est nécessaire. Expliquez les questions, affirmations, preuves, désaccords, tâches ouvertes et lacunes principales. Distinguez les preuves issues des sources de l'interprétation et conservez les citations @block exactes pour les affirmations fondées sur des articles.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Recommander le prochain article",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Recommandez le prochain article à lire pour le projet « {project} » (id : {projectId}), en donnant la priorité au nœud Canvas sélectionné : {selected}. Examinez le contexte du projet, puis utilisez search_papers pour la découverte et read_paper_metadata avant toute affirmation bibliographique. Expliquez quelle lacune ou relation concrète du Canvas chaque recommandation comble. N'importez ni n'ajoutez automatiquement aucun article.",
+  "ai.panel.projectContext.action.cited_outline.label": "Générer un plan avec citations",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Générez un plan de recherche pour le projet « {project} » (id : {projectId}) à partir du nœud Canvas sélectionné : {selected}. Organisez le Canvas en une argumentation cohérente, utilisez read_project_context si nécessaire et read_paper_blocks pour obtenir des preuves exactes. Chaque affirmation factuelle fondée sur un article doit inclure sa citation @block canonique lorsque des preuves sont disponibles ; signalez explicitement les affirmations non étayées et les preuves manquantes."
 }

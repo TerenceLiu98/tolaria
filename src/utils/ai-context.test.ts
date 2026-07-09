@@ -8,6 +8,7 @@ import {
   paperAiContextSummary,
 } from './ai-context'
 import type { VaultEntry } from '../types'
+import type { ProjectCanvasAiContext } from '../projectCanvasAiContext'
 
 const makeEntry = (overrides: Partial<VaultEntry> = {}): VaultEntry => ({
   path: '/vault/note/test.md',
@@ -174,6 +175,47 @@ describe('buildContextSnapshot', () => {
     expect(result).toContain('"type": "Project"')
     expect(result).toContain('"status": "active"')
     expect(result).toContain('"owner": "Alice"')
+  })
+
+  it('includes compact Project Canvas context and evidence guidance', () => {
+    const projectContext: ProjectCanvasAiContext = {
+      project: { id: 'alpha', path: active.path, title: 'Alpha' },
+      summary: {
+        citedBlockCount: 1,
+        edgeCount: 2,
+        nodeCount: 3,
+        referencedPaperCount: 1,
+        staleReferenceCount: 0,
+      },
+      selectedNode: { id: 'claim', type: 'text', text: 'Grounded claim' },
+      nearbyNodes: [{ id: 'evidence', type: 'paper_block', ref: '@block[paper#b1]' }],
+      relationships: [{ id: 'supports', from: 'evidence', to: 'claim', kind: 'supports' }],
+      papers: [{ paperId: 'paper', title: 'Paper', year: 2026 }],
+      citedBlocks: [{
+        nodeId: 'evidence',
+        paperId: 'paper',
+        paperTitle: 'Paper',
+        blockId: 'b1',
+        page: 3,
+        text: 'Exact evidence.',
+        blockCitation: '@block[paper#b1]',
+      }],
+      notes: [],
+    }
+
+    const result = buildContextSnapshot({ activeEntry: active, entries, projectContext })
+    const json = JSON.parse(result.split('```json\n')[1].split('\n```')[0])
+
+    expect(json.projectCanvas).toEqual(projectContext)
+    expect(result).toContain('selected Project Canvas node')
+    expect(result).toContain('exact @block[...] provenance')
+  })
+
+  it('does not add Project Canvas context when no canvas was loaded', () => {
+    const result = buildContextSnapshot({ activeEntry: active, entries })
+    const json = JSON.parse(result.split('```json\n')[1].split('\n```')[0])
+
+    expect(json.projectCanvas).toBeUndefined()
   })
 
   it('guides paper answers toward exact block citations', () => {

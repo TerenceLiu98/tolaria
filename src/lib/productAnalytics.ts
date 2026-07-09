@@ -28,6 +28,7 @@ type ProjectCanvasOpenState = 'ready' | 'created'
 type ProjectCanvasNodeKind = 'note' | 'paper' | 'paper_block' | 'image' | 'text' | 'task' | 'group'
 type ProjectCanvasEdgeKind = 'related' | 'supports' | 'contradicts' | 'depends_on' | 'needs_reading'
 type ProjectCanvasAddSource = 'ai_answer' | 'block_citation' | 'note_list' | 'paper_catalog'
+type ProjectCanvasAiAction = 'summarize' | 'recommend_paper' | 'cited_outline'
 
 const ALL_NOTES_VISIBILITY_CATEGORIES: ReadonlyArray<keyof AllNotesFileVisibility> = [
   'pdfs',
@@ -175,6 +176,10 @@ export function trackProjectCanvasExternalNodeAdded(params: {
     node_type: params.nodeType,
     source: params.source,
   })
+}
+
+export function trackProjectCanvasAiAction(action: ProjectCanvasAiAction): void {
+  trackEvent('project_canvas_ai_action_started', { action })
 }
 
 export function trackAllNotesVisibilityChanged(

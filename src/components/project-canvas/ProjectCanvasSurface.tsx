@@ -15,6 +15,7 @@ import {
   type ProjectCanvasResolvedRef,
 } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
+import { publishProjectCanvasSelection } from '../../projectCanvasSelectionStore'
 import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
 import { Input } from '../ui/input'
@@ -369,7 +370,8 @@ export function ProjectCanvasSurface({
     setSelectedNodeId(nodeId)
     setSelectedNodeIds(nodeId ? [nodeId] : [])
     setSelectedEdgeId(null)
-  }, [])
+    publishProjectCanvasSelection({ projectPath: entry.path, nodeId })
+  }, [entry.path])
 
   useEffect(() => {
     const intent = pendingProjectCanvasOpen(entry.path)
@@ -392,10 +394,12 @@ export function ProjectCanvasSurface({
       const next = current.includes(nodeId)
         ? current.filter(id => id !== nodeId)
         : [...current, nodeId]
-      setSelectedNodeId(next.at(-1) ?? null)
+      const primaryNodeId = next.at(-1) ?? null
+      setSelectedNodeId(primaryNodeId)
+      publishProjectCanvasSelection({ projectPath: entry.path, nodeId: primaryNodeId })
       return next
     })
-  }, [])
+  }, [entry.path])
 
   const screenPointToCanvas = useCallback((clientX: number, clientY: number) => {
     const viewport = canvasRef.current?.viewport ?? { x: 0, y: 0, zoom: 1 }

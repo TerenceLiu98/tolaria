@@ -450,6 +450,9 @@ describe('stdio process lifecycle', () => {
         'open_note',
         'highlight_editor',
         'refresh_vault',
+        'read_project_canvas',
+        'search_project_canvas',
+        'read_project_context',
       ]
 
       for (const name of safeReadTools) {
@@ -465,6 +468,12 @@ describe('stdio process lifecycle', () => {
       assert.equal(createTool.annotations?.readOnlyHint, false)
       assert.equal(createTool.annotations?.destructiveHint, false)
       assert.equal(createTool.annotations?.openWorldHint, false)
+
+      const addProjectNodeTool = toolsByName.get('add_node_to_project_canvas')
+      assert.ok(addProjectNodeTool, 'Missing MCP tool: add_node_to_project_canvas')
+      assert.equal(addProjectNodeTool.annotations?.readOnlyHint, false)
+      assert.equal(addProjectNodeTool.annotations?.destructiveHint, false)
+      assert.equal(addProjectNodeTool.annotations?.openWorldHint, false)
     } finally {
       await closeMcpClient(client, stderr)
     }
@@ -492,6 +501,33 @@ type: Note
       assert.match(JSON.stringify(result.content), /mcp-tool-created\.md/)
     } finally {
       await rm(absolutePath, { force: true })
+      await closeMcpClient(client, stderr)
+    }
+  })
+
+  it('creates and reads a Project Canvas through MCP tools', async () => {
+    const { client, stderr } = await connectMcpClient()
+    const canvasPath = path.join(tmpDir, 'project', 'test-project.canvas.json')
+
+    try {
+      await rm(canvasPath, { force: true })
+      const added = await client.callTool({
+        name: 'add_node_to_project_canvas',
+        arguments: {
+          projectId: 'project/test-project.md',
+          node: { type: 'text', title: 'Research question', text: 'What should we test next?' },
+        },
+      })
+      const read = await client.callTool({
+        name: 'read_project_canvas',
+        arguments: { projectId: 'project/test-project.md' },
+      })
+
+      assert.match(JSON.stringify(added.content), /Research question/)
+      assert.match(JSON.stringify(read.content), /test-project\.canvas\.json/)
+      assert.match(await readFile(canvasPath, 'utf-8'), /What should we test next/)
+    } finally {
+      await rm(canvasPath, { force: true })
       await closeMcpClient(client, stderr)
     }
   })

@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "未找到项目",
   "projectCanvas.picker.adding": "正在添加到项目……",
   "projectCanvas.addCitation": "将引用添加到项目",
-  "projectCanvas.aiAnswerTitle": "AI 研究回答"
+  "projectCanvas.aiAnswerTitle": "AI 研究回答",
+  "ai.panel.projectContext.toolsAvailable": "项目工具可用",
+  "ai.panel.projectContext.included": "已包含画布上下文",
+  "ai.panel.projectContext.project": "项目：{project}",
+  "ai.panel.projectContext.selected": "已选：{node}",
+  "ai.panel.projectContext.papers": "引用了 {count} 篇论文",
+  "ai.panel.projectContext.citations": "{count} 个引用区块",
+  "ai.panel.projectContext.stale": "{count} 个失效引用",
+  "ai.panel.projectContext.action.menu": "项目 AI 操作",
+  "ai.panel.projectContext.action.noSelection": "未选择节点",
+  "ai.panel.projectContext.action.summarize.label": "总结项目",
+  "ai.panel.projectContext.action.summarize.prompt": "请从已选 Canvas 节点“{selected}”出发，总结项目“{project}”（id：{projectId}）。使用已包含的精简 Canvas 上下文；如果需要更多图结构，请调用 read_project_context。说明主要问题、论点、证据、分歧、未完成任务和缺口。区分来源证据与解释，并为基于论文的论点保留准确的 @block 引用。",
+  "ai.panel.projectContext.action.recommend_paper.label": "推荐下一篇论文",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "请为项目“{project}”（id：{projectId}）推荐下一篇值得阅读的论文，并优先考虑已选 Canvas 节点“{selected}”。先检查项目上下文，再使用 search_papers 发现论文，并在提出书目信息前调用 read_paper_metadata。解释每项推荐填补了 Canvas 中哪个具体缺口或关系。不要自动导入或添加论文。",
+  "ai.panel.projectContext.action.cited_outline.label": "生成带引用的研究大纲",
+  "ai.panel.projectContext.action.cited_outline.prompt": "请从已选 Canvas 节点“{selected}”出发，为项目“{project}”（id：{projectId}）生成研究大纲。将 Canvas 组织成连贯论证，在需要时使用 read_project_context，并使用 read_paper_blocks 获取精确证据。每个基于论文的事实性论点都应在有证据时包含规范的 @block 引用；明确标记缺少支持的论点和缺失证据。"
 }

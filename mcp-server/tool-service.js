@@ -14,6 +14,12 @@ import {
   searchPaperBlocks as searchVaultPaperBlocks,
   searchPaperCatalog as searchVaultPaperCatalog,
 } from './paper-tools.js'
+import {
+  addProjectCanvasNode as addVaultProjectCanvasNode,
+  readProjectCanvas as readVaultProjectCanvas,
+  readProjectContext as readVaultProjectContext,
+  searchProjectCanvas as searchVaultProjectCanvas,
+} from './project-canvas-tools.js'
 import { requireVaultPaths } from './vault-path.js'
 import { readAgentInstructions, vaultContextWithInstructions } from './agent-instructions.js'
 
@@ -110,6 +116,36 @@ export function createMcpToolService({
 
   async function getBlockCitation(args = {}) {
     return readPaperFromActiveVaults(args, getVaultBlockCitation)
+  }
+
+  async function readProjectCanvas(args = {}) {
+    return readProjectFromActiveVaults(args, readVaultProjectCanvas)
+  }
+
+  async function searchProjectCanvas(args = {}) {
+    if (args.projectId || args.projectPath) {
+      return readProjectFromActiveVaults(args, searchVaultProjectCanvas)
+    }
+    const results = []
+    let truncated = false
+    for (const vaultPath of readableVaultPaths(args)) {
+      const result = await searchVaultProjectCanvas(vaultPath, args)
+      results.push(...result.results)
+      truncated ||= result.truncated
+    }
+    const limit = Number.isFinite(args.limit) && args.limit > 0 ? Math.min(20, args.limit) : 10
+    return { query: args.query, results: results.slice(0, limit), truncated: truncated || results.length > limit }
+  }
+
+  async function readProjectContext(args = {}) {
+    return readProjectFromActiveVaults(args, readVaultProjectContext)
+  }
+
+  async function addNodeToProjectCanvas(args = {}) {
+    const vaultPath = writableProjectVaultPath(args)
+    const result = await addVaultProjectCanvasNode(vaultPath, args)
+    emitUiAction('vault_changed', { path: path.join(vaultPath, result.projectPath) })
+    return result
   }
 
   async function vaultContext(args = {}) {
@@ -213,6 +249,23 @@ export function createMcpToolService({
     throw errors[0] ?? new Error(`Paper not found: ${args.paperId}`)
   }
 
+  async function readProjectFromActiveVaults(args, reader) {
+    const matches = []
+    const errors = []
+    for (const vaultPath of readableVaultPaths(args)) {
+      try {
+        matches.push(await reader(vaultPath, args))
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (matches.length === 1) return matches[0]
+    if (matches.length > 1) {
+      throw new Error(`Project identifier is ambiguous across active vaults. Pass vaultPath for ${projectIdentifierArg(args)}.`)
+    }
+    throw errors[0] ?? new Error(`Project not found: ${projectIdentifierArg(args)}`)
+  }
+
   function readableVaultPaths(args = {}) {
     const requested = requestedVaultPath(args)
     return requested ? [requested] : activeVaultPaths()
@@ -232,8 +285,22 @@ export function createMcpToolService({
     throw new Error(`Note path is ambiguous across active vaults. Pass vaultPath for ${notePath}.`)
   }
 
+  function writableProjectVaultPath(args = {}) {
+    const requested = requestedVaultPath(args)
+    if (requested) return requested
+    const roots = activeVaultPaths()
+    const projectPath = projectIdentifierArg(args)
+    if (path.isAbsolute(projectPath)) {
+      const root = roots.find(vaultPath => isInsideVaultRoot(vaultPath, projectPath))
+      if (root) return root
+    }
+    if (roots.length === 1) return roots[0]
+    throw new Error(`Project path is ambiguous across active vaults. Pass vaultPath for ${projectPath}.`)
+  }
+
   return {
     activeVaultPaths,
+    addNodeToProjectCanvas,
     createNote,
     highlightEditor,
     listVaults,
@@ -245,12 +312,15 @@ export function createMcpToolService({
     readPaperBlocks,
     readPaperMetadata,
     readPaperOutline,
+    readProjectCanvas,
+    readProjectContext,
     readNote,
     refreshVault,
     requestedVaultPath,
     resolveUiPath,
     searchPaperBlocks,
     searchPapers,
+    searchProjectCanvas,
     searchNotes,
     setFilter,
     vaultContext,
@@ -296,6 +366,14 @@ function notePathArg(args = {}) {
   const notePath = typeof args.path === 'string' ? args.path.trim() : ''
   if (!notePath) throw new Error('Note path is required')
   return notePath
+}
+
+function projectIdentifierArg(args = {}) {
+  const project = typeof args.projectId === 'string' && args.projectId.trim()
+    ? args.projectId.trim()
+    : typeof args.projectPath === 'string' ? args.projectPath.trim() : ''
+  if (!project) throw new Error('Project id or path is required')
+  return project
 }
 
 function yamlScalar(value) {

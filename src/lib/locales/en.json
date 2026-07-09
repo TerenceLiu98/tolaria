@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "No Projects found",
   "projectCanvas.picker.adding": "Adding to Project...",
   "projectCanvas.addCitation": "Add citation to Project",
-  "projectCanvas.aiAnswerTitle": "AI research answer"
+  "projectCanvas.aiAnswerTitle": "AI research answer",
+  "ai.panel.projectContext.toolsAvailable": "Project tools available",
+  "ai.panel.projectContext.included": "Canvas context included",
+  "ai.panel.projectContext.project": "Project: {project}",
+  "ai.panel.projectContext.selected": "Selected: {node}",
+  "ai.panel.projectContext.papers": "{count} referenced papers",
+  "ai.panel.projectContext.citations": "{count} cited blocks",
+  "ai.panel.projectContext.stale": "{count} stale references",
+  "ai.panel.projectContext.action.menu": "Project AI actions",
+  "ai.panel.projectContext.action.noSelection": "no selected node",
+  "ai.panel.projectContext.action.summarize.label": "Summarize Project",
+  "ai.panel.projectContext.action.summarize.prompt": "Summarize Project \"{project}\" (id: {projectId}) starting from the selected Canvas node: {selected}. Use the included compact Canvas context and call read_project_context if more graph structure is needed. Explain the main questions, claims, evidence, disagreements, open tasks, and gaps. Distinguish source evidence from interpretation and preserve exact @block citations for paper-grounded claims.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Recommend Next Paper",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Recommend the next Paper worth reading for Project \"{project}\" (id: {projectId}), with priority given to the selected Canvas node: {selected}. Inspect the Project context, then use search_papers for discovery and read_paper_metadata before making bibliographic claims. Explain why each recommendation fills a concrete gap or relationship in the Canvas. Do not import or add a Paper automatically.",
+  "ai.panel.projectContext.action.cited_outline.label": "Generate Cited Outline",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Generate a research outline for Project \"{project}\" (id: {projectId}) starting from the selected Canvas node: {selected}. Organize the Canvas into a coherent argument, use read_project_context when needed, and use read_paper_blocks for exact evidence. Every paper-grounded factual claim should include its canonical @block citation when evidence is available; mark unsupported claims and missing evidence explicitly."
 }

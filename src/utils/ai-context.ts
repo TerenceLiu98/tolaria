@@ -8,6 +8,7 @@ import { parseBlockCitations } from '../paper/blockCitations'
 import { isPaperEntry } from '../paper/types'
 import { wikilinkTarget, resolveEntry } from './wikilink'
 import { splitFrontmatter } from './wikilinks'
+import type { ProjectCanvasAiContext } from '../projectCanvasAiContext'
 
 /** Extract only the body text from raw file content (strips YAML frontmatter). */
 function extractBody(rawContent: string): string {
@@ -103,6 +104,7 @@ export interface ContextSnapshotParams {
   entries: VaultEntry[]
   references?: NoteReference[]
   selectedContext?: AiSelectedTextContext | null
+  projectContext?: ProjectCanvasAiContext | null
   selectedPaperId?: string | null
   selectedBlockId?: string | null
 }
@@ -529,6 +531,13 @@ function appendSelectedContext(snapshot: Record<string, unknown>, selectedContex
   snapshot.selectedContext = selected
 }
 
+function appendProjectContext(
+  snapshot: Record<string, unknown>,
+  projectContext?: ProjectCanvasAiContext | null,
+): void {
+  if (projectContext) snapshot.projectCanvas = projectContext
+}
+
 function vaultSummary(entries: VaultEntry[]): Record<string, unknown> {
   const types = new Set<string>()
   for (const e of entries) {
@@ -541,7 +550,7 @@ function vaultSummary(entries: VaultEntry[]): Record<string, unknown> {
 }
 
 function contextSnapshot(params: ContextSnapshotParams): Record<string, unknown> {
-  const { activeEntry, activeNoteContent, openTabs, noteList, noteListFilter, entries, references, selectedContext } = params
+  const { activeEntry, activeNoteContent, openTabs, noteList, noteListFilter, entries, references, selectedContext, projectContext } = params
   const snapshot: Record<string, unknown> = {
     activeNote: activeNoteSnapshot(activeEntry, activeNoteContent),
   }
@@ -552,6 +561,7 @@ function contextSnapshot(params: ContextSnapshotParams): Record<string, unknown>
   snapshot.vault = vaultSummary(entries)
   appendReferencedNotes(snapshot, references)
   appendSelectedContext(snapshot, selectedContext)
+  appendProjectContext(snapshot, projectContext)
   appendPaperContext(snapshot, params)
   return snapshot
 }
@@ -565,6 +575,7 @@ export function buildContextSnapshot(params: ContextSnapshotParams): string {
     'The user is viewing a specific note. Use the structured context below to answer questions accurately.',
     'You can also use MCP tools to search, read, create, or edit notes in the vault.',
     'For Paper notes, use paper MCP tools such as search_papers, read_paper_metadata, search_paper_blocks, read_paper_blocks, and get_block_citation for citation-safe paper context. Paper-grounded claims should cite exact evidence as @block[paper_id#block_id]; call search_paper_blocks/read_paper_blocks first if exact block evidence is not already in context.',
+    'When projectCanvas is present, start from the selected Project Canvas node, then nearby connected nodes. Use exact @block[...] provenance for paper-grounded claims and call Project/Paper tools for deeper reads instead of loading every node or Paper body.',
     'If selectedContext is present, the user explicitly included that selected text or image; treat it as the most local context for the next answer.',
     'If the body field is empty or truncated, use get_note to read the full note from disk before content-sensitive edits or summaries.',
     'When you mention or reference a note by name, always use [[Note Title]] wikilink syntax so the user can click to open it.',

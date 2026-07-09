@@ -22,6 +22,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import WebSocket from 'ws'
 import { createMcpToolService } from './tool-service.js'
+import { projectCanvasToolDefinitions } from './project-canvas-tool-definitions.js'
 
 const WS_UI_PORT = parseInt(process.env.WS_UI_PORT || '9711', 10)
 const WS_UI_URL = `ws://localhost:${WS_UI_PORT}`
@@ -283,6 +284,7 @@ const TOOLS = [
       required: ['paperId', 'blockId'],
     },
   },
+  ...projectCanvasToolDefinitions(LOCAL_READ_ONLY_TOOL_ANNOTATIONS, LOCAL_CREATE_TOOL_ANNOTATIONS),
   {
     name: 'create_note',
     description: 'Create a new markdown note inside an active Sapientia vault. Does not overwrite existing files. Use content for the full markdown including YAML frontmatter and H1.',
@@ -394,6 +396,26 @@ async function handleGetBlockCitation(args) {
   return { content: [{ type: 'text', text: JSON.stringify(await toolService.getBlockCitation(args), null, 2) }] }
 }
 
+async function handleReadProjectCanvas(args) {
+  return jsonToolResult(await toolService.readProjectCanvas(args))
+}
+
+async function handleSearchProjectCanvas(args) {
+  return jsonToolResult(await toolService.searchProjectCanvas(args))
+}
+
+async function handleReadProjectContext(args) {
+  return jsonToolResult(await toolService.readProjectContext(args))
+}
+
+async function handleAddNodeToProjectCanvas(args) {
+  return jsonToolResult(await toolService.addNodeToProjectCanvas(args))
+}
+
+function jsonToolResult(value) {
+  return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] }
+}
+
 async function handleCreateNote(args = {}) {
   const note = await toolService.createNote(args)
   return {
@@ -434,6 +456,10 @@ const TOOL_HANDLERS = new Map([
   ['read_paper_blocks', handleReadPaperBlocks],
   ['get_paper_citation', handleGetPaperCitation],
   ['get_block_citation', handleGetBlockCitation],
+  ['read_project_canvas', handleReadProjectCanvas],
+  ['search_project_canvas', handleSearchProjectCanvas],
+  ['read_project_context', handleReadProjectContext],
+  ['add_node_to_project_canvas', handleAddNodeToProjectCanvas],
   ['create_note', handleCreateNote],
   ['open_note', handleOpenNote],
   ['highlight_editor', handleHighlightEditor],

@@ -22,6 +22,7 @@ import {
   type AiSelectedTextContext,
 } from '../utils/ai-context'
 import { useAiPanelContextSnapshot } from './useAiPanelContextSnapshot'
+import type { ProjectCanvasAiContext } from '../projectCanvasAiContext'
 
 interface UseAiPanelControllerArgs {
   vaultPath: string
@@ -51,6 +52,7 @@ export interface AiPanelController {
   setInput: React.Dispatch<React.SetStateAction<string>>
   linkedEntries: ReturnType<typeof useAiPanelContextSnapshot>['linkedEntries']
   paperContext: PaperAiContextSummary | null
+  projectContext: ProjectCanvasAiContext | null
   selectedTextContext: AiSelectedTextContext | null
   selectedTextIncluded: boolean
   hasContext: boolean
@@ -192,7 +194,7 @@ export function useAiPanelController({
   const currentSelectedTextKey = selectedTextContextKey(selectedTextContext)
   const selectedTextIncluded = currentSelectedTextKey !== null && currentSelectedTextKey !== excludedSelectedTextKey
   const selectedContext = selectedTextIncluded ? selectedTextContext : null
-  const { linkedEntries, contextPrompt, paperContext } = useAiPanelContextSnapshot({
+  const { linkedEntries, contextPrompt, paperContext, projectContext } = useAiPanelContextSnapshot({
     activeEntry,
     activeNoteContent,
     entries,
@@ -201,6 +203,7 @@ export function useAiPanelController({
     noteList,
     noteListFilter,
     selectedContext,
+    vaultPath,
   })
 
   const { agent, permissionMode } = usePanelAgent({ vaultPath, vaultPaths, contextPrompt, defaultAiAgent, defaultAiTarget, defaultAiAgentReady, defaultAiAgentReadiness, locale, onFileCreated, onFileModified, onVaultChanged, sessionId })
@@ -244,6 +247,7 @@ export function useAiPanelController({
     setInput,
     linkedEntries,
     paperContext,
+    projectContext,
     selectedTextContext: selectedTextContext ?? null,
     selectedTextIncluded,
     hasContext: !!activeEntry,

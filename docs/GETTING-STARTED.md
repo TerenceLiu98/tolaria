@@ -287,6 +287,10 @@ tolaria/
 ├── mcp-server/                   # MCP bridge (Node.js or Bun)
 │   ├── index.js                  # MCP server entry (stdio tools)
 │   ├── vault.js                  # Vault file operations
+│   ├── paper-tools.js            # Compact Paper metadata/evidence tools
+│   ├── project-canvas-tools.js   # Project Canvas MCP orchestration
+│   ├── project-canvas-storage.js # Project discovery and safe JSON persistence
+│   ├── project-canvas-context.js # Bounded selected/one-hop research context
 │   ├── ws-bridge.js              # WebSocket bridge (ports 9710, 9711)
 │   ├── test.js                   # MCP server tests
 │   └── package.json

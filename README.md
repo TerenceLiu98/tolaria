@@ -55,7 +55,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - `src-tauri/`: Tauri shell, Rust commands, parser/storage helpers, and bundled resources.
 - `docs/`: architecture notes, ADRs, and product design notes.
 - `site/`: public documentation site.
-- `mcp-server/`: MCP tools for vault and paper-aware AI access.
+- `mcp-server/`: MCP tools for vault, Paper evidence, and Project Canvas-aware AI access.
 
 ## License And Upstream Attribution
 

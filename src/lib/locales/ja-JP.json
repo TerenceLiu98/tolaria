@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "プロジェクトが見つかりません",
   "projectCanvas.picker.adding": "プロジェクトに追加中...",
   "projectCanvas.addCitation": "引用をプロジェクトに追加",
-  "projectCanvas.aiAnswerTitle": "AIリサーチ回答"
+  "projectCanvas.aiAnswerTitle": "AIリサーチ回答",
+  "ai.panel.projectContext.toolsAvailable": "プロジェクトツールが利用可能",
+  "ai.panel.projectContext.included": "Canvasコンテキストを含む",
+  "ai.panel.projectContext.project": "プロジェクト: {project}",
+  "ai.panel.projectContext.selected": "選択中: {node}",
+  "ai.panel.projectContext.papers": "参照論文 {count} 件",
+  "ai.panel.projectContext.citations": "引用ブロック {count} 件",
+  "ai.panel.projectContext.stale": "古い参照 {count} 件",
+  "ai.panel.projectContext.action.menu": "プロジェクト AI アクション",
+  "ai.panel.projectContext.action.noSelection": "ノードが選択されていません",
+  "ai.panel.projectContext.action.summarize.label": "プロジェクトを要約",
+  "ai.panel.projectContext.action.summarize.prompt": "選択中の Canvas ノード {selected} を起点に、プロジェクト「{project}」（id: {projectId}）を要約してください。含まれている簡潔な Canvas コンテキストを使用し、グラフ構造がさらに必要な場合は read_project_context を呼び出してください。主要な問い、主張、根拠、対立、未完了タスク、ギャップを説明してください。原典の根拠と解釈を区別し、論文に基づく主張には正確な @block 引用を保持してください。",
+  "ai.panel.projectContext.action.recommend_paper.label": "次に読む論文を推薦",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "選択中の Canvas ノード {selected} を優先し、プロジェクト「{project}」（id: {projectId}）で次に読む価値のある論文を推薦してください。プロジェクトのコンテキストを確認し、探索には search_papers、書誌情報を述べる前には read_paper_metadata を使用してください。各推薦が Canvas 内のどの具体的なギャップや関係を補うか説明してください。論文を自動でインポートまたは追加しないでください。",
+  "ai.panel.projectContext.action.cited_outline.label": "引用付きアウトラインを生成",
+  "ai.panel.projectContext.action.cited_outline.prompt": "選択中の Canvas ノード {selected} を起点に、プロジェクト「{project}」（id: {projectId}）の研究アウトラインを生成してください。Canvas を一貫した論証に整理し、必要に応じて read_project_context、正確な根拠には read_paper_blocks を使用してください。論文に基づく事実的主張には、根拠がある場合は正規の @block 引用を含め、裏付けのない主張と不足している根拠を明示してください。"
 }

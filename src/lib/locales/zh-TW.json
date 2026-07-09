@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "找不到專案",
   "projectCanvas.picker.adding": "正在加入專案……",
   "projectCanvas.addCitation": "將引用加入專案",
-  "projectCanvas.aiAnswerTitle": "AI 研究回答"
+  "projectCanvas.aiAnswerTitle": "AI 研究回答",
+  "ai.panel.projectContext.toolsAvailable": "專案工具可用",
+  "ai.panel.projectContext.included": "已包含畫布內容",
+  "ai.panel.projectContext.project": "專案：{project}",
+  "ai.panel.projectContext.selected": "已選：{node}",
+  "ai.panel.projectContext.papers": "引用了 {count} 篇論文",
+  "ai.panel.projectContext.citations": "{count} 個引用區塊",
+  "ai.panel.projectContext.stale": "{count} 個失效引用",
+  "ai.panel.projectContext.action.menu": "專案 AI 操作",
+  "ai.panel.projectContext.action.noSelection": "未選擇節點",
+  "ai.panel.projectContext.action.summarize.label": "總結專案",
+  "ai.panel.projectContext.action.summarize.prompt": "請從已選 Canvas 節點「{selected}」出發，總結專案「{project}」（id：{projectId}）。使用已包含的精簡 Canvas 內容；如果需要更多圖結構，請呼叫 read_project_context。說明主要問題、論點、證據、分歧、未完成任務和缺口。區分來源證據與詮釋，並為基於論文的論點保留準確的 @block 引用。",
+  "ai.panel.projectContext.action.recommend_paper.label": "推薦下一篇論文",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "請為專案「{project}」（id：{projectId}）推薦下一篇值得閱讀的論文，並優先考慮已選 Canvas 節點「{selected}」。先檢查專案內容，再使用 search_papers 發現論文，並在提出書目資訊前呼叫 read_paper_metadata。說明每項推薦填補了 Canvas 中哪個具體缺口或關係。不要自動匯入或加入論文。",
+  "ai.panel.projectContext.action.cited_outline.label": "產生帶引用的研究大綱",
+  "ai.panel.projectContext.action.cited_outline.prompt": "請從已選 Canvas 節點「{selected}」出發，為專案「{project}」（id：{projectId}）產生研究大綱。將 Canvas 組織成連貫論證，在需要時使用 read_project_context，並使用 read_paper_blocks 取得精確證據。每個基於論文的事實性論點都應在有證據時包含規範的 @block 引用；明確標記缺少支持的論點和缺失證據。"
 }

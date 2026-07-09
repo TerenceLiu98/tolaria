@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "Проєктів не знайдено",
   "projectCanvas.picker.adding": "Додавання до проєкту...",
   "projectCanvas.addCitation": "Додати цитату до проєкту",
-  "projectCanvas.aiAnswerTitle": "Дослідницька відповідь ШІ"
+  "projectCanvas.aiAnswerTitle": "Дослідницька відповідь ШІ",
+  "ai.panel.projectContext.toolsAvailable": "Інструменти проєкту доступні",
+  "ai.panel.projectContext.included": "Контекст Canvas включено",
+  "ai.panel.projectContext.project": "Проєкт: {project}",
+  "ai.panel.projectContext.selected": "Вибрано: {node}",
+  "ai.panel.projectContext.papers": "Пов'язаних статей: {count}",
+  "ai.panel.projectContext.citations": "Цитованих блоків: {count}",
+  "ai.panel.projectContext.stale": "Застарілих посилань: {count}",
+  "ai.panel.projectContext.action.menu": "Дії ШІ для проєкту",
+  "ai.panel.projectContext.action.noSelection": "вузол не вибрано",
+  "ai.panel.projectContext.action.summarize.label": "Підсумувати проєкт",
+  "ai.panel.projectContext.action.summarize.prompt": "Підсумуйте проєкт «{project}» (id: {projectId}), починаючи з вибраного вузла Canvas: {selected}. Використовуйте включений компактний контекст Canvas і викличте read_project_context, якщо потрібна додаткова структура графа. Поясніть основні питання, твердження, докази, розбіжності, відкриті завдання та прогалини. Відрізняйте джерельні докази від інтерпретації та зберігайте точні посилання @block для тверджень, заснованих на статтях.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Порадити наступну статтю",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Порадьте наступну статтю, яку варто прочитати для проєкту «{project}» (id: {projectId}), надавши пріоритет вибраному вузлу Canvas: {selected}. Перегляньте контекст проєкту, потім використайте search_papers для пошуку та read_paper_metadata перед бібліографічними твердженнями. Поясніть, яку конкретну прогалину або зв'язок у Canvas заповнює кожна рекомендація. Не імпортуйте й не додавайте статтю автоматично.",
+  "ai.panel.projectContext.action.cited_outline.label": "Створити план із цитатами",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Створіть дослідницький план для проєкту «{project}» (id: {projectId}), починаючи з вибраного вузла Canvas: {selected}. Організуйте Canvas у зв'язну аргументацію, за потреби використовуйте read_project_context, а для точних доказів — read_paper_blocks. Кожне фактичне твердження, засноване на статті, має містити канонічне посилання @block, якщо доказ доступний; явно позначайте непідтверджені твердження та відсутні докази."
 }

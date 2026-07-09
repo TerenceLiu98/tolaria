@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "Prajekty nia znojdzieny",
   "projectCanvas.picker.adding": "Dadannie ŭ prajekt...",
   "projectCanvas.addCitation": "Dadać cytatu ŭ prajekt",
-  "projectCanvas.aiAnswerTitle": "Daśledčy adkaz ŠI"
+  "projectCanvas.aiAnswerTitle": "Daśledčy adkaz ŠI",
+  "ai.panel.projectContext.toolsAvailable": "Instrumienty prajektu dastupnyja",
+  "ai.panel.projectContext.included": "Kantekst Canvas uklučany",
+  "ai.panel.projectContext.project": "Prajekt: {project}",
+  "ai.panel.projectContext.selected": "Abrana: {node}",
+  "ai.panel.projectContext.papers": "Zviazanych artykulaŭ: {count}",
+  "ai.panel.projectContext.citations": "Cytavanych blokaŭ: {count}",
+  "ai.panel.projectContext.stale": "Sastarelych spasylak: {count}",
+  "ai.panel.projectContext.action.menu": "Dziejańni ŠI dla prajektu",
+  "ai.panel.projectContext.action.noSelection": "niama abranaha vuzła",
+  "ai.panel.projectContext.action.summarize.label": "Padsumavać prajekt",
+  "ai.panel.projectContext.action.summarize.prompt": "Padsumujcie prajekt «{project}» (id: {projectId}), pačynajučy z abranaha vuzła Canvas: {selected}. Vykarystoŭvajcie ŭklučany kampaktny kantekst Canvas i vykličcie read_project_context, kali patrebna dadatkovaja struktura hrafa. Rastłumačcie asnoŭnyja pytańni, ściaŕdžeńni, dokazy, roznahałośsi, adkrytyja zadačy i prabieły. Adroźnivajcie dokazy z krynic ad interpretacyi i zachoŭvajcie dakładnyja spasylki @block dla ściaŕdžeńniaŭ, zasnavanych na artykułach.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Paraić nastupny artykuł",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Parajcie nastupny artykuł, jaki varta pračytać dla prajektu «{project}» (id: {projectId}), addajučy pieravahu abranamu vuzłu Canvas: {selected}. Praviercie kantekst prajektu, zatym vykarystajcie search_papers dla pošuku i read_paper_metadata pierad biblijahrafičnymi ściaŕdžeńniami. Rastłumačcie, jaki kankretny prabieł albo suviaź u Canvas zapaŭniaje kožnaja rekamendacyja. Nie impartujcie i nie dadajcie artykuł aŭtamatyčna.",
+  "ai.panel.projectContext.action.cited_outline.label": "Stvaryć plan z cytatami",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Stvarycie daśledčy plan dla prajektu «{project}» (id: {projectId}), pačynajučy z abranaha vuzła Canvas: {selected}. Arhanizujcie Canvas u źviaznuju arhumentacyju, pry patrebie vykarystajcie read_project_context, a dla dakładnych dokazaŭ — read_paper_blocks. Kožnaje faktyčnaje ściaŕdžeńnie, zasnavanaje na artykule, pavinna źmiaščać kananičnuju spasylku @block, kali dokaz dastupny; vyrazna paznačajcie niepadćvierdžanyja ściaŕdžeńni i adsutnyja dokazy."
 }

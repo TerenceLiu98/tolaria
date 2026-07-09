@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "Proyek tidak ditemukan",
   "projectCanvas.picker.adding": "Menambahkan ke proyek...",
   "projectCanvas.addCitation": "Tambahkan sitasi ke proyek",
-  "projectCanvas.aiAnswerTitle": "Jawaban riset AI"
+  "projectCanvas.aiAnswerTitle": "Jawaban riset AI",
+  "ai.panel.projectContext.toolsAvailable": "Alat proyek tersedia",
+  "ai.panel.projectContext.included": "Konteks Canvas disertakan",
+  "ai.panel.projectContext.project": "Proyek: {project}",
+  "ai.panel.projectContext.selected": "Dipilih: {node}",
+  "ai.panel.projectContext.papers": "{count} makalah dirujuk",
+  "ai.panel.projectContext.citations": "{count} blok dikutip",
+  "ai.panel.projectContext.stale": "{count} referensi kedaluwarsa",
+  "ai.panel.projectContext.action.menu": "Tindakan AI proyek",
+  "ai.panel.projectContext.action.noSelection": "tidak ada node yang dipilih",
+  "ai.panel.projectContext.action.summarize.label": "Ringkas Proyek",
+  "ai.panel.projectContext.action.summarize.prompt": "Ringkas Proyek \"{project}\" (id: {projectId}) mulai dari node Canvas yang dipilih: {selected}. Gunakan konteks Canvas ringkas yang disertakan dan panggil read_project_context jika struktur graf tambahan diperlukan. Jelaskan pertanyaan, klaim, bukti, perbedaan, tugas terbuka, dan kesenjangan utama. Bedakan bukti sumber dari interpretasi dan pertahankan sitasi @block yang tepat untuk klaim berbasis makalah.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Rekomendasikan Makalah Berikutnya",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Rekomendasikan Makalah berikutnya yang layak dibaca untuk Proyek \"{project}\" (id: {projectId}), dengan memprioritaskan node Canvas yang dipilih: {selected}. Periksa konteks Proyek, lalu gunakan search_papers untuk penemuan dan read_paper_metadata sebelum membuat klaim bibliografis. Jelaskan kesenjangan atau hubungan konkret di Canvas yang dipenuhi setiap rekomendasi. Jangan mengimpor atau menambahkan Makalah secara otomatis.",
+  "ai.panel.projectContext.action.cited_outline.label": "Buat Kerangka Bersitasi",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Buat kerangka riset untuk Proyek \"{project}\" (id: {projectId}) mulai dari node Canvas yang dipilih: {selected}. Susun Canvas menjadi argumen yang koheren, gunakan read_project_context bila perlu, dan gunakan read_paper_blocks untuk bukti yang tepat. Setiap klaim faktual berbasis makalah harus menyertakan sitasi @block kanonis jika bukti tersedia; tandai klaim yang tidak didukung dan bukti yang hilang secara eksplisit."
 }

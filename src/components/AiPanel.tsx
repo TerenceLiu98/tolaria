@@ -13,12 +13,16 @@ import {
   type AiAgentReadiness,
 } from '../lib/aiAgents'
 import type { AiTarget } from '../lib/aiTargets'
-import type { AppLocale } from '../lib/i18n'
+import { createTranslator, type AppLocale } from '../lib/i18n'
+import { trackProjectCanvasAiAction } from '../lib/productAnalytics'
 import { type NoteListItem, type AiSelectedTextContext } from '../utils/ai-context'
 import type { VaultEntry } from '../types'
 import { useAiPanelController, type AiPanelController } from './useAiPanelController'
 import { useAiPanelPromptQueue } from './useAiPanelPromptQueue'
 import { useAiPanelFocus } from './useAiPanelFocus'
+import { ProjectCanvasAiContextBar } from './project-canvas/ProjectCanvasAiContextBar'
+import { projectCanvasAiActionPrompt, type ProjectCanvasAiAction } from '../projectCanvasAiActions'
+import { queueAiPrompt } from '../utils/aiPromptBridge'
 
 export type { AiAgentMessage } from '../hooks/useCliAiAgent'
 
@@ -179,6 +183,7 @@ export function AiPanelView({
     setInput,
     hasContext,
     paperContext,
+    projectContext,
     selectedTextContext,
     selectedTextIncluded,
     isActive,
@@ -213,6 +218,12 @@ export function AiPanelView({
     onSendPrompt?.(text)
     handleSend(text, references)
   }, [handleSend, isActive, onSendPrompt])
+  const handleProjectAiAction = useCallback((action: ProjectCanvasAiAction) => {
+    if (!projectContext || isActive) return
+    const prompt = projectCanvasAiActionPrompt(action, projectContext, createTranslator(locale))
+    trackProjectCanvasAiAction(action)
+    queueAiPrompt(prompt, [])
+  }, [isActive, locale, projectContext])
   const selectedTextControl = (
     <AiSelectedTextContextButton
       disabled={isActive}
@@ -242,6 +253,14 @@ export function AiPanelView({
         <AiPanelContextBar
           paperContext={paperContext}
           locale={locale}
+        />
+      )}
+      {projectContext && (
+        <ProjectCanvasAiContextBar
+          context={projectContext}
+          disabled={isActive}
+          locale={locale}
+          onAction={handleProjectAiAction}
         />
       )}
       <AiPanelMessageHistory

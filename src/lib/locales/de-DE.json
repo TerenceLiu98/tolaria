@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "Keine Projekte gefunden",
   "projectCanvas.picker.adding": "Wird zum Projekt hinzugefügt...",
   "projectCanvas.addCitation": "Zitat zum Projekt hinzufügen",
-  "projectCanvas.aiAnswerTitle": "KI-Rechercheantwort"
+  "projectCanvas.aiAnswerTitle": "KI-Rechercheantwort",
+  "ai.panel.projectContext.toolsAvailable": "Projektwerkzeuge verfügbar",
+  "ai.panel.projectContext.included": "Canvas-Kontext enthalten",
+  "ai.panel.projectContext.project": "Projekt: {project}",
+  "ai.panel.projectContext.selected": "Ausgewählt: {node}",
+  "ai.panel.projectContext.papers": "{count} referenzierte Papers",
+  "ai.panel.projectContext.citations": "{count} zitierte Blöcke",
+  "ai.panel.projectContext.stale": "{count} veraltete Referenzen",
+  "ai.panel.projectContext.action.menu": "Projekt-KI-Aktionen",
+  "ai.panel.projectContext.action.noSelection": "kein Knoten ausgewählt",
+  "ai.panel.projectContext.action.summarize.label": "Projekt zusammenfassen",
+  "ai.panel.projectContext.action.summarize.prompt": "Fasse das Projekt \"{project}\" (ID: {projectId}) ausgehend vom ausgewählten Canvas-Knoten zusammen: {selected}. Nutze den enthaltenen kompakten Canvas-Kontext und rufe read_project_context auf, wenn mehr Graphstruktur benötigt wird. Erläutere die wichtigsten Fragen, Behauptungen, Belege, Widersprüche, offenen Aufgaben und Lücken. Unterscheide Quellenbelege von Interpretationen und erhalte exakte @block-Zitate für papergestützte Aussagen.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Nächstes Paper empfehlen",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Empfiehl das nächste lesenswerte Paper für das Projekt \"{project}\" (ID: {projectId}) und priorisiere dabei den ausgewählten Canvas-Knoten: {selected}. Prüfe den Projektkontext, nutze dann search_papers zur Suche und read_paper_metadata vor bibliografischen Aussagen. Erkläre, welche konkrete Lücke oder Beziehung im Canvas jede Empfehlung abdeckt. Importiere oder ergänze kein Paper automatisch.",
+  "ai.panel.projectContext.action.cited_outline.label": "Zitierten Gliederungsentwurf erstellen",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Erstelle eine Forschungsgliederung für das Projekt \"{project}\" (ID: {projectId}) ausgehend vom ausgewählten Canvas-Knoten: {selected}. Organisiere den Canvas zu einer schlüssigen Argumentation, nutze bei Bedarf read_project_context und für exakte Belege read_paper_blocks. Jede papergestützte Tatsachenbehauptung soll, sofern Belege verfügbar sind, ihr kanonisches @block-Zitat enthalten; kennzeichne unbelegte Aussagen und fehlende Belege ausdrücklich."
 }

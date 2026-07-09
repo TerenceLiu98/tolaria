@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "Không tìm thấy dự án",
   "projectCanvas.picker.adding": "Đang thêm vào dự án...",
   "projectCanvas.addCitation": "Thêm trích dẫn vào dự án",
-  "projectCanvas.aiAnswerTitle": "Câu trả lời nghiên cứu AI"
+  "projectCanvas.aiAnswerTitle": "Câu trả lời nghiên cứu AI",
+  "ai.panel.projectContext.toolsAvailable": "Có công cụ dự án",
+  "ai.panel.projectContext.included": "Đã gồm ngữ cảnh Canvas",
+  "ai.panel.projectContext.project": "Dự án: {project}",
+  "ai.panel.projectContext.selected": "Đã chọn: {node}",
+  "ai.panel.projectContext.papers": "{count} bài báo được tham chiếu",
+  "ai.panel.projectContext.citations": "{count} khối được trích dẫn",
+  "ai.panel.projectContext.stale": "{count} tham chiếu lỗi thời",
+  "ai.panel.projectContext.action.menu": "Tác vụ AI cho dự án",
+  "ai.panel.projectContext.action.noSelection": "chưa chọn nút nào",
+  "ai.panel.projectContext.action.summarize.label": "Tóm tắt dự án",
+  "ai.panel.projectContext.action.summarize.prompt": "Hãy tóm tắt Dự án \"{project}\" (id: {projectId}), bắt đầu từ nút Canvas đã chọn: {selected}. Dùng ngữ cảnh Canvas cô đọng đã kèm theo và gọi read_project_context nếu cần thêm cấu trúc đồ thị. Giải thích các câu hỏi, nhận định, bằng chứng, bất đồng, nhiệm vụ còn mở và khoảng trống chính. Phân biệt bằng chứng nguồn với diễn giải và giữ nguyên trích dẫn @block chính xác cho các nhận định dựa trên bài báo.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Đề xuất bài báo tiếp theo",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Hãy đề xuất bài báo đáng đọc tiếp theo cho Dự án \"{project}\" (id: {projectId}), ưu tiên nút Canvas đã chọn: {selected}. Kiểm tra ngữ cảnh Dự án, sau đó dùng search_papers để tìm kiếm và read_paper_metadata trước khi đưa ra nhận định thư mục. Giải thích mỗi đề xuất lấp đầy khoảng trống hoặc quan hệ cụ thể nào trong Canvas. Không tự động nhập hay thêm bài báo.",
+  "ai.panel.projectContext.action.cited_outline.label": "Tạo dàn ý có trích dẫn",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Hãy tạo dàn ý nghiên cứu cho Dự án \"{project}\" (id: {projectId}), bắt đầu từ nút Canvas đã chọn: {selected}. Tổ chức Canvas thành một lập luận mạch lạc, dùng read_project_context khi cần và read_paper_blocks để lấy bằng chứng chính xác. Mọi nhận định thực tế dựa trên bài báo phải kèm trích dẫn @block chuẩn khi có bằng chứng; đánh dấu rõ các nhận định chưa được hỗ trợ và bằng chứng còn thiếu."
 }

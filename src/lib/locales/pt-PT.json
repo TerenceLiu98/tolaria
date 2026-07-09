@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "Nenhum projeto encontrado",
   "projectCanvas.picker.adding": "A adicionar ao projeto...",
   "projectCanvas.addCitation": "Adicionar citação ao projeto",
-  "projectCanvas.aiAnswerTitle": "Resposta de investigação da IA"
+  "projectCanvas.aiAnswerTitle": "Resposta de investigação da IA",
+  "ai.panel.projectContext.toolsAvailable": "Ferramentas de projeto disponíveis",
+  "ai.panel.projectContext.included": "Contexto do Canvas incluído",
+  "ai.panel.projectContext.project": "Projeto: {project}",
+  "ai.panel.projectContext.selected": "Selecionado: {node}",
+  "ai.panel.projectContext.papers": "{count} artigos referenciados",
+  "ai.panel.projectContext.citations": "{count} blocos citados",
+  "ai.panel.projectContext.stale": "{count} referências obsoletas",
+  "ai.panel.projectContext.action.menu": "Ações de IA do projeto",
+  "ai.panel.projectContext.action.noSelection": "nenhum nó selecionado",
+  "ai.panel.projectContext.action.summarize.label": "Resumir projeto",
+  "ai.panel.projectContext.action.summarize.prompt": "Resuma o projeto \"{project}\" (id: {projectId}) a partir do nó selecionado no Canvas: {selected}. Use o contexto compacto do Canvas incluído e chame read_project_context se precisar de mais estrutura do grafo. Explique as principais perguntas, afirmações, provas, divergências, tarefas em aberto e lacunas. Distinga provas das fontes de interpretações e preserve citações @block exatas para afirmações fundamentadas em artigos.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Recomendar o próximo artigo",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Recomende o próximo artigo que vale a pena ler para o projeto \"{project}\" (id: {projectId}), dando prioridade ao nó selecionado no Canvas: {selected}. Examine o contexto do projeto, use search_papers para descoberta e read_paper_metadata antes de fazer afirmações bibliográficas. Explique que lacuna ou relação concreta no Canvas cada recomendação preenche. Não importe nem adicione automaticamente um artigo.",
+  "ai.panel.projectContext.action.cited_outline.label": "Gerar plano com citações",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Gere um plano de investigação para o projeto \"{project}\" (id: {projectId}) a partir do nó selecionado no Canvas: {selected}. Organize o Canvas num argumento coerente, use read_project_context quando necessário e read_paper_blocks para provas exatas. Toda a afirmação factual baseada num artigo deve incluir a sua citação @block canónica quando houver prova; assinale explicitamente afirmações sem suporte e provas em falta."
 }

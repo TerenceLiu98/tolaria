@@ -1238,5 +1238,20 @@
   "projectCanvas.picker.empty": "Inga projekt hittades",
   "projectCanvas.picker.adding": "Lägger till i projekt...",
   "projectCanvas.addCitation": "Lägg till citering i projekt",
-  "projectCanvas.aiAnswerTitle": "AI-forskningssvar"
+  "projectCanvas.aiAnswerTitle": "AI-forskningssvar",
+  "ai.panel.projectContext.toolsAvailable": "Projektverktyg tillgängliga",
+  "ai.panel.projectContext.included": "Canvas-kontext inkluderad",
+  "ai.panel.projectContext.project": "Projekt: {project}",
+  "ai.panel.projectContext.selected": "Vald: {node}",
+  "ai.panel.projectContext.papers": "{count} refererade artiklar",
+  "ai.panel.projectContext.citations": "{count} citerade block",
+  "ai.panel.projectContext.stale": "{count} inaktuella referenser",
+  "ai.panel.projectContext.action.menu": "AI-åtgärder för projekt",
+  "ai.panel.projectContext.action.noSelection": "ingen nod vald",
+  "ai.panel.projectContext.action.summarize.label": "Sammanfatta projekt",
+  "ai.panel.projectContext.action.summarize.prompt": "Sammanfatta projektet \"{project}\" (id: {projectId}) med utgångspunkt i den valda Canvas-noden: {selected}. Använd den inkluderade kompakta Canvas-kontexten och anropa read_project_context om mer grafstruktur behövs. Förklara huvudfrågor, påståenden, belägg, motsättningar, öppna uppgifter och luckor. Skilj källbelägg från tolkning och bevara exakta @block-citat för påståenden som grundas på artiklar.",
+  "ai.panel.projectContext.action.recommend_paper.label": "Rekommendera nästa artikel",
+  "ai.panel.projectContext.action.recommend_paper.prompt": "Rekommendera nästa läsvärda artikel för projektet \"{project}\" (id: {projectId}), med prioritet på den valda Canvas-noden: {selected}. Granska projektkontexten och använd sedan search_papers för upptäckt och read_paper_metadata före bibliografiska påståenden. Förklara vilken konkret lucka eller relation i Canvas varje rekommendation fyller. Importera eller lägg inte till någon artikel automatiskt.",
+  "ai.panel.projectContext.action.cited_outline.label": "Skapa disposition med citat",
+  "ai.panel.projectContext.action.cited_outline.prompt": "Skapa en forskningsdisposition för projektet \"{project}\" (id: {projectId}) med utgångspunkt i den valda Canvas-noden: {selected}. Ordna Canvas till ett sammanhängande argument, använd read_project_context vid behov och read_paper_blocks för exakta belägg. Varje faktapåstående som grundas på en artikel ska innehålla sitt kanoniska @block-citat när belägg finns; markera uttryckligen påståenden utan stöd och saknade belägg."
 }
