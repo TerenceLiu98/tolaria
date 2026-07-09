@@ -128,6 +128,46 @@
   resize: vertical;
 }
 
+.project-canvas-inspector__checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.project-canvas-inspector__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.project-canvas-inspector__stat {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--muted) / 0.28);
+  padding: 8px;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+}
+
+.project-canvas-inspector__stat strong {
+  color: hsl(var(--foreground));
+  font-size: 13px;
+}
+
+.project-canvas-inspector__hint {
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .project-canvas-inspector__actions {
   display: flex;
   justify-content: flex-end;
@@ -344,6 +384,10 @@
   background: hsl(46 92% 55% / 0.72);
 }
 
+.project-canvas-node--type-image::before {
+  background: hsl(186 72% 42% / 0.7);
+}
+
 .project-canvas-node--type-task::before {
   background: hsl(271 55% 56% / 0.68);
 }
@@ -452,6 +496,44 @@
   resize: none;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.project-canvas-node__task {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 8px;
+}
+
+.project-canvas-node__task .project-canvas-node__textarea {
+  margin-top: 0;
+  min-height: 78px;
+}
+
+.project-canvas-node__image-frame {
+  margin-top: 8px;
+  height: calc(100% - 76px);
+  min-height: 82px;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--muted) / 0.35);
+}
+
+.project-canvas-node__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.project-canvas-node__image-empty {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
 }
 
 .project-canvas-node__footer {

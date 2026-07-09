@@ -220,6 +220,7 @@ type ProjectCanvasNodeType =
   | 'note'
   | 'paper'
   | 'paper_block'
+  | 'image'
   | 'text'
   | 'task'
   | 'group'
@@ -237,11 +238,12 @@ Referenced nodes point at existing vault objects through `ref`:
 - `note`: a vault-relative Markdown path.
 - `paper`: a vault-relative Paper note path.
 - `paper_block`: a durable `@block[paper_id#block_id]` citation.
-- `text`, `task`, and `group`: embedded canvas-local labels or short text only.
+- `image`: a vault-relative image path, absolute image path, or image URL reference.
+- `text`, `task`, and `group`: embedded canvas-local labels or short text only. Task nodes may also store a local `completed` state.
 
-The canvas owns position, size, grouping, viewport, and relationship edges. Notes, Papers, Paper metadata, Paper blocks, and comments remain in their existing Markdown files and sidecars. Saving a canvas writes pretty JSON with deterministic node and edge ordering by id so Git diffs stay reviewable. Reference resolution returns per-node `resolved`, `embedded`, or `stale` states plus diagnostics; missing Notes, Papers, or Paper blocks must not corrupt the canvas or prevent other nodes from resolving.
+The canvas owns position, size, grouping, viewport, short embedded cards, task completion state, image refs, and relationship edges. Notes, Papers, Paper metadata, Paper blocks, source images, and comments remain in their existing Markdown files and sidecars. Saving a canvas writes pretty JSON with deterministic node and edge ordering by id so Git diffs stay reviewable. Reference resolution returns per-node `resolved`, `embedded`, or `stale` states plus diagnostics; missing Notes, Papers, Paper blocks, or image files must not corrupt the canvas or prevent other nodes from resolving.
 
-Project notes mount `ProjectEditorSurface`, which keeps the normal editable Note surface as the default writing mode and adds a Canvas mode for the adjacent canvas file. `ProjectCanvasSurface` is a compact spatial renderer: it shows bounded cards for referenced Notes, Papers, Paper blocks, text cards, tasks, and groups; draws lightweight relationship edges; persists pan/zoom plus node geometry through the Project Canvas commands; and routes node clicks through the existing Sapientia navigation path. The bottom floating toolbar can add existing Notes/Papers from the vault entry list, create short text/task/group cards, fit the graph to the viewport, and run a simple deterministic auto layout. Nodes expose a connector handle for drag-to-connect edge creation, while a right-side inspector edits selected node titles/text and selected edge kind/notes or deletes selected nodes/edges. Duplicate Note/Paper refs focus the existing node instead of storing another copy of the same reference. It must not store long-form Note/Paper bodies in the canvas file or mount full editors/PDF previews inside nodes.
+Project notes mount `ProjectEditorSurface`, which keeps the normal editable Note surface as the default writing mode and adds a Canvas mode for the adjacent canvas file. `ProjectCanvasSurface` is a compact spatial renderer: it shows bounded cards for referenced Notes, Papers, Paper blocks, images, text cards, tasks, and groups; draws lightweight relationship edges; persists pan/zoom plus node geometry through the Project Canvas commands; and routes node clicks through the existing Sapientia navigation path. The bottom floating toolbar can add existing Notes/Papers from the vault entry list, create short text/task/group cards, add image refs and `@block[...]` evidence nodes, undo/redo recent content operations, fit the graph to the viewport, and run a simple deterministic auto layout. The viewport accepts dropped text, image paths/URLs, and block citations and maps them to the matching node type. Nodes expose a connector handle for drag-to-connect edge creation, while a right-side inspector shows Project summary counts when nothing is selected, edits selected node titles/text/task state/image path and selected edge kind/notes, or deletes selected nodes/edges. Duplicate Note/Paper refs focus the existing node instead of storing another copy of the same reference. It must not store long-form Note/Paper bodies in the canvas file or mount full editors/PDF previews inside nodes.
 
 ### Tolaria Deep Links
 

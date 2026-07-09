@@ -1218,5 +1218,18 @@
   "projectCanvas.edgeNotePlaceholder": "Add relationship context...",
   "projectCanvas.openNode": "Open",
   "projectCanvas.deleteNode": "Delete node",
-  "projectCanvas.deleteEdge": "Delete edge"
+  "projectCanvas.deleteEdge": "Delete edge",
+  "projectCanvas.node.image": "Image",
+  "projectCanvas.addMode.image": "Image",
+  "projectCanvas.addMode.block": "Block",
+  "projectCanvas.addPlaceholder.image": "Paste an image path or URL...",
+  "projectCanvas.addPlaceholder.block": "Paste @block[paper#block]...",
+  "projectCanvas.imageMissing": "Image unavailable",
+  "projectCanvas.imagePath": "Image path",
+  "projectCanvas.taskCompleted": "Task completed",
+  "projectCanvas.projectSummary": "Project summary",
+  "projectCanvas.workspace": "Workspace",
+  "projectCanvas.summaryHint": "Select a node or edge to inspect it. Drop text, image paths, or @block citations onto the canvas to add them quickly.",
+  "projectCanvas.undo": "Undo",
+  "projectCanvas.redo": "Redo"
 }

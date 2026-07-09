@@ -3,7 +3,7 @@ import { isTauri, mockInvoke } from './mock-tauri'
 
 export const PROJECT_CANVAS_SCHEMA = 'project-canvas/v1'
 
-export type ProjectCanvasNodeType = 'note' | 'paper' | 'paper_block' | 'text' | 'task' | 'group'
+export type ProjectCanvasNodeType = 'note' | 'paper' | 'paper_block' | 'image' | 'text' | 'task' | 'group'
 export type ProjectCanvasEdgeKind = 'related' | 'supports' | 'contradicts' | 'depends_on' | 'needs_reading'
 export type ProjectCanvasState = 'missing' | 'ready'
 export type ProjectCanvasRefState = 'embedded' | 'resolved' | 'stale'
@@ -24,6 +24,7 @@ export interface ProjectCanvasNode {
   height: number
   title?: string
   text?: string
+  completed?: boolean
 }
 
 export interface ProjectCanvasEdge {

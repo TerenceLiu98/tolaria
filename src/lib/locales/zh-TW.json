@@ -1218,5 +1218,18 @@
   "projectCanvas.edgeNotePlaceholder": "Add relationship context...",
   "projectCanvas.openNode": "Open",
   "projectCanvas.deleteNode": "Delete node",
-  "projectCanvas.deleteEdge": "Delete edge"
+  "projectCanvas.deleteEdge": "Delete edge",
+  "projectCanvas.node.image": "圖片",
+  "projectCanvas.addMode.image": "圖片",
+  "projectCanvas.addMode.block": "證據區塊",
+  "projectCanvas.addPlaceholder.image": "貼上圖片路徑或 URL...",
+  "projectCanvas.addPlaceholder.block": "貼上 @block[paper#block]...",
+  "projectCanvas.imageMissing": "圖片無法使用",
+  "projectCanvas.imagePath": "圖片路徑",
+  "projectCanvas.taskCompleted": "任務已完成",
+  "projectCanvas.projectSummary": "專案概覽",
+  "projectCanvas.workspace": "工作區",
+  "projectCanvas.summaryHint": "選取節點或連線即可檢視詳細資料。也可以把文字、圖片路徑或 @block 引用拖到畫布上快速新增。",
+  "projectCanvas.undo": "復原",
+  "projectCanvas.redo": "重做"
 }

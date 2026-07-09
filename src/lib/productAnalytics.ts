@@ -25,7 +25,7 @@ type AiAgentToolCount = number
 type AiAgentResponseTextFlag = 'had_text' | 'had_partial_response'
 type SheetFormulaFunctionName = string
 type ProjectCanvasOpenState = 'ready' | 'created'
-type ProjectCanvasNodeKind = 'note' | 'paper' | 'paper_block' | 'text' | 'task' | 'group'
+type ProjectCanvasNodeKind = 'note' | 'paper' | 'paper_block' | 'image' | 'text' | 'task' | 'group'
 type ProjectCanvasEdgeKind = 'related' | 'supports' | 'contradicts' | 'depends_on' | 'needs_reading'
 
 const ALL_NOTES_VISIBILITY_CATEGORIES: ReadonlyArray<keyof AllNotesFileVisibility> = [

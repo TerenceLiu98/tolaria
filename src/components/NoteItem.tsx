@@ -1,4 +1,4 @@
-import type { ComponentType, CSSProperties, MouseEvent as ReactMouseEvent, MouseEventHandler, ReactNode, SVGAttributes } from 'react'
+import type { ComponentType, CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, MouseEventHandler, ReactNode, SVGAttributes } from 'react'
 import type { VaultEntry, NoteStatus } from '../types'
 import { cn } from '@/lib/utils'
 import {
@@ -18,6 +18,7 @@ import { ChangeNoteContent } from './note-item/ChangeNoteContent'
 import { workspaceForEntry } from '../utils/workspaces'
 import { WorkspaceInitialsBadge } from './WorkspaceInitialsBadge'
 import { useDateDisplayFormat } from '../hooks/useAppPreferences'
+import { projectCanvasDragPayloadFromEntry, writeProjectCanvasDragPayload } from './project-canvas/projectCanvasDragData'
 
 const TYPE_ICON_MAP: Record<string, ComponentType<SVGAttributes<SVGSVGElement>>> = {
   Project: Wrench,
@@ -93,6 +94,7 @@ type NoteItemSurfaceProps = {
   style: CSSProperties
   onClick: MouseEventHandler<HTMLDivElement>
   onContextMenu?: MouseEventHandler<HTMLDivElement>
+  onDragStart?: (event: ReactDragEvent<HTMLDivElement>) => void
   onMouseEnter?: () => void
   title?: string
   testId?: string
@@ -500,11 +502,16 @@ function resolveNoteItemSurfaceProps({
   typeColor: string
   typeLightColor: string
 }): NoteItemSurfaceProps {
+  const projectCanvasPayload = projectCanvasDragPayloadFromEntry(entry)
   return {
     className: noteItemClassName({ isUnavailableBinary, isSelected, isMultiSelected, isHighlighted }),
     style: resolveNoteItemSurfaceStyle({ isUnavailableBinary, isSelected, isMultiSelected, typeColor, typeLightColor }),
     onClick: createNoteItemClickHandler(entry, isUnavailableBinary, onClickNote),
     onContextMenu: onContextMenu ? (event) => onContextMenu(entry, event) : undefined,
+    onDragStart: projectCanvasPayload ? (event) => {
+      writeProjectCanvasDragPayload(event.dataTransfer, projectCanvasPayload)
+      event.dataTransfer.effectAllowed = 'copy'
+    } : undefined,
     onMouseEnter: entry.fileKind !== 'binary' && onPrefetch ? () => onPrefetch(entry) : undefined,
     testId: resolveNoteItemTestId({ isMultiSelected, previewKind, isUnavailableBinary }),
     title: resolveNoteItemTitle({ previewKind, isUnavailableBinary }),
@@ -536,12 +543,14 @@ function NoteItemRow({
       style={surfaceProps.style}
       onClick={surfaceProps.onClick}
       onContextMenu={surfaceProps.onContextMenu}
+      onDragStart={surfaceProps.onDragStart}
       onMouseEnter={surfaceProps.onMouseEnter}
       data-testid={surfaceProps.testId}
       data-highlighted={isHighlighted || undefined}
       data-note-path={entryPath}
       data-change-status={changeStatus}
       title={surfaceProps.title}
+      draggable={Boolean(surfaceProps.onDragStart)}
     >
       {children}
     </div>

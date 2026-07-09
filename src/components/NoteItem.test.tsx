@@ -2,6 +2,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NoteItem } from './NoteItem'
 import { makeEntry } from '../test-utils/noteListTestUtils'
+import { PROJECT_CANVAS_DRAG_MIME } from './project-canvas/projectCanvasDragData'
 
 vi.mock('../utils/url', async () => {
   const actual = await vi.importActual('../utils/url') as typeof import('../utils/url')
@@ -36,6 +37,36 @@ describe('NoteItem', () => {
 
     fireEvent.click(item)
     expect(onClickNote).not.toHaveBeenCalled()
+  })
+
+  it('writes Project Canvas drag payload for Note and Paper rows', () => {
+    const paperEntry = makeEntry({
+      path: '/vault/papers/example/paper.md',
+      filename: 'paper.md',
+      title: 'Example Paper',
+      isA: 'Paper',
+      snippet: 'Short bibliography row.',
+    })
+    const data = new Map<string, string>()
+    const dataTransfer = {
+      effectAllowed: '',
+      setData: vi.fn((type: string, value: string) => {
+        data.set(type, value)
+      }),
+    }
+
+    render(<NoteItem entry={paperEntry} isSelected={false} typeEntryMap={{}} onClickNote={vi.fn()} />)
+
+    fireEvent.dragStart(screen.getByRole('option'), { dataTransfer })
+
+    expect(dataTransfer.setData).toHaveBeenCalledWith(PROJECT_CANVAS_DRAG_MIME, expect.any(String))
+    expect(JSON.parse(data.get(PROJECT_CANVAS_DRAG_MIME) ?? '{}')).toMatchObject({
+      nodeType: 'paper',
+      ref: '/vault/papers/example/paper.md',
+      title: 'Example Paper',
+    })
+    expect(data.get('text/plain')).toBe('/vault/papers/example/paper.md')
+    expect(dataTransfer.effectAllowed).toBe('copy')
   })
 
   it('renders image files as clickable rows with an image file indicator', () => {

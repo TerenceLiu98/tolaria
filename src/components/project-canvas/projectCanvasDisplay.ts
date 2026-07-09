@@ -22,6 +22,8 @@ export function nodeKindKey(node: ProjectCanvasNode): TranslationKey {
       return 'projectCanvas.node.paper'
     case 'paper_block':
       return 'projectCanvas.node.paper_block'
+    case 'image':
+      return 'projectCanvas.node.image'
     case 'text':
       return 'projectCanvas.node.text'
     case 'task':
@@ -93,6 +95,7 @@ export function autoLayoutCanvas(current: ProjectCanvas): ProjectCanvas {
   const columns: Record<ProjectCanvasNodeType, number> = {
     paper: 0,
     paper_block: 1,
+    image: 1,
     note: 2,
     text: 2,
     task: 3,

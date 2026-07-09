@@ -9,6 +9,7 @@ import {
 } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
 import { ProjectCanvasSurface } from './ProjectCanvasSurface'
+import { PROJECT_CANVAS_DRAG_MIME } from './projectCanvasDragData'
 
 vi.mock('../../lib/productAnalytics', () => ({
   trackProjectCanvasCreated: vi.fn(),
@@ -425,6 +426,226 @@ describe('ProjectCanvasSurface', () => {
     expect(savedCanvas?.edges).toEqual([
       expect.objectContaining({ from: 'source', kind: 'related', to: savedCanvas?.nodes.at(-1)?.id }),
     ])
+  })
+
+  it('adds image and block citation nodes from the add panel', async () => {
+    const canvas = defaultProjectCanvas('projects/alpha/project.md')
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await screen.findByTestId('project-canvas-surface')
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Image' }))
+    fireEvent.change(screen.getByPlaceholderText('Paste an image path or URL...'), {
+      target: { value: 'attachments/figure-1.png' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Card' }))
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    let savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes.at(-1)).toMatchObject({
+      ref: 'attachments/figure-1.png',
+      title: 'figure-1.png',
+      type: 'image',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+    fireEvent.change(screen.getByPlaceholderText('Paste @block[paper#block]...'), {
+      target: { value: '@block[kan#b0001]' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Card' }))
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(2))
+    savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes.at(-1)).toMatchObject({
+      ref: '@block[kan#b0001]',
+      type: 'paper_block',
+    })
+  })
+
+  it('toggles task completion from the node card', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const taskCard = (await screen.findByText('Read methods')).closest('[data-testid="project-canvas-node"]')
+    expect(taskCard).not.toBeNull()
+    fireEvent.click(within(taskCard as HTMLElement).getByRole('checkbox'))
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes.find(node => node.id === 'task')?.completed).toBe(true)
+  })
+
+  it('drops block citations onto the canvas', async () => {
+    const canvas = defaultProjectCanvas('projects/alpha/project.md')
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const viewport = await screen.findByTestId('project-canvas-viewport')
+    fireEvent.drop(viewport, {
+      clientX: 220,
+      clientY: 180,
+      dataTransfer: {
+        files: [],
+        getData: (type: string) => type === 'text/plain' ? '@block[kan#b0002]' : '',
+        types: ['text/plain'],
+      },
+    })
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes.at(-1)).toMatchObject({
+      ref: '@block[kan#b0002]',
+      type: 'paper_block',
+    })
+  })
+
+  it('drops NoteList Paper payloads onto the canvas as Paper nodes', async () => {
+    const canvas = defaultProjectCanvas('projects/alpha/project.md')
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const viewport = await screen.findByTestId('project-canvas-viewport')
+    fireEvent.drop(viewport, {
+      clientX: 240,
+      clientY: 210,
+      dataTransfer: {
+        files: [],
+        getData: (type: string) => type === PROJECT_CANVAS_DRAG_MIME
+          ? JSON.stringify({
+            nodeType: 'paper',
+            ref: '/vault/papers/example/paper.md',
+            title: 'Example Paper',
+            text: 'A compact paper row.',
+          })
+          : '',
+        types: [PROJECT_CANVAS_DRAG_MIME],
+      },
+    })
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes.at(-1)).toMatchObject({
+      ref: 'papers/example/paper.md',
+      text: 'A compact paper row.',
+      title: 'Example Paper',
+      type: 'paper',
+    })
+  })
+
+  it('copies, pastes, and undoes selected nodes from the keyboard', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const sourceCard = (await screen.findByText('Source Note')).closest('[data-testid="project-canvas-node"]')
+    expect(sourceCard).not.toBeNull()
+    fireEvent.click(within(sourceCard as HTMLElement).getByRole('button', { name: 'Source' }))
+    const viewport = screen.getByTestId('project-canvas-viewport')
+    fireEvent.keyDown(viewport, { key: 'c', metaKey: true })
+    fireEvent.keyDown(viewport, { key: 'v', metaKey: true })
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    let savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes).toHaveLength(canvas.nodes.length + 1)
+
+    fireEvent.keyDown(viewport, { key: 'z', metaKey: true })
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(2))
+    savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes).toHaveLength(canvas.nodes.length)
+  })
+
+  it('multi-selects nodes for group copy and delete', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const sourceCard = (await screen.findByText('Source Note')).closest('[data-testid="project-canvas-node"]')
+    const paperCard = screen.getByText('Example Paper').closest('[data-testid="project-canvas-node"]')
+    expect(sourceCard).not.toBeNull()
+    expect(paperCard).not.toBeNull()
+    fireEvent.click(within(sourceCard as HTMLElement).getByRole('button', { name: 'Source' }))
+    fireEvent.click(within(paperCard as HTMLElement).getByRole('button', { name: 'Source' }), { metaKey: true })
+
+    const viewport = screen.getByTestId('project-canvas-viewport')
+    fireEvent.keyDown(viewport, { key: 'c', metaKey: true })
+    fireEvent.keyDown(viewport, { key: 'v', metaKey: true })
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    let savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes).toHaveLength(canvas.nodes.length + 2)
+
+    fireEvent.keyDown(viewport, { key: 'Delete' })
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(2))
+    savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes).toHaveLength(canvas.nodes.length)
   })
 
   it('creates an edge by dragging a node connect handle onto another node', async () => {

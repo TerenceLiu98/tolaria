@@ -16,6 +16,7 @@ pub enum ProjectCanvasNodeType {
     Note,
     Paper,
     PaperBlock,
+    Image,
     Text,
     Task,
     Group,
@@ -65,6 +66,8 @@ pub struct ProjectCanvasNode {
     pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -414,6 +417,7 @@ fn normalize_ref_path(value: &str) -> String {
 }
 
 struct EntryIndex {
+    vault_path: PathBuf,
     entries_by_path: HashMap<String, VaultEntry>,
     paper_by_id: HashMap<String, VaultEntry>,
 }
@@ -440,6 +444,7 @@ impl EntryIndex {
         }
 
         Self {
+            vault_path: vault_path.to_path_buf(),
             entries_by_path,
             paper_by_id,
         }
@@ -499,12 +504,35 @@ fn resolve_node_ref(
         ProjectCanvasNodeType::PaperBlock => {
             resolve_paper_block_node(node, ref_target, entry_index)
         }
+        ProjectCanvasNodeType::Image => resolve_image_node(node, ref_target, entry_index),
         ProjectCanvasNodeType::Text
         | ProjectCanvasNodeType::Task
         | ProjectCanvasNodeType::Group => stale_ref(
             node,
             "Embedded Project Canvas nodes should not have external refs",
         ),
+    }
+}
+
+fn resolve_image_node(
+    node: &ProjectCanvasNode,
+    ref_target: &str,
+    entry_index: &EntryIndex,
+) -> ProjectCanvasResolvedRef {
+    let normalized = normalize_ref_path(ref_target);
+    let image_path = entry_index.vault_path.join(&normalized);
+    if image_path.exists() {
+        ProjectCanvasResolvedRef {
+            node_id: node.id.clone(),
+            node_type: node.node_type.clone(),
+            ref_target: node.ref_target.clone(),
+            state: ProjectCanvasRefState::Resolved,
+            target_path: Some(path_slash(Path::new(&normalized))),
+            target_title: node.title.clone(),
+            message: None,
+        }
+    } else {
+        stale_ref(node, "Referenced image does not exist")
     }
 }
 
@@ -601,6 +629,7 @@ fn stale_kind_for_node(node: &ProjectCanvasNode) -> String {
         ProjectCanvasNodeType::Note => "missing_note",
         ProjectCanvasNodeType::Paper => "missing_paper",
         ProjectCanvasNodeType::PaperBlock => "missing_paper_block",
+        ProjectCanvasNodeType::Image => "missing_image",
         ProjectCanvasNodeType::Text
         | ProjectCanvasNodeType::Task
         | ProjectCanvasNodeType::Group => "unexpected_ref",
@@ -684,6 +713,7 @@ mod tests {
                     height: 160.0,
                     title: None,
                     text: None,
+                    completed: None,
                 },
                 ProjectCanvasNode {
                     id: "node_text".to_string(),
@@ -695,6 +725,7 @@ mod tests {
                     height: 120.0,
                     title: Some("Claim".to_string()),
                     text: Some("KANs need comparison".to_string()),
+                    completed: None,
                 },
             ],
             edges: vec![ProjectCanvasEdge {
@@ -754,6 +785,7 @@ mod tests {
             ProjectCanvasNodeType::Note,
             ProjectCanvasNodeType::Paper,
             ProjectCanvasNodeType::PaperBlock,
+            ProjectCanvasNodeType::Image,
             ProjectCanvasNodeType::Text,
             ProjectCanvasNodeType::Task,
             ProjectCanvasNodeType::Group,
@@ -770,6 +802,7 @@ mod tests {
             height: 80.0,
             title: None,
             text: None,
+            completed: None,
         })
         .collect::<Vec<_>>();
         let canvas = ProjectCanvas {
@@ -812,7 +845,7 @@ mod tests {
             .unwrap()
             .canvas
             .unwrap();
-        assert_eq!(read.nodes.len(), 6);
+        assert_eq!(read.nodes.len(), 7);
         assert_eq!(read.edges.len(), 4);
         assert!(read
             .nodes
@@ -853,6 +886,7 @@ mod tests {
                 height: 80.0,
                 title: None,
                 text: None,
+                completed: None,
             },
             ProjectCanvasNode {
                 id: "existing_block".to_string(),
@@ -864,6 +898,7 @@ mod tests {
                 height: 80.0,
                 title: None,
                 text: None,
+                completed: None,
             },
             ProjectCanvasNode {
                 id: "missing".to_string(),
@@ -875,6 +910,7 @@ mod tests {
                 height: 80.0,
                 title: None,
                 text: None,
+                completed: None,
             },
         ];
 

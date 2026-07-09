@@ -2,12 +2,14 @@ import { Minus, Trash } from '@phosphor-icons/react'
 import { translate, type AppLocale } from '../../lib/i18n'
 import type { ProjectCanvas, ProjectCanvasEdgeKind, ProjectCanvasNode } from '../../projectCanvas'
 import { Button } from '../ui/button'
+import { Checkbox } from '../ui/checkbox'
 import { Input } from '../ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Textarea } from '../ui/textarea'
 import { EDGE_KINDS, edgeKindKey, nodeKindKey } from './projectCanvasDisplay'
 
 interface ProjectCanvasInspectorProps {
+  canvas: ProjectCanvas
   edge: ProjectCanvas['edges'][number] | null
   locale: AppLocale
   node: ProjectCanvasNode | null
@@ -21,6 +23,7 @@ interface ProjectCanvasInspectorProps {
 }
 
 export function ProjectCanvasInspector({
+  canvas,
   edge,
   locale,
   node,
@@ -32,22 +35,44 @@ export function ProjectCanvasInspector({
   onNavigate,
   onNodeChange,
 }: ProjectCanvasInspectorProps) {
-  if (!node && !edge) return null
+  const counts = canvas.nodes.reduce<Record<string, number>>((result, item) => ({
+    ...result,
+    [item.type]: (result[item.type] ?? 0) + 1,
+  }), {})
   return (
     <aside className="project-canvas-inspector" aria-label={translate(locale, 'projectCanvas.inspector')}>
       <div className="project-canvas-inspector__header">
         <div>
           <div className="project-canvas-inspector__eyebrow">
-            {node ? translate(locale, nodeKindKey(node)) : translate(locale, 'projectCanvas.edgeLabel')}
+            {node
+              ? translate(locale, nodeKindKey(node))
+              : edge
+                ? translate(locale, 'projectCanvas.edgeLabel')
+                : translate(locale, 'projectCanvas.projectSummary')}
           </div>
           <div className="project-canvas-inspector__title">
-            {node ? (node.title ?? node.ref ?? node.id) : (edge?.id ?? '')}
+            {node ? (node.title ?? node.ref ?? node.id) : edge ? edge.id : translate(locale, 'projectCanvas.workspace')}
           </div>
         </div>
-        <Button type="button" size="icon-sm" variant="ghost" aria-label={translate(locale, 'projectCanvas.closeInspector')} onClick={onClose}>
-          <Minus size={14} />
-        </Button>
+        {node || edge ? (
+          <Button type="button" size="icon-sm" variant="ghost" aria-label={translate(locale, 'projectCanvas.closeInspector')} onClick={onClose}>
+            <Minus size={14} />
+          </Button>
+        ) : null}
       </div>
+      {!node && !edge ? (
+        <div className="project-canvas-inspector__body">
+          <div className="project-canvas-inspector__stats">
+            <ProjectCanvasStat label={translate(locale, 'projectCanvas.node.note')} value={counts.note ?? 0} />
+            <ProjectCanvasStat label={translate(locale, 'projectCanvas.node.paper')} value={counts.paper ?? 0} />
+            <ProjectCanvasStat label={translate(locale, 'projectCanvas.node.paper_block')} value={counts.paper_block ?? 0} />
+            <ProjectCanvasStat label={translate(locale, 'projectCanvas.node.image')} value={counts.image ?? 0} />
+            <ProjectCanvasStat label={translate(locale, 'projectCanvas.node.task')} value={counts.task ?? 0} />
+            <ProjectCanvasStat label={translate(locale, 'projectCanvas.edgeLabel')} value={canvas.edges.length} />
+          </div>
+          <div className="project-canvas-inspector__hint">{translate(locale, 'projectCanvas.summaryHint')}</div>
+        </div>
+      ) : null}
       {node ? (
         <ProjectCanvasNodeInspector
           locale={locale}
@@ -67,6 +92,15 @@ export function ProjectCanvasInspector({
         />
       ) : null}
     </aside>
+  )
+}
+
+function ProjectCanvasStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="project-canvas-inspector__stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   )
 }
 
@@ -100,12 +134,32 @@ function ProjectCanvasNodeInspector({
           <Input value={node.ref} readOnly />
         </label>
       ) : null}
+      {node.type === 'task' ? (
+        <label className="project-canvas-inspector__checkbox">
+          <Checkbox
+            checked={node.completed === true}
+            onCheckedChange={checked => onNodeChange({ completed: checked === true }, true)}
+          />
+          <span>{translate(locale, 'projectCanvas.taskCompleted')}</span>
+        </label>
+      ) : null}
       {node.type === 'text' || node.type === 'task' || node.type === 'group' ? (
         <label className="project-canvas-inspector__field">
           <span>{translate(locale, 'projectCanvas.inspectorText')}</span>
           <Textarea
             value={node.text ?? ''}
             onChange={event => onNodeChange({ text: event.target.value || undefined })}
+            onBlur={() => onNodeChange({}, true)}
+          />
+        </label>
+      ) : null}
+      {node.type === 'image' ? (
+        <label className="project-canvas-inspector__field">
+          <span>{translate(locale, 'projectCanvas.imagePath')}</span>
+          <Input
+            value={node.ref ?? ''}
+            placeholder={translate(locale, 'projectCanvas.addPlaceholder.image')}
+            onChange={event => onNodeChange({ ref: event.target.value || undefined })}
             onBlur={() => onNodeChange({}, true)}
           />
         </label>

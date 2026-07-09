@@ -48,8 +48,8 @@ describe('projectCanvas', () => {
       .toEqual(['a_edge', 'z_edge'])
   })
 
-  it('covers every Phase 1 node and edge kind', () => {
-    const nodeTypes: ProjectCanvasNodeType[] = ['note', 'paper', 'paper_block', 'text', 'task', 'group']
+  it('covers every Project Canvas node and edge kind', () => {
+    const nodeTypes: ProjectCanvasNodeType[] = ['note', 'paper', 'paper_block', 'image', 'text', 'task', 'group']
     const edgeKinds: ProjectCanvasEdgeKind[] = ['related', 'supports', 'contradicts', 'depends_on', 'needs_reading']
     const canvas: ProjectCanvas = {
       ...defaultProjectCanvas('projects/alpha/project.md'),
