@@ -8,15 +8,26 @@ import {
   resolveProjectCanvasRefs,
   saveProjectCanvas,
   type ProjectCanvas,
+  type ProjectCanvasEdgeKind,
   type ProjectCanvasNode,
+  type ProjectCanvasNodeType,
   type ProjectCanvasResolvedRef,
 } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
 import { Button } from '../ui/button'
+import { Checkbox } from '../ui/checkbox'
+import { Input } from '../ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Textarea } from '../ui/textarea'
 import { cn } from '../../lib/utils'
-import { trackProjectCanvasCreated, trackProjectCanvasLayoutSaved, trackProjectCanvasOpened } from '../../lib/productAnalytics'
-import { boundedSnippet, findEntryForProjectCanvasRef, paperSubtitle } from './projectCanvasEntryPreview'
+import {
+  trackProjectCanvasCreated,
+  trackProjectCanvasEdgeCreated,
+  trackProjectCanvasLayoutSaved,
+  trackProjectCanvasNodeAdded,
+  trackProjectCanvasOpened,
+} from '../../lib/productAnalytics'
+import { boundedSnippet, findEntryForProjectCanvasRef, paperSubtitle, relativeVaultPath } from './projectCanvasEntryPreview'
 import './ProjectCanvasSurface.css'
 
 const MIN_NODE_WIDTH = 180
@@ -24,6 +35,10 @@ const MIN_NODE_HEIGHT = 110
 const ZOOM_MIN = 0.35
 const ZOOM_MAX = 2
 const ZOOM_STEP = 0.1
+const DEFAULT_NODE_WIDTH = 260
+const DEFAULT_NODE_HEIGHT = 150
+const DEFAULT_EMBEDDED_NODE_HEIGHT = 160
+const EDGE_KINDS: ProjectCanvasEdgeKind[] = ['related', 'supports', 'contradicts', 'depends_on', 'needs_reading']
 
 interface ProjectCanvasSurfaceProps {
   entry: VaultEntry
@@ -60,6 +75,8 @@ type CanvasOperation =
       moved: boolean
     }
 
+type AddPanelMode = 'existing' | 'text' | 'task' | 'group'
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
@@ -92,6 +109,52 @@ function nodeKindKey(node: ProjectCanvasNode): TranslationKey {
   }
 }
 
+function edgeKindKey(kind: ProjectCanvasEdgeKind): TranslationKey {
+  switch (kind) {
+    case 'related':
+      return 'projectCanvas.edge.related'
+    case 'supports':
+      return 'projectCanvas.edge.supports'
+    case 'contradicts':
+      return 'projectCanvas.edge.contradicts'
+    case 'depends_on':
+      return 'projectCanvas.edge.depends_on'
+    case 'needs_reading':
+      return 'projectCanvas.edge.needs_reading'
+  }
+}
+
+function candidateEntryType(entry: VaultEntry): ProjectCanvasNodeType | null {
+  if (entry.isA === 'Paper') return 'paper'
+  if (entry.isA === 'Note') return 'note'
+  return null
+}
+
+function nextCanvasId(prefix: string, existingIds: Iterable<string>): string {
+  const ids = new Set(existingIds)
+  for (let index = ids.size + 1; index < ids.size + 10000; index += 1) {
+    const candidate = `${prefix}_${index}`
+    if (!ids.has(candidate)) return candidate
+  }
+  return `${prefix}_${Date.now()}`
+}
+
+function canvasWithFocusedNode(
+  current: ProjectCanvas,
+  node: ProjectCanvasNode,
+  viewportWidth: number,
+  viewportHeight: number,
+): ProjectCanvas {
+  return {
+    ...current,
+    viewport: {
+      ...current.viewport,
+      x: viewportWidth / 2 - (node.x + node.width / 2) * current.viewport.zoom,
+      y: viewportHeight / 2 - (node.y + node.height / 2) * current.viewport.zoom,
+    },
+  }
+}
+
 export function ProjectCanvasSurface({
   entry,
   entries,
@@ -104,8 +167,16 @@ export function ProjectCanvasSurface({
   const [state, setState] = useState<'loading' | 'missing' | 'ready' | 'error'>('loading')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [addPanelOpen, setAddPanelOpen] = useState(false)
+  const [addMode, setAddMode] = useState<AddPanelMode>('existing')
+  const [candidateQuery, setCandidateQuery] = useState('')
+  const [newCardText, setNewCardText] = useState('')
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [linkFromSelected, setLinkFromSelected] = useState(true)
+  const [edgeKind, setEdgeKind] = useState<ProjectCanvasEdgeKind>('related')
   const operationRef = useRef<CanvasOperation | null>(null)
   const canvasRef = useRef<ProjectCanvas | null>(null)
+  const viewportRef = useRef<HTMLDivElement | null>(null)
   const resolveRequestRef = useRef(0)
   const suppressClickUntilRef = useRef(0)
   const openedTrackedRef = useRef(false)
@@ -219,6 +290,143 @@ export function ProjectCanvasSurface({
     if (!latest) return
     void persistCanvas(latest, 'layout')
   }, [persistCanvas])
+
+  const candidateEntries = useMemo(() => {
+    const query = candidateQuery.trim().toLowerCase()
+    return entries
+      .filter(candidate => candidate.path !== entry.path && candidateEntryType(candidate))
+      .filter(candidate => {
+        if (!query) return true
+        return [
+          candidate.title,
+          candidate.filename,
+          relativeVaultPath(candidate.path, vaultPath),
+          candidate.snippet,
+        ].some(value => value?.toLowerCase().includes(query))
+      })
+      .slice(0, 8)
+  }, [candidateQuery, entries, entry.path, vaultPath])
+
+  const selectedNode = useMemo(
+    () => canvas?.nodes.find(node => node.id === selectedNodeId) ?? null,
+    [canvas, selectedNodeId],
+  )
+
+  const canvasCenter = useCallback((width = DEFAULT_NODE_WIDTH, height = DEFAULT_NODE_HEIGHT) => {
+    const viewport = canvasRef.current?.viewport ?? { x: 0, y: 0, zoom: 1 }
+    const rect = viewportRef.current?.getBoundingClientRect()
+    const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
+    const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
+    return {
+      x: (viewportWidth / 2 - viewport.x) / viewport.zoom - width / 2,
+      y: (viewportHeight / 2 - viewport.y) / viewport.zoom - height / 2,
+    }
+  }, [])
+
+  const focusNode = useCallback((node: ProjectCanvasNode, persist = false) => {
+    const current = canvasRef.current
+    if (!current) return
+    const rect = viewportRef.current?.getBoundingClientRect()
+    const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
+    const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
+    const nextCanvas = canvasWithFocusedNode(current, node, viewportWidth, viewportHeight)
+    setCanvas(nextCanvas)
+    canvasRef.current = nextCanvas
+    setSelectedNodeId(node.id)
+    if (persist) void persistCanvas(nextCanvas, 'layout')
+  }, [persistCanvas])
+
+  const withSelectedEdge = useCallback((current: ProjectCanvas, newNode: ProjectCanvasNode): ProjectCanvas => {
+    if (!selectedNodeId || !linkFromSelected || selectedNodeId === newNode.id) return current
+    if (!current.nodes.some(node => node.id === selectedNodeId)) return current
+    const edgeExists = current.edges.some(edge => edge.from === selectedNodeId && edge.to === newNode.id)
+    if (edgeExists) return current
+    const edge = {
+      id: nextCanvasId('edge', current.edges.map(item => item.id)),
+      from: selectedNodeId,
+      to: newNode.id,
+      kind: edgeKind,
+    }
+    trackProjectCanvasEdgeCreated({ kind: edgeKind })
+    return { ...current, edges: [...current.edges, edge] }
+  }, [edgeKind, linkFromSelected, selectedNodeId])
+
+  const persistAddedNode = useCallback((nextCanvas: ProjectCanvas, node: ProjectCanvasNode, linked: boolean) => {
+    setCanvas(nextCanvas)
+    canvasRef.current = nextCanvas
+    setSelectedNodeId(node.id)
+    void resolveCanvas(nextCanvas)
+    void persistCanvas(nextCanvas, 'content')
+    trackProjectCanvasNodeAdded({ linked, nodeType: node.type })
+  }, [persistCanvas, resolveCanvas])
+
+  const addNodeToCanvas = useCallback((node: ProjectCanvasNode) => {
+    const current = canvasRef.current
+    if (!current) return
+    const nextWithNode = { ...current, nodes: [...current.nodes, node] }
+    const nextCanvas = withSelectedEdge(nextWithNode, node)
+    persistAddedNode(nextCanvas, node, nextCanvas.edges.length > current.edges.length)
+  }, [persistAddedNode, withSelectedEdge])
+
+  const handleAddEntry = useCallback((candidate: VaultEntry) => {
+    const nodeType = candidateEntryType(candidate)
+    if (!nodeType) return
+    const current = canvasRef.current
+    if (!current) return
+    const ref = relativeVaultPath(candidate.path, vaultPath)
+    const existing = current.nodes.find(node => node.ref === ref)
+    if (existing) {
+      const nextCanvas = withSelectedEdge(current, existing)
+      const rect = viewportRef.current?.getBoundingClientRect()
+      const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
+      const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
+      const focusedCanvas = canvasWithFocusedNode(nextCanvas, existing, viewportWidth, viewportHeight)
+      setCanvas(focusedCanvas)
+      canvasRef.current = focusedCanvas
+      setSelectedNodeId(existing.id)
+      void resolveCanvas(focusedCanvas)
+      if (focusedCanvas.edges.length > current.edges.length) {
+        void persistCanvas(focusedCanvas, 'content')
+      } else {
+        focusNode(existing, false)
+      }
+      return
+    }
+    const width = DEFAULT_NODE_WIDTH
+    const height = DEFAULT_NODE_HEIGHT
+    const position = canvasCenter(width, height)
+    addNodeToCanvas({
+      id: nextCanvasId(nodeType, current.nodes.map(item => item.id)),
+      type: nodeType,
+      ref,
+      x: position.x,
+      y: position.y,
+      width,
+      height,
+      title: candidate.title,
+      text: candidate.snippet || undefined,
+    })
+  }, [addNodeToCanvas, canvasCenter, focusNode, persistCanvas, resolveCanvas, vaultPath, withSelectedEdge])
+
+  const handleAddEmbeddedNode = useCallback(() => {
+    const current = canvasRef.current
+    if (!current || addMode === 'existing') return
+    const width = addMode === 'group' ? 320 : DEFAULT_NODE_WIDTH
+    const height = addMode === 'group' ? 190 : DEFAULT_EMBEDDED_NODE_HEIGHT
+    const position = canvasCenter(width, height)
+    const trimmed = newCardText.trim()
+    addNodeToCanvas({
+      id: nextCanvasId(addMode, current.nodes.map(item => item.id)),
+      type: addMode,
+      x: position.x,
+      y: position.y,
+      width,
+      height,
+      text: trimmed || undefined,
+      title: addMode === 'group' && trimmed ? trimmed.split(/\n/u)[0] : undefined,
+    })
+    setNewCardText('')
+  }, [addMode, addNodeToCanvas, canvasCenter, newCardText])
 
   const handleZoom = useCallback((delta: number) => {
     updateCanvas(current => ({
@@ -351,6 +559,10 @@ export function ProjectCanvasSurface({
     onNavigateWikilink(target)
   }, [onNavigateWikilink, refsByNodeId])
 
+  const handleSelectNode = useCallback((node: ProjectCanvasNode) => {
+    setSelectedNodeId(node.id)
+  }, [])
+
   const handleNodeTextChange = useCallback((nodeId: string, text: string) => {
     updateCanvas(current => ({
       ...current,
@@ -418,6 +630,9 @@ export function ProjectCanvasSurface({
           </div>
         </div>
         <div className="project-canvas-toolbar__actions">
+          <Button type="button" size="xs" variant={addPanelOpen ? 'secondary' : 'outline'} onClick={() => setAddPanelOpen(current => !current)}>
+            {translate(locale, 'projectCanvas.add')}
+          </Button>
           <Button type="button" size="xs" variant="outline" onClick={() => handleZoom(-ZOOM_STEP)} aria-label={translate(locale, 'projectCanvas.zoomOut')}>
             -
           </Button>
@@ -429,9 +644,94 @@ export function ProjectCanvasSurface({
           </Button>
         </div>
       </header>
+      {addPanelOpen ? (
+        <div className="project-canvas-add-panel">
+          <div className="project-canvas-add-panel__modes" role="group" aria-label={translate(locale, 'projectCanvas.addMode')}>
+            {(['existing', 'text', 'task', 'group'] as const).map(mode => (
+              <Button
+                key={mode}
+                type="button"
+                size="xs"
+                variant={addMode === mode ? 'secondary' : 'ghost'}
+                onClick={() => setAddMode(mode)}
+              >
+                {translate(locale, `projectCanvas.addMode.${mode}`)}
+              </Button>
+            ))}
+          </div>
+          <div className="project-canvas-add-panel__relation">
+            <label className="project-canvas-add-panel__checkbox">
+              <Checkbox
+                checked={Boolean(selectedNodeId && linkFromSelected)}
+                disabled={!selectedNodeId}
+                onCheckedChange={checked => setLinkFromSelected(checked === true)}
+              />
+              <span>
+                {selectedNode
+                  ? translate(locale, 'projectCanvas.linkFromSelected', { title: selectedNode.title ?? selectedNode.ref ?? selectedNode.id })
+                  : translate(locale, 'projectCanvas.selectSourceHint')}
+              </span>
+            </label>
+            <Select value={edgeKind} onValueChange={value => setEdgeKind(value as ProjectCanvasEdgeKind)} disabled={!selectedNodeId || !linkFromSelected}>
+              <SelectTrigger size="sm" className="project-canvas-add-panel__edge-kind" aria-label={translate(locale, 'projectCanvas.edgeKind')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="end">
+                {EDGE_KINDS.map(kind => (
+                  <SelectItem key={kind} value={kind}>
+                    {translate(locale, edgeKindKey(kind))}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {addMode === 'existing' ? (
+            <div className="project-canvas-add-panel__existing">
+              <Input
+                value={candidateQuery}
+                onChange={event => setCandidateQuery(event.target.value)}
+                placeholder={translate(locale, 'projectCanvas.searchPlaceholder')}
+              />
+              <div className="project-canvas-add-panel__results">
+                {candidateEntries.length > 0 ? candidateEntries.map(candidate => {
+                  const type = candidateEntryType(candidate)
+                  return (
+                    <Button
+                      key={candidate.path}
+                      type="button"
+                      variant="ghost"
+                      className="project-canvas-add-panel__candidate"
+                      onClick={() => handleAddEntry(candidate)}
+                    >
+                      <span className="project-canvas-add-panel__candidate-kind">
+                        {type ? translate(locale, `projectCanvas.node.${type}`) : ''}
+                      </span>
+                      <span className="project-canvas-add-panel__candidate-title">{candidate.title}</span>
+                    </Button>
+                  )
+                }) : (
+                  <div className="project-canvas-add-panel__empty">{translate(locale, 'projectCanvas.noCandidates')}</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="project-canvas-add-panel__embedded">
+              <Textarea
+                value={newCardText}
+                onChange={event => setNewCardText(event.target.value)}
+                placeholder={translate(locale, `projectCanvas.addPlaceholder.${addMode}`)}
+              />
+              <Button type="button" size="sm" onClick={handleAddEmbeddedNode}>
+                {translate(locale, 'projectCanvas.addCard')}
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : null}
       <div
         className="project-canvas-viewport"
         data-testid="project-canvas-viewport"
+        ref={viewportRef}
         onPointerDown={handleViewportPointerDown}
       >
         <div
@@ -471,9 +771,11 @@ export function ProjectCanvasSurface({
               entry={findEntryForProjectCanvasRef(entries, node.ref, refsByNodeId.get(node.id)?.targetPath, vaultPath)}
               locale={locale}
               resolved={refsByNodeId.get(node.id)}
+              selected={node.id === selectedNodeId}
               onClick={() => handleNodeClick(node)}
               onPointerDown={(event) => handleNodePointerDown(event, node)}
               onResizePointerDown={(event) => handleResizePointerDown(event, node)}
+              onSelect={() => handleSelectNode(node)}
               onTextBlur={handleNodeTextBlur}
               onTextChange={(text) => handleNodeTextChange(node.id, text)}
             />
@@ -489,9 +791,11 @@ function ProjectCanvasNodeCard({
   entry,
   locale,
   resolved,
+  selected,
   onClick,
   onPointerDown,
   onResizePointerDown,
+  onSelect,
   onTextChange,
   onTextBlur,
 }: {
@@ -499,9 +803,11 @@ function ProjectCanvasNodeCard({
   entry: VaultEntry | null
   locale: AppLocale
   resolved?: ProjectCanvasResolvedRef
+  selected: boolean
   onClick: () => void
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
   onResizePointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
+  onSelect: () => void
   onTextChange: (text: string) => void
   onTextBlur: () => void
 }) {
@@ -515,7 +821,7 @@ function ProjectCanvasNodeCard({
 
   return (
     <article
-      className={cn('project-canvas-node', isStale && 'project-canvas-node--stale')}
+      className={cn('project-canvas-node', isStale && 'project-canvas-node--stale', selected && 'project-canvas-node--selected')}
       data-testid="project-canvas-node"
       data-node-id={node.id}
       style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
@@ -525,7 +831,21 @@ function ProjectCanvasNodeCard({
       <div className="project-canvas-node__body">
         <div className="project-canvas-node__header">
           <span className="project-canvas-node__kind">{translate(locale, nodeKindKey(node))}</span>
-          {isStale ? <span className="project-canvas-node__state">{translate(locale, 'projectCanvas.stale')}</span> : null}
+          <span className="project-canvas-node__header-actions">
+            {isStale ? <span className="project-canvas-node__state">{translate(locale, 'projectCanvas.stale')}</span> : null}
+            <Button
+              type="button"
+              size="xs"
+              variant={selected ? 'secondary' : 'ghost'}
+              className="project-canvas-node__select"
+              onClick={(event) => {
+                event.stopPropagation()
+                onSelect()
+              }}
+            >
+              {selected ? translate(locale, 'projectCanvas.selected') : translate(locale, 'projectCanvas.selectSource')}
+            </Button>
+          </span>
         </div>
         <div className="project-canvas-node__title">{title}</div>
         {subtitle ? <div className="project-canvas-node__subtitle">{subtitle}</div> : null}

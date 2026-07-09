@@ -569,6 +569,35 @@ Tests:
 - add `@block[...]` to Project Canvas
 - duplicate add focuses the existing node
 
+#### Phase 3 Implementation Plan
+
+Implement Phase 3 in two small layers. The first layer should make the Canvas
+itself useful without requiring context menu work across every surface.
+
+1. **Canvas-local add/link panel**
+   - Add a compact Add panel to `ProjectCanvasSurface`.
+   - Let users search existing Notes and Papers from the active vault entry list.
+   - Let users create canvas-local `text`, `task`, and `group` cards.
+   - Place new nodes near the current viewport center.
+   - If a source node is selected, optionally create an edge from that source
+     node to the new node.
+   - Keep the default edge kind `related`, with the existing small relationship
+     vocabulary available.
+   - Detect duplicates by stable `ref`; focus the existing node instead of
+     creating another node for the same Note/Paper.
+
+2. **Source node selection**
+   - Keep the Phase 2 behavior that clicking a referenced node opens the target.
+   - Add a small source-selection affordance on each node card.
+   - The selected source node is only a canvas interaction state; it must not
+     mutate the referenced Note or Paper.
+
+3. **Later external entry points**
+   - After Canvas-local add/link works, add context-menu entry points from the
+     Note list, Paper surfaces, block citations, and AI cited answers.
+   - Those entry points should use the same add/link semantics and duplicate
+     handling as the Canvas-local panel.
+
 ### Phase 4: Relationship UX
 
 Goal: make the canvas useful for research reasoning, not just spatial bookmarks.

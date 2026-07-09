@@ -25,6 +25,8 @@ type AiAgentToolCount = number
 type AiAgentResponseTextFlag = 'had_text' | 'had_partial_response'
 type SheetFormulaFunctionName = string
 type ProjectCanvasOpenState = 'ready' | 'created'
+type ProjectCanvasNodeKind = 'note' | 'paper' | 'paper_block' | 'text' | 'task' | 'group'
+type ProjectCanvasEdgeKind = 'related' | 'supports' | 'contradicts' | 'depends_on' | 'needs_reading'
 
 const ALL_NOTES_VISIBILITY_CATEGORIES: ReadonlyArray<keyof AllNotesFileVisibility> = [
   'pdfs',
@@ -147,6 +149,17 @@ export function trackProjectCanvasCreated(): void {
 
 export function trackProjectCanvasLayoutSaved(): void {
   trackEvent('project_canvas_layout_saved')
+}
+
+export function trackProjectCanvasNodeAdded(params: { linked: boolean; nodeType: ProjectCanvasNodeKind }): void {
+  trackEvent('project_canvas_node_added', {
+    linked: numericFlag(params.linked),
+    node_type: params.nodeType,
+  })
+}
+
+export function trackProjectCanvasEdgeCreated(params: { kind: ProjectCanvasEdgeKind }): void {
+  trackEvent('project_canvas_edge_created', { kind: params.kind })
 }
 
 export function trackAllNotesVisibilityChanged(

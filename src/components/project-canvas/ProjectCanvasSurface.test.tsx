@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as projectCanvas from '../../projectCanvas'
 import {
@@ -12,7 +12,9 @@ import { ProjectCanvasSurface } from './ProjectCanvasSurface'
 
 vi.mock('../../lib/productAnalytics', () => ({
   trackProjectCanvasCreated: vi.fn(),
+  trackProjectCanvasEdgeCreated: vi.fn(),
   trackProjectCanvasLayoutSaved: vi.fn(),
+  trackProjectCanvasNodeAdded: vi.fn(),
   trackProjectCanvasOpened: vi.fn(),
 }))
 
@@ -275,5 +277,152 @@ describe('ProjectCanvasSurface', () => {
     const savedNode = savedCanvas?.nodes.find(item => item.id === 'note')
     expect(savedNode?.x).toBe(60)
     expect(savedNode?.y).toBe(60)
+  })
+
+  it('adds an existing note to the canvas and links it from the selected source node', async () => {
+    const canvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [
+        {
+          id: 'source',
+          type: 'note' as const,
+          ref: 'notes/source.md',
+          x: 10,
+          y: 20,
+          width: 220,
+          height: 130,
+          title: 'Source Note',
+        },
+      ],
+      edges: [],
+    }
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[
+          entry({
+            path: '/vault/notes/source.md',
+            filename: 'source.md',
+            title: 'Source Note',
+            isA: 'Note',
+          }),
+          entry({
+            path: '/vault/notes/linked.md',
+            filename: 'linked.md',
+            title: 'Linked Note',
+            isA: 'Note',
+            snippet: 'A related note.',
+          }),
+        ]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const sourceCard = (await screen.findByText('Source Note')).closest('[data-testid="project-canvas-node"]')
+    expect(sourceCard).not.toBeNull()
+    fireEvent.click(within(sourceCard as HTMLElement).getByRole('button', { name: 'Source' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    fireEvent.click(screen.getByRole('button', { name: /Linked Note/u }))
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes).toHaveLength(2)
+    expect(savedCanvas?.nodes.at(-1)).toMatchObject({
+      ref: 'notes/linked.md',
+      title: 'Linked Note',
+      type: 'note',
+    })
+    expect(savedCanvas?.edges).toEqual([
+      expect.objectContaining({ from: 'source', kind: 'related', to: savedCanvas?.nodes.at(-1)?.id }),
+    ])
+  })
+
+  it('focuses an existing node instead of duplicating the same ref', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[
+          entry({
+            path: '/vault/notes/source.md',
+            filename: 'source.md',
+            title: 'Source Note',
+            isA: 'Note',
+          }),
+        ]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await screen.findByText('Source Note')
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    fireEvent.click(screen.getByRole('button', { name: /Source Note/u }))
+
+    expect(projectCanvas.saveProjectCanvas).not.toHaveBeenCalled()
+    expect(await screen.findByRole('button', { name: 'Selected' })).toBeInTheDocument()
+  })
+
+  it('adds a text card and creates a relationship from the selected source node', async () => {
+    const canvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [
+        {
+          id: 'source',
+          type: 'note' as const,
+          ref: 'notes/source.md',
+          x: 10,
+          y: 20,
+          width: 220,
+          height: 130,
+          title: 'Source Note',
+        },
+      ],
+      edges: [],
+    }
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const sourceCard = (await screen.findByText('Source Note')).closest('[data-testid="project-canvas-node"]')
+    expect(sourceCard).not.toBeNull()
+    fireEvent.click(within(sourceCard as HTMLElement).getByRole('button', { name: 'Source' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Text' }))
+    fireEvent.change(screen.getByPlaceholderText('Write a short project note...'), {
+      target: { value: 'Draft claim from the source note' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Card' }))
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes.at(-1)).toMatchObject({
+      text: 'Draft claim from the source note',
+      type: 'text',
+    })
+    expect(savedCanvas?.edges).toEqual([
+      expect.objectContaining({ from: 'source', kind: 'related', to: savedCanvas?.nodes.at(-1)?.id }),
+    ])
   })
 })
