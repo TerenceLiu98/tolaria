@@ -13,56 +13,56 @@ import {
 import type { NoteComment } from '../comments/commentProvider'
 import { translate, type AppLocale } from '../lib/i18n'
 import {
-  type PaperAnnotation,
-  type PaperAnnotationKind,
-} from './annotations'
+  type PaperComment,
+  type PaperCommentKind,
+} from './comments'
 import {
-  activePaperAnnotationReactions,
-  activePaperAnnotationReplies,
-  addPaperAnnotationReply,
+  activePaperCommentReactions,
+  activePaperCommentReplies,
+  addPaperCommentReply,
   cleanOptionalCommentText,
-  deletePaperAnnotationReply,
+  deletePaperCommentReply,
   PAPER_COMMENT_KIND,
   PAPER_COMMENT_REACTION_EMOJI,
-  paperAnnotationHasReaction,
-  paperAnnotationIsResolved,
-  savePaperAnnotationNote,
-  togglePaperAnnotationReaction,
-  togglePaperAnnotationResolved,
+  paperCommentHasReaction,
+  paperCommentIsResolved,
+  savePaperCommentNote,
+  togglePaperCommentReaction,
+  togglePaperCommentResolved,
   type PaperCommentThreadFilter,
   type PaperCommentThreadSort,
-  visiblePaperCommentAnnotations,
+  visiblePaperComments,
 } from './paperCommentThreadModel'
-import { paperAnnotationToComment } from './paperCommentProvider'
+import { paperCommentToComment } from './paperCommentProvider'
 import type { SourceBlock } from './sourceBlocks'
 
-function BlockAnnotationComposer({
+function BlockCommentComposer({
   block,
   locale,
-  onCreateAnnotation,
+  onCreateComment,
   selectedQuote,
 }: {
   block: SourceBlock
   locale: AppLocale
-  onCreateAnnotation: (block: SourceBlock, input: {
-    kind: PaperAnnotationKind
+  onCreateComment: (block: SourceBlock, input: {
+    kind: PaperCommentKind
     note?: string
     text?: string
   }) => void
   selectedQuote?: string | null
 }) {
-  const createAnnotation = useCallback((note: string) => {
-    onCreateAnnotation(block, {
+  const createComment = useCallback((note: string) => {
+    onCreateComment(block, {
       kind: PAPER_COMMENT_KIND,
       note: cleanOptionalCommentText(note),
       text: cleanOptionalCommentText(selectedQuote),
     })
-  }, [block, onCreateAnnotation, selectedQuote])
+  }, [block, onCreateComment, selectedQuote])
 
   return (
     <div
       className="grid gap-2 rounded-md border border-border/60 bg-muted/30 p-2"
-      data-testid={`paper-reader-annotation-controls-${block.id}`}
+      data-testid={`paper-reader-comment-controls-${block.id}`}
     >
       {selectedQuote ? (
         <blockquote
@@ -76,56 +76,56 @@ function BlockAnnotationComposer({
         label={translate(locale, 'paper.reader.addComment')}
         placeholder={translate(locale, 'paper.reader.addComment')}
         submitLabel={translate(locale, 'paper.reader.addComment')}
-        onSubmit={createAnnotation}
+        onSubmit={createComment}
       />
     </div>
   )
 }
 
-function PaperAnnotationEditor({
-  annotation,
+function PaperCommentEditor({
+  comment,
   locale,
-  onDeleteAnnotation,
-  onSaveAnnotation,
+  onDeleteComment,
+  onSaveComment,
 }: {
-  annotation: PaperAnnotation
+  comment: PaperComment
   locale: AppLocale
-  onDeleteAnnotation: (annotationId: string) => void
-  onSaveAnnotation: (annotation: PaperAnnotation) => void
+  onDeleteComment: (commentId: string) => void
+  onSaveComment: (comment: PaperComment) => void
 }) {
-  const [note, setNote] = useState(annotation.note ?? annotation.text ?? '')
-  const isResolved = paperAnnotationIsResolved(annotation)
-  const reactions = activePaperAnnotationReactions(annotation)
-  const replies = activePaperAnnotationReplies(annotation)
-  const hasPrimaryReaction = paperAnnotationHasReaction(annotation, PAPER_COMMENT_REACTION_EMOJI)
+  const [note, setNote] = useState(comment.note ?? comment.text ?? '')
+  const isResolved = paperCommentIsResolved(comment)
+  const reactions = activePaperCommentReactions(comment)
+  const replies = activePaperCommentReplies(comment)
+  const hasPrimaryReaction = paperCommentHasReaction(comment, PAPER_COMMENT_REACTION_EMOJI)
 
-  const saveAnnotation = useCallback(() => {
-    onSaveAnnotation(savePaperAnnotationNote(annotation, note))
-  }, [annotation, note, onSaveAnnotation])
+  const saveComment = useCallback(() => {
+    onSaveComment(savePaperCommentNote(comment, note))
+  }, [comment, note, onSaveComment])
   const toggleResolved = useCallback(() => {
-    onSaveAnnotation(togglePaperAnnotationResolved(annotation))
-  }, [annotation, onSaveAnnotation])
+    onSaveComment(togglePaperCommentResolved(comment))
+  }, [comment, onSaveComment])
   const addReply = useCallback((replyNote: string) => {
-    const nextAnnotation = addPaperAnnotationReply(annotation, replyNote)
-    if (nextAnnotation) onSaveAnnotation(nextAnnotation)
-  }, [annotation, onSaveAnnotation])
+    const nextComment = addPaperCommentReply(comment, replyNote)
+    if (nextComment) onSaveComment(nextComment)
+  }, [comment, onSaveComment])
   const deleteReply = useCallback((replyId: string) => {
-    onSaveAnnotation(deletePaperAnnotationReply(annotation, replyId))
-  }, [annotation, onSaveAnnotation])
+    onSaveComment(deletePaperCommentReply(comment, replyId))
+  }, [comment, onSaveComment])
   const toggleReaction = useCallback(() => {
-    onSaveAnnotation(togglePaperAnnotationReaction(annotation, PAPER_COMMENT_REACTION_EMOJI))
-  }, [annotation, onSaveAnnotation])
+    onSaveComment(togglePaperCommentReaction(comment, PAPER_COMMENT_REACTION_EMOJI))
+  }, [comment, onSaveComment])
 
   return (
     <li
       className="grid gap-2 rounded-md bg-muted/60 px-2 py-2 text-xs text-muted-foreground"
-      data-testid={`paper-reader-annotation-editor-${annotation.id}`}
+      data-testid={`paper-reader-comment-editor-${comment.id}`}
     >
       <div className="flex flex-wrap items-center gap-2">
         {isResolved ? (
           <span
             className="rounded bg-background px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
-            data-testid={`paper-reader-annotation-resolved-${annotation.id}`}
+            data-testid={`paper-reader-comment-resolved-${comment.id}`}
           >
             {translate(locale, 'paper.reader.commentResolved')}
           </span>
@@ -133,7 +133,7 @@ function PaperAnnotationEditor({
         {replies.length > 0 ? (
           <span
             className="rounded bg-background px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
-            data-testid={`paper-reader-annotation-reply-count-${annotation.id}`}
+            data-testid={`paper-reader-comment-reply-count-${comment.id}`}
           >
             {translate(locale, 'paper.reader.commentReplies', { count: replies.length })}
           </span>
@@ -142,7 +142,7 @@ function PaperAnnotationEditor({
           <span
             key={reaction.emoji}
             className="rounded bg-background px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
-            data-testid={`paper-reader-annotation-reaction-${annotation.id}-${reaction.emoji}`}
+            data-testid={`paper-reader-comment-reaction-${comment.id}-${reaction.emoji}`}
           >
             {reaction.emoji} {reaction.count}
           </span>
@@ -151,7 +151,7 @@ function PaperAnnotationEditor({
           type="button"
           variant="secondary"
           size="xs"
-          onClick={saveAnnotation}
+          onClick={saveComment}
         >
           <Check className="size-3.5" />
           {translate(locale, 'common.save')}
@@ -179,9 +179,9 @@ function PaperAnnotationEditor({
           type="button"
           variant="ghost"
           size="icon-xs"
-          title={translate(locale, 'paper.reader.deleteAnnotation')}
-          aria-label={translate(locale, 'paper.reader.deleteAnnotation')}
-          onClick={() => onDeleteAnnotation(annotation.id)}
+          title={translate(locale, 'paper.reader.deleteComment')}
+          aria-label={translate(locale, 'paper.reader.deleteComment')}
+          onClick={() => onDeleteComment(comment.id)}
         >
           <Trash className="size-4" />
         </Button>
@@ -196,7 +196,7 @@ function PaperAnnotationEditor({
       {replies.length > 0 ? (
         <ul
           className="grid gap-1 border-l border-border/70 pl-2"
-          data-testid={`paper-reader-annotation-replies-${annotation.id}`}
+          data-testid={`paper-reader-comment-replies-${comment.id}`}
         >
           {replies.map((reply) => (
             <li key={reply.id} className="flex items-start justify-between gap-2 rounded bg-background/70 px-2 py-1 text-xs text-foreground">
@@ -226,40 +226,40 @@ function PaperAnnotationEditor({
 }
 
 export function PaperCommentThread({
-  annotations,
+  comments,
   block,
   locale,
-  onCreateAnnotation,
-  onDeleteAnnotation,
-  onSaveAnnotation,
+  onCreateComment,
+  onDeleteComment,
+  onSaveComment,
   onCopyCitation,
   onClose,
   selectedQuote,
 }: {
-  annotations: PaperAnnotation[]
+  comments: PaperComment[]
   block: SourceBlock
   locale: AppLocale
-  onCreateAnnotation: (block: SourceBlock, input: {
-    kind: PaperAnnotationKind
+  onCreateComment: (block: SourceBlock, input: {
+    kind: PaperCommentKind
     note?: string
     text?: string
   }) => void
-  onDeleteAnnotation: (annotationId: string) => void
-  onSaveAnnotation: (annotation: PaperAnnotation) => void
+  onDeleteComment: (commentId: string) => void
+  onSaveComment: (comment: PaperComment) => void
   onCopyCitation: (block: SourceBlock) => void
   onClose: () => void
   selectedQuote?: string | null
 }) {
   const [filter, setFilter] = useState<PaperCommentThreadFilter>('all')
   const [sort, setSort] = useState<PaperCommentThreadSort>('newest')
-  const visibleAnnotations = useMemo(
-    () => visiblePaperCommentAnnotations(annotations, filter, sort),
-    [annotations, filter, sort],
+  const visibleComments = useMemo(
+    () => visiblePaperComments(comments, filter, sort),
+    [comments, filter, sort],
   )
-  const comments = visibleAnnotations
-    .map(paperAnnotationToComment)
+  const threadComments = visibleComments
+    .map(paperCommentToComment)
     .filter((comment): comment is NoteComment => comment !== null)
-  const emptyText = annotations.length === 0
+  const emptyText = comments.length === 0
     ? translate(locale, 'paper.reader.noBlockComments')
     : translate(locale, 'paper.reader.noMatchingBlockComments')
   const filterOptions: Array<{ label: string; value: PaperCommentThreadFilter }> = [
@@ -270,8 +270,8 @@ export function PaperCommentThread({
 
   return (
     <CommentThreadPanel
-      commentsListTestId={`paper-reader-annotations-${block.id}`}
-      comments={comments}
+      commentsListTestId={`paper-reader-comments-${block.id}`}
+      comments={threadComments}
       emptyText={emptyText}
       closeLabel={translate(locale, 'window.close')}
       onClose={onClose}
@@ -314,24 +314,24 @@ export function PaperCommentThread({
           {translate(locale, 'paper.reader.copyBlockCitation')}
         </Button>
       )}
-      renderComment={(comment) => {
-        const annotation = visibleAnnotations.find((candidate) => candidate.id === comment.id)
-        if (!annotation) return null
+      renderComment={(threadComment) => {
+        const sourceComment = visibleComments.find((candidate) => candidate.id === threadComment.id)
+        if (!sourceComment) return null
         return (
-          <PaperAnnotationEditor
-            key={annotation.id}
-            annotation={annotation}
+          <PaperCommentEditor
+            key={sourceComment.id}
+            comment={sourceComment}
             locale={locale}
-            onDeleteAnnotation={onDeleteAnnotation}
-            onSaveAnnotation={onSaveAnnotation}
+            onDeleteComment={onDeleteComment}
+            onSaveComment={onSaveComment}
           />
         )
       }}
     >
-      <BlockAnnotationComposer
+      <BlockCommentComposer
         block={block}
         locale={locale}
-        onCreateAnnotation={onCreateAnnotation}
+        onCreateComment={onCreateComment}
         selectedQuote={selectedQuote}
       />
     </CommentThreadPanel>

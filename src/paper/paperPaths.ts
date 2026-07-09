@@ -2,7 +2,7 @@ export const PAPER_DIRECTORY = 'papers'
 export const PAPER_NOTE_FILENAME = 'paper.md'
 export const PAPER_SOURCE_PDF_FILENAME = 'source.pdf'
 export const PAPER_BLOCKS_FILENAME = 'blocks.jsonl'
-export const PAPER_ANNOTATIONS_FILENAME = 'annotations.jsonl'
+export const PAPER_COMMENTS_FILENAME = 'comments.jsonl'
 export const PAPER_METADATA_FILENAME = 'metadata.json'
 
 export interface PaperRelativePaths {
@@ -10,7 +10,7 @@ export interface PaperRelativePaths {
   paperNote: string
   sourcePdf: string
   blocks: string
-  annotations: string
+  comments: string
   metadata: string
 }
 
@@ -31,7 +31,7 @@ export function buildPaperRelativePaths(slug: string): PaperRelativePaths {
     paperNote: `${paperDir}/${PAPER_NOTE_FILENAME}`,
     sourcePdf: `${paperDir}/${PAPER_SOURCE_PDF_FILENAME}`,
     blocks: `${paperDir}/${PAPER_BLOCKS_FILENAME}`,
-    annotations: `${paperDir}/${PAPER_ANNOTATIONS_FILENAME}`,
+    comments: `${paperDir}/${PAPER_COMMENTS_FILENAME}`,
     metadata: `${paperDir}/${PAPER_METADATA_FILENAME}`,
   }
 }

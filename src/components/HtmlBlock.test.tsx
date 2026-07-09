@@ -70,6 +70,16 @@ describe('HtmlBlock', () => {
     expect(frame.srcdoc).not.toContain('<strong>unsafe</strong>')
   })
 
+  it('exposes the preview container and controls with semantic roles', () => {
+    renderHtmlBlock({
+      height: HTML_BLOCK_DEFAULT_HEIGHT,
+      html: '<p>Preview me</p>',
+    })
+
+    expect(screen.getByRole('region', { name: 'Sandboxed HTML block preview' })).toBeTruthy()
+    expect(screen.getByRole('toolbar', { name: 'HTML block actions' })).toBeTruthy()
+  })
+
   it('routes blocked markup fixes to the raw editor instead of inline editing', () => {
     const commands: unknown[] = []
     const recordCommand = (event: Event) => {

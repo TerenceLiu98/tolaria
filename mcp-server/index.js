@@ -449,7 +449,7 @@ function callToolHandler(name, args) {
 // --- Server setup ---
 
 const server = new Server(
-  { name: 'tolaria-mcp-server', version: '0.3.0' },
+  { name: 'sapientia-mcp-server', version: '0.3.0' },
   { capabilities: { tools: {} } },
 )
 

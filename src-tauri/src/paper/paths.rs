@@ -5,7 +5,7 @@ pub const PAPERS_DIR: &str = "papers";
 pub const PAPER_NOTE_FILENAME: &str = "paper.md";
 pub const SOURCE_PDF_FILENAME: &str = "source.pdf";
 pub const BLOCKS_FILENAME: &str = "blocks.jsonl";
-pub const ANNOTATIONS_FILENAME: &str = "annotations.jsonl";
+pub const COMMENTS_FILENAME: &str = "comments.jsonl";
 pub const METADATA_FILENAME: &str = "metadata.json";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -15,7 +15,7 @@ pub struct PaperBundlePaths {
     pub paper_note: PathBuf,
     pub source_pdf: PathBuf,
     pub blocks: PathBuf,
-    pub annotations: PathBuf,
+    pub comments: PathBuf,
     pub metadata: PathBuf,
 }
 
@@ -70,7 +70,7 @@ pub fn paper_bundle_paths(vault_path: &Path, paper_slug: &str) -> PaperBundlePat
         paper_note: paper_dir.join(PAPER_NOTE_FILENAME),
         source_pdf: paper_dir.join(SOURCE_PDF_FILENAME),
         blocks: paper_dir.join(BLOCKS_FILENAME),
-        annotations: paper_dir.join(ANNOTATIONS_FILENAME),
+        comments: paper_dir.join(COMMENTS_FILENAME),
         metadata: paper_dir.join(METADATA_FILENAME),
         paper_dir,
     }
@@ -138,8 +138,8 @@ mod tests {
             PathBuf::from("/vault/papers/vaswani-2017-attention/blocks.jsonl")
         );
         assert_eq!(
-            paths.annotations,
-            PathBuf::from("/vault/papers/vaswani-2017-attention/annotations.jsonl")
+            paths.comments,
+            PathBuf::from("/vault/papers/vaswani-2017-attention/comments.jsonl")
         );
         assert_eq!(
             paths.metadata,

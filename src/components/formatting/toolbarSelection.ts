@@ -18,3 +18,10 @@ export function selectedEditorText(
   const text = selection.toString().trim()
   return text.length > 0 ? text : null
 }
+
+export function selectedEditorBlockId(
+  editor: BlockNoteEditor<BlockSchema, InlineContentSchema, StyleSchema>,
+): string | null {
+  const selectedBlock = editor.getSelection()?.blocks[0] ?? editor.getTextCursorPosition()?.block
+  return typeof selectedBlock?.id === 'string' && selectedBlock.id.length > 0 ? selectedBlock.id : null
+}

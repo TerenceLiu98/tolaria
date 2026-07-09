@@ -1,19 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
-  paperAnnotationToComment,
+  paperCommentToComment,
   paperCommentAnchorForBlock,
   paperCommentsByBlockId,
 } from './paperCommentProvider'
-import type { PaperAnnotation } from './annotations'
+import type { PaperComment } from './comments'
 import type { SourceBlock } from './sourceBlocks'
 
 describe('paperCommentProvider', () => {
-  const annotation: PaperAnnotation = {
+  const comment: PaperComment = {
     id: 'ann-1',
     paper_id: 'paper-1',
     block_id: 'b0002',
     kind: 'comment',
-    color: 'important',
     note: 'Compare this with the baseline.',
     created_at: '2026-07-03T10:00:00Z',
     replies: [{
@@ -28,11 +27,10 @@ describe('paperCommentProvider', () => {
     }],
   }
 
-  it('maps block annotations to generic note comments', () => {
-    expect(paperAnnotationToComment(annotation)).toEqual(expect.objectContaining({
+  it('maps block comments to generic note comments', () => {
+    expect(paperCommentToComment(comment)).toEqual(expect.objectContaining({
       anchorId: 'b0002',
       body: 'Compare this with the baseline.',
-      color: 'important',
       id: 'ann-1',
       kind: 'comment',
       reactions: [expect.objectContaining({
@@ -48,8 +46,8 @@ describe('paperCommentProvider', () => {
 
   it('groups paper comments by block anchor id', () => {
     expect(paperCommentsByBlockId([
-      annotation,
-      { ...annotation, id: 'ann-2', block_id: 'b0003', note: 'Second block' },
+      comment,
+      { ...comment, id: 'ann-2', block_id: 'b0003', note: 'Second block' },
     ])).toEqual({
       b0002: [expect.objectContaining({ id: 'ann-1' })],
       b0003: [expect.objectContaining({ id: 'ann-2' })],

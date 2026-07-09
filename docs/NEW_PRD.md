@@ -209,7 +209,7 @@ research-vault/
       source.pdf
       paper.md
       blocks.jsonl
-      annotations.jsonl
+      comments.jsonl
       ask-traces.jsonl
       graph.json
       memory.md
@@ -293,7 +293,7 @@ year: 2017
 status: reading
 source_pdf: source.pdf
 blocks: blocks.jsonl
-annotations: annotations.jsonl
+comments: comments.jsonl
 metadata: metadata.json
 graph: graph.json
 memory: memory.md
@@ -405,7 +405,7 @@ Paper comments are user-created notes attached to parsed paper blocks. They are 
 Stored in:
 
 ```text
-annotations.jsonl
+comments.jsonl
 ```
 
 Example:
@@ -414,7 +414,7 @@ Example:
 {"id":"ann_001","paper_id":"vaswani-2017-attention","block_id":"b0048","kind":"comment","note":"Is this assumption still true for long-context models?","created_at":"2026-07-02T10:18:00Z"}
 ```
 
-New records use `kind: comment`. Earlier development builds may have written highlight/question/bookmark kinds or semantic colors; the app preserves those records when reading the sidecar but does not expose kind/color controls in the Paper comment UI.
+New records use `kind: comment`. Earlier development builds may have written highlight/question/bookmark kinds or semantic colors; the current comments sidecar model rejects those deprecated records instead of carrying handwritten highlight semantics.
 
 ### 9.4 Ordinary Notes for Research
 
@@ -733,15 +733,15 @@ Acceptance criteria:
 - Clicking citation navigates to correct block.
 - Broken citation shows warning but does not corrupt note.
 
-### 11.4 Annotation Persistence
+### 11.4 Comment Persistence
 
-Users can highlight and annotate selected blocks.
+Users can comment on selected text or blocks.
 
 Requirements:
 
-- Annotations write to `annotations.jsonl`.
+- Comments write to `comments.jsonl`.
 - PDF overlay annotations do not modify `source.pdf`.
-- Semantic color palette is available.
+- Comment threads support replies, reactions, and resolve state.
 - Annotation counts update in Paper List/Inspector.
 - Annotation writes follow Tolaria disk-first behavior.
 
@@ -916,7 +916,7 @@ src/
     blockCitation.test.ts
     usePaperLoader.ts
     usePaperReaderState.ts
-    usePaperAnnotations.ts
+    usePaperComments.ts
     useResearchMemory.ts
     researchContextBuilder.ts
 
@@ -942,7 +942,7 @@ src-tauri/src/
     commands.rs
     paths.rs
     blocks.rs
-    annotations.rs
+    comments.rs
     import.rs
     parse.rs
     memory.rs
@@ -967,8 +967,8 @@ Initial commands:
 | `read_paper_blocks` | Read `blocks.jsonl` |
 | `read_paper_block` | Read one block by ID |
 | `search_paper_blocks` | Search blocks |
-| `save_paper_annotation` | Append/update annotation |
-| `delete_paper_annotation` | Delete annotation |
+| `save_paper_comment` | Append/update comment |
+| `delete_paper_comment` | Delete comment |
 | `compile_research_memory` | Generate/update `memory.md` |
 | `validate_block_citations` | Validate citations in note text |
 
@@ -987,7 +987,7 @@ Durable files:
 - `paper.md`
 - `source.pdf`
 - `blocks.jsonl`
-- `annotations.jsonl`
+- `comments.jsonl`
 - `ask-traces.jsonl`
 - `graph.json`
 - `memory.md`
@@ -1056,7 +1056,7 @@ Optional:
 - `confidence`
 - `parser`
 
-### 14.2 `annotations.jsonl`
+### 14.2 `comments.jsonl`
 
 Each line is one JSON object.
 
@@ -1066,7 +1066,7 @@ Required:
 {
   "id": "ann_001",
   "paper_id": "vaswani-2017-attention",
-  "kind": "highlight",
+  "kind": "comment",
   "created_at": "2026-07-02T10:15:00Z"
 }
 ```
@@ -1119,7 +1119,7 @@ Human-readable Markdown. AI may propose changes, but users can edit it directly.
 - Preserve paper metadata.
 - Preserve parsed blocks where possible.
 - Preserve notes and block citations.
-- Preserve highlights and annotations.
+- Preserve comments.
 - Preserve research memory and interaction profile where useful.
 
 ### 15.2 Migration Tool
@@ -1149,7 +1149,7 @@ Outputs:
 | Parsed blocks | `papers/<slug>/blocks.jsonl` |
 | Notes | `papers/<slug>/notes/*.md` or root notes |
 | Citation chips | `@block[paper#block]` |
-| Highlights | `annotations.jsonl` |
+| Paper comments | `comments.jsonl` |
 | Paper graph | `graph.json` |
 | Research memory capsule | `memory.md` |
 | Ask traces | `ask-traces.jsonl` |
@@ -1213,7 +1213,7 @@ Deliverables:
 - Paper Reader Mode.
 - PDF/block pane toggle.
 - Annotation palette.
-- `annotations.jsonl` persistence.
+- `comments.jsonl` persistence.
 
 Exit criteria:
 
@@ -1227,7 +1227,7 @@ Deliverables:
 - Continuous rendered Paper view from anchored `paper.md`.
 - Stable hidden block anchors for selection and citation.
 - Comment gutter with annotation counts.
-- Block-level comment thread backed by `annotations.jsonl`.
+- Block-level comment thread backed by `comments.jsonl`.
 - Copy citation actions from the comment thread.
 
 Exit criteria:
@@ -1243,7 +1243,7 @@ Deliverables:
 
 - Generic comment provider interface for anchor-backed comment threads.
 - Reusable comment gutter, thread, and composer UI.
-- Paper adapter that maps `annotations.jsonl` records to comment threads by parsed block anchor.
+- Paper adapter that maps `comments.jsonl` records to comment threads by parsed block anchor.
 - Paper Reader layout with a single Reading View surface that switches between Markdown and PDF modes.
 - No standalone Paper Outline column; parsed `paper.md` should behave like a normal Tolaria note surface.
 
@@ -1260,7 +1260,7 @@ Deliverables:
 
 - Paper Markdown mode mounts `paper.md` through the shared Note surface used by ordinary notes.
 - Paper source content is editable/commentable by default.
-- Paper comments continue to persist through `annotations.jsonl`.
+- Paper comments continue to persist through `comments.jsonl`.
 - Paper-specific long-note mode, pane, commands, templates, and append actions are removed.
 - Users can still create ordinary `Note` entries when they want long-form synthesis.
 
@@ -1466,7 +1466,7 @@ Recommended decisions for MVP:
 | Source of truth | Vault files |
 | Main paper folder | `papers/<paper-slug>/` |
 | Block format | `blocks.jsonl` |
-| Annotation format | `annotations.jsonl` |
+| Comment format | `comments.jsonl` |
 | Citation syntax | `@block[paper_id#block_id]` |
 | Initial parser | Fixture/local adapter plus MinerU adapter |
 | AI integration | Tolaria AI workspace research mode |
@@ -1517,7 +1517,7 @@ v1 should include:
 5. App writes anchored parsed Markdown into `paper.md` and normalized blocks into `blocks.jsonl`.
 6. User opens Paper Reader Mode.
 7. User highlights a paragraph as Important.
-8. App appends to `annotations.jsonl`.
+8. App writes a comment thread record to `comments.jsonl`.
 9. User creates or opens an ordinary Note.
 10. User inserts `@block[vaswani-2017-attention#b0023]`.
 11. User asks "What is the key architectural contribution?"
@@ -1525,7 +1525,7 @@ v1 should include:
 13. User saves the answer as an Ask trace.
 14. User compiles research memory.
 15. App writes `memory.md`.
-16. Git shows changes to `paper.md`, `blocks.jsonl`, `annotations.jsonl`, the user's Note, `ask-traces.jsonl`, and `memory.md`.
+16. Git shows changes to `paper.md`, `blocks.jsonl`, `comments.jsonl`, the user's Note, `ask-traces.jsonl`, and `memory.md`.
 
 ## 27. Appendix: Terminology
 
@@ -1536,7 +1536,7 @@ v1 should include:
 | SourceBlock | Stable unit extracted from paper |
 | Block Citation | Markdown token pointing to SourceBlock |
 | Sidecar | File stored beside source PDF containing derived or user-created data |
-| Annotation | User-created Paper comment stored in `annotations.jsonl` |
+| Paper Comment | User-created Paper comment stored in `comments.jsonl` |
 | ResearchMemory | Compiled memory artifact from notes and traces |
 | Grounded Ask | AI question answering constrained by explicit evidence |
 | MCP | Model Context Protocol bridge exposing vault tools to agents |

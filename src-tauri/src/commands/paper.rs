@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 use super::vault::VaultBoundary;
 use crate::commands::expand_tilde;
 use crate::paper::{
-    self, ImportPaperPdfResult, PaperAnnotation, PaperAnnotationsError, PaperAnnotationsReadResult,
-    PaperBlockLookupResult, PaperBlockSearchResult, PaperBlocksError, PaperBlocksReadResult,
-    PaperCatalogEntry, PaperMetadata, PaperMetadataErrorResult, PaperMetadataReadResult,
+    self, ImportPaperPdfResult, PaperBlockLookupResult, PaperBlockSearchResult, PaperBlocksError,
+    PaperBlocksReadResult, PaperCatalogEntry, PaperComment, PaperCommentsError,
+    PaperCommentsReadResult, PaperMetadata, PaperMetadataErrorResult, PaperMetadataReadResult,
     PaperParseError, PaperParseResult, PaperParserProvider, PaperParserSettings,
     PaperPdfOutlineReadResult,
 };
@@ -306,17 +306,17 @@ pub async fn parse_paper(
 }
 
 #[tauri::command]
-pub async fn read_paper_annotations(
+pub async fn read_paper_comments(
     vault_path: PathBuf,
     paper_id: String,
-) -> Result<PaperAnnotationsReadResult, PaperAnnotationsError> {
+) -> Result<PaperCommentsReadResult, PaperCommentsError> {
     let error_paper_id = paper_id.clone();
     tokio::task::spawn_blocking(move || {
-        let annotations_path = annotations_path_for_paper(&vault_path, &paper_id)?;
-        paper::read_paper_annotations_file(&paper_id, &annotations_path)
+        let comments_path = comments_path_for_paper(&vault_path, &paper_id)?;
+        paper::read_paper_comments_file(&paper_id, &comments_path)
     })
     .await
-    .map_err(|error| PaperAnnotationsError {
+    .map_err(|error| PaperCommentsError {
         kind: "task_failed".to_string(),
         message: format!("Task panicked: {error}"),
         paper_id: error_paper_id,
@@ -326,18 +326,18 @@ pub async fn read_paper_annotations(
 }
 
 #[tauri::command]
-pub async fn save_paper_annotation(
+pub async fn save_paper_comment(
     vault_path: PathBuf,
     paper_id: String,
-    annotation: PaperAnnotation,
-) -> Result<PaperAnnotationsReadResult, PaperAnnotationsError> {
+    comment: PaperComment,
+) -> Result<PaperCommentsReadResult, PaperCommentsError> {
     let error_paper_id = paper_id.clone();
     tokio::task::spawn_blocking(move || {
-        let annotations_path = annotations_path_for_paper(&vault_path, &paper_id)?;
-        paper::save_paper_annotation_file(&paper_id, &annotations_path, annotation)
+        let comments_path = comments_path_for_paper(&vault_path, &paper_id)?;
+        paper::save_paper_comment_file(&paper_id, &comments_path, comment)
     })
     .await
-    .map_err(|error| PaperAnnotationsError {
+    .map_err(|error| PaperCommentsError {
         kind: "task_failed".to_string(),
         message: format!("Task panicked: {error}"),
         paper_id: error_paper_id,
@@ -347,18 +347,18 @@ pub async fn save_paper_annotation(
 }
 
 #[tauri::command]
-pub async fn delete_paper_annotation(
+pub async fn delete_paper_comment(
     vault_path: PathBuf,
     paper_id: String,
-    annotation_id: String,
-) -> Result<PaperAnnotationsReadResult, PaperAnnotationsError> {
+    comment_id: String,
+) -> Result<PaperCommentsReadResult, PaperCommentsError> {
     let error_paper_id = paper_id.clone();
     tokio::task::spawn_blocking(move || {
-        let annotations_path = annotations_path_for_paper(&vault_path, &paper_id)?;
-        paper::delete_paper_annotation_file(&paper_id, &annotations_path, &annotation_id)
+        let comments_path = comments_path_for_paper(&vault_path, &paper_id)?;
+        paper::delete_paper_comment_file(&paper_id, &comments_path, &comment_id)
     })
     .await
-    .map_err(|error| PaperAnnotationsError {
+    .map_err(|error| PaperCommentsError {
         kind: "task_failed".to_string(),
         message: format!("Task panicked: {error}"),
         paper_id: error_paper_id,
@@ -368,17 +368,17 @@ pub async fn delete_paper_annotation(
 }
 
 #[tauri::command]
-pub async fn reset_paper_annotations(
+pub async fn reset_paper_comments(
     vault_path: PathBuf,
     paper_id: String,
-) -> Result<PaperAnnotationsReadResult, PaperAnnotationsError> {
+) -> Result<PaperCommentsReadResult, PaperCommentsError> {
     let error_paper_id = paper_id.clone();
     tokio::task::spawn_blocking(move || {
-        let annotations_path = annotations_path_for_paper(&vault_path, &paper_id)?;
-        paper::reset_paper_annotations_file(&paper_id, &annotations_path)
+        let comments_path = comments_path_for_paper(&vault_path, &paper_id)?;
+        paper::reset_paper_comments_file(&paper_id, &comments_path)
     })
     .await
-    .map_err(|error| PaperAnnotationsError {
+    .map_err(|error| PaperCommentsError {
         kind: "task_failed".to_string(),
         message: format!("Task panicked: {error}"),
         paper_id: error_paper_id,
@@ -454,16 +454,16 @@ fn metadata_paths_for_paper(
     })
 }
 
-fn annotations_path_for_paper(
+fn comments_path_for_paper(
     vault_path: &Path,
     paper_id: &str,
-) -> Result<PathBuf, PaperAnnotationsError> {
+) -> Result<PathBuf, PaperCommentsError> {
     let expanded_vault_path = expand_tilde(vault_path.to_string_lossy().as_ref()).into_owned();
     let boundary = VaultBoundary::from_request(Some(&expanded_vault_path))
-        .map_err(|error| PaperAnnotationsError::boundary(paper_id, error))?;
+        .map_err(|error| PaperCommentsError::boundary(paper_id, error))?;
     paper_bundle_dir_for_paper(&boundary, paper_id)
-        .map(|bundle_dir| bundle_dir.join("annotations.jsonl"))
-        .map_err(|error| PaperAnnotationsError::boundary(paper_id, error))
+        .map(|bundle_dir| bundle_dir.join("comments.jsonl"))
+        .map_err(|error| PaperCommentsError::boundary(paper_id, error))
 }
 
 fn paper_bundle_dir_for_paper(boundary: &VaultBoundary, paper_id: &str) -> Result<PathBuf, String> {
@@ -580,7 +580,7 @@ mod tests {
         fs::write(
             paper_dir.join("paper.md"),
             format!(
-                "---\ntype: Paper\npaper_id: {paper_id}\ntitle: Fixture Paper\nparse_status: unparsed\nsource_pdf: source.pdf\nblocks: blocks.jsonl\nannotations: annotations.jsonl\n---\n# Fixture Paper\n"
+                "---\ntype: Paper\npaper_id: {paper_id}\ntitle: Fixture Paper\nparse_status: unparsed\nsource_pdf: source.pdf\nblocks: blocks.jsonl\ncomments: comments.jsonl\n---\n# Fixture Paper\n"
             ),
         )
         .unwrap();
@@ -590,14 +590,14 @@ mod tests {
         write_paper_bundle_in(vault, "", paper_id);
     }
 
-    fn write_annotations_in(vault: &Path, bundle_parent: &str, paper_id: &str, content: &str) {
+    fn write_comments_in(vault: &Path, bundle_parent: &str, paper_id: &str, content: &str) {
         let paper_dir = vault.join(bundle_parent).join("papers").join(paper_id);
         fs::create_dir_all(&paper_dir).unwrap();
-        fs::write(paper_dir.join("annotations.jsonl"), content).unwrap();
+        fs::write(paper_dir.join("comments.jsonl"), content).unwrap();
     }
 
-    fn write_annotations(vault: &Path, paper_id: &str, content: &str) {
-        write_annotations_in(vault, "", paper_id, content);
+    fn write_comments(vault: &Path, paper_id: &str, content: &str) {
+        write_comments_in(vault, "", paper_id, content);
     }
 
     #[tokio::test]
@@ -612,10 +612,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn read_paper_annotations_uses_active_vault_boundary() {
+    async fn read_paper_comments_uses_active_vault_boundary() {
         let vault = TempDir::new().unwrap();
 
-        let error = read_paper_annotations(vault.path().to_path_buf(), "../outside".to_string())
+        let error = read_paper_comments(vault.path().to_path_buf(), "../outside".to_string())
             .await
             .expect_err("expected traversal to be rejected");
 
@@ -798,82 +798,74 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_saves_and_deletes_paper_annotations_from_vault() {
+    async fn reads_saves_and_deletes_paper_comments_from_vault() {
         let vault = TempDir::new().unwrap();
-        write_annotations(
+        write_comments(
             vault.path(),
             "paper-1",
-            "{\"id\":\"ann-1\",\"paper_id\":\"paper-1\",\"block_id\":\"b0002\",\"kind\":\"highlight\",\"color\":\"important\",\"created_at\":\"2026-07-02T10:15:00Z\"}\n",
+            "{\"id\":\"ann-1\",\"paper_id\":\"paper-1\",\"block_id\":\"b0002\",\"kind\":\"comment\",\"created_at\":\"2026-07-02T10:15:00Z\"}\n",
         );
 
-        let read = read_paper_annotations(vault.path().to_path_buf(), "paper-1".to_string())
+        let read = read_paper_comments(vault.path().to_path_buf(), "paper-1".to_string())
             .await
             .unwrap();
-        assert_eq!(read.annotations.len(), 1);
+        assert_eq!(read.comments.len(), 1);
 
-        let mut annotation = read.annotations[0].clone();
-        annotation.kind = paper::PaperAnnotationKind::Question;
-        annotation.note = Some("Why?".to_string());
+        let mut comment = read.comments[0].clone();
+        comment.note = Some("Why?".to_string());
 
-        let saved = save_paper_annotation(
-            vault.path().to_path_buf(),
-            "paper-1".to_string(),
-            annotation,
-        )
-        .await
-        .unwrap();
-        assert_eq!(saved.annotations.len(), 1);
-        assert_eq!(
-            saved.annotations[0].kind,
-            paper::PaperAnnotationKind::Question
-        );
+        let saved = save_paper_comment(vault.path().to_path_buf(), "paper-1".to_string(), comment)
+            .await
+            .unwrap();
+        assert_eq!(saved.comments.len(), 1);
+        assert_eq!(saved.comments[0].kind, paper::PaperCommentKind::Comment);
 
-        let deleted = delete_paper_annotation(
+        let deleted = delete_paper_comment(
             vault.path().to_path_buf(),
             "paper-1".to_string(),
             "ann-1".to_string(),
         )
         .await
         .unwrap();
-        assert_eq!(deleted.annotations.len(), 0);
+        assert_eq!(deleted.comments.len(), 0);
     }
 
     #[tokio::test]
-    async fn resets_paper_annotations_from_vault() {
+    async fn resets_paper_comments_from_vault() {
         let vault = TempDir::new().unwrap();
-        write_annotations(vault.path(), "paper-1", "{not json}\n");
+        write_comments(vault.path(), "paper-1", "{not json}\n");
 
-        let reset = reset_paper_annotations(vault.path().to_path_buf(), "paper-1".to_string())
+        let reset = reset_paper_comments(vault.path().to_path_buf(), "paper-1".to_string())
             .await
             .unwrap();
 
-        assert_eq!(reset.state, paper::PaperAnnotationsState::Empty);
-        assert_eq!(reset.annotations.len(), 0);
+        assert_eq!(reset.state, paper::PaperCommentsState::Empty);
+        assert_eq!(reset.comments.len(), 0);
         assert_eq!(
-            fs::read_to_string(vault.path().join("papers/paper-1/annotations.jsonl")).unwrap(),
+            fs::read_to_string(vault.path().join("papers/paper-1/comments.jsonl")).unwrap(),
             ""
         );
     }
 
     #[tokio::test]
-    async fn read_paper_annotations_finds_nested_workspace_paper_bundle_by_paper_id() {
+    async fn read_paper_comments_finds_nested_workspace_paper_bundle_by_paper_id() {
         let vault = TempDir::new().unwrap();
         write_paper_bundle_in(vault.path(), "test", "paper-1");
-        write_annotations_in(
+        write_comments_in(
             vault.path(),
             "test",
             "paper-1",
-            "{\"id\":\"ann-1\",\"paper_id\":\"paper-1\",\"block_id\":\"b0001\",\"kind\":\"bookmark\",\"created_at\":\"2026-07-02T10:15:00Z\"}\n",
+            "{\"id\":\"ann-1\",\"paper_id\":\"paper-1\",\"block_id\":\"b0001\",\"kind\":\"comment\",\"created_at\":\"2026-07-02T10:15:00Z\"}\n",
         );
 
-        let read = read_paper_annotations(vault.path().to_path_buf(), "paper-1".to_string())
+        let read = read_paper_comments(vault.path().to_path_buf(), "paper-1".to_string())
             .await
             .unwrap();
 
         assert_eq!(
             read.path,
-            vault.path().join("test/papers/paper-1/annotations.jsonl")
+            vault.path().join("test/papers/paper-1/comments.jsonl")
         );
-        assert_eq!(read.annotations.len(), 1);
+        assert_eq!(read.comments.len(), 1);
     }
 }

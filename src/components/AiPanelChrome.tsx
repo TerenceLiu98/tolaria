@@ -44,6 +44,13 @@ interface AiPanelContextBarProps {
   locale?: AppLocale
 }
 
+interface AiPanelContextPreviewItem {
+  key: string
+  label: string
+  testId?: string
+  truncate?: boolean
+}
+
 interface AiPanelMessageHistoryProps {
   agentLabel: string
   agentReadiness: AiAgentReadiness
@@ -501,12 +508,34 @@ export const AiPanelContextBar = memo(function AiPanelContextBar({
         paperContext.activePaper.venue,
       ].filter(Boolean).join(' · ')
     : null
-  const preview = [
-    activePaperLabel ? t('ai.panel.paperContext.activePaper', { paper: activePaperLabel }) : null,
-    paperContext.relatedPaperCount > 0 ? t('ai.panel.paperContext.related', { count: paperContext.relatedPaperCount }) : null,
-    paperContext.blockCitationCount > 0 ? t('ai.panel.paperContext.citations', { count: paperContext.blockCitationCount }) : null,
-    paperContext.mountedPaperVaults.length > 0 ? t('ai.panel.paperContext.mountedVaults', { count: paperContext.mountedPaperVaults.length }) : null,
-  ].filter(Boolean).join('\n')
+  const previewItems: AiPanelContextPreviewItem[] = []
+  if (activePaperLabel) {
+    previewItems.push({
+      key: 'active-paper',
+      label: t('ai.panel.paperContext.activePaper', { paper: activePaperLabel }),
+      testId: 'ai-paper-active-preview',
+      truncate: true,
+    })
+  }
+  if (paperContext.blockCitationCount > 0) {
+    previewItems.push({
+      key: 'block-citations',
+      label: t('ai.panel.paperContext.citations', { count: paperContext.blockCitationCount }),
+    })
+  }
+  if (paperContext.relatedPaperCount > 0) {
+    previewItems.push({
+      key: 'related-papers',
+      label: t('ai.panel.paperContext.related', { count: paperContext.relatedPaperCount }),
+    })
+  }
+  if (paperContext.mountedPaperVaults.length > 0) {
+    previewItems.push({
+      key: 'mounted-vaults',
+      label: t('ai.panel.paperContext.mountedVaults', { count: paperContext.mountedPaperVaults.length }),
+    })
+  }
+  const preview = previewItems.map(item => item.label).join('\n')
 
   return (
     <ActionTooltip
@@ -516,33 +545,53 @@ export const AiPanelContextBar = memo(function AiPanelContextBar({
       contentTestId="ai-paper-context-tooltip"
     >
       <div
-        className="flex w-full max-w-full min-w-0 items-center overflow-hidden border-b border-border text-muted-foreground"
-        style={{ padding: '6px 12px', gap: 6, fontSize: 11 }}
+        className="flex w-full max-w-full min-w-0 flex-col overflow-hidden border-b border-border text-muted-foreground"
+        style={{ padding: '6px 12px', gap: 4, fontSize: 11 }}
         data-testid="context-bar"
       >
-        <Books size={12} className="shrink-0" />
-        <span className="shrink-0" style={{ fontWeight: 600 }}>{t('ai.panel.paperContext.toolsAvailable')}</span>
-        {paperContext.contextIncluded && (
-          <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px]">
-            {t('ai.panel.paperContext.included')}
+        <div className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden">
+          <Books size={12} className="shrink-0" />
+          <span className="shrink-0" style={{ fontWeight: 600 }} data-testid="ai-paper-tools-available">
+            {t('ai.panel.paperContext.toolsAvailable')}
           </span>
-        )}
-        <span className="min-w-0 flex-1" aria-hidden="true" />
-        {paperContext.blockCitationCount > 0 && (
-          <span className="ml-auto inline-flex shrink-0 items-center gap-1" data-testid="ai-paper-citation-count">
-            <Quotes size={11} />
-            {paperContext.blockCitationCount}
-          </span>
-        )}
-        {paperContext.relatedPaperCount > 0 && (
-          <span className="shrink-0" data-testid="ai-paper-related-count">
-            {t('ai.panel.paperContext.relatedShort', { count: paperContext.relatedPaperCount })}
-          </span>
-        )}
-        {paperContext.mountedPaperVaults.length > 0 && (
-          <span className="shrink-0" data-testid="ai-paper-mounted-vault-count">
-            {t('ai.panel.paperContext.readOnlyVaultsShort', { count: paperContext.mountedPaperVaults.length })}
-          </span>
+          {paperContext.contextIncluded && (
+            <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px]">
+              {t('ai.panel.paperContext.included')}
+            </span>
+          )}
+          <span className="min-w-0 flex-1" aria-hidden="true" />
+          {paperContext.blockCitationCount > 0 && (
+            <span className="ml-auto inline-flex shrink-0 items-center gap-1" data-testid="ai-paper-citation-count">
+              <Quotes size={11} />
+              {paperContext.blockCitationCount}
+            </span>
+          )}
+          {paperContext.relatedPaperCount > 0 && (
+            <span className="shrink-0" data-testid="ai-paper-related-count">
+              {t('ai.panel.paperContext.relatedShort', { count: paperContext.relatedPaperCount })}
+            </span>
+          )}
+          {paperContext.mountedPaperVaults.length > 0 && (
+            <span className="shrink-0" data-testid="ai-paper-mounted-vault-count">
+              {t('ai.panel.paperContext.readOnlyVaultsShort', { count: paperContext.mountedPaperVaults.length })}
+            </span>
+          )}
+        </div>
+        {previewItems.length > 0 && (
+          <div
+            className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pl-[18px] text-[10px] leading-4"
+            data-testid="ai-paper-context-preview"
+          >
+            {previewItems.map(item => (
+              <span
+                key={item.key}
+                className={cn('min-w-0', item.truncate ? 'max-w-full truncate' : 'shrink-0')}
+                data-testid={item.testId}
+              >
+                {item.label}
+              </span>
+            ))}
+          </div>
         )}
       </div>
     </ActionTooltip>

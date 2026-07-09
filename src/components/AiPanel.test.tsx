@@ -436,8 +436,9 @@ describe('AiPanel', () => {
     )
 
     expect(screen.getByTestId('context-bar')).toHaveTextContent('Paper tools')
+    expect(screen.getByTestId('ai-paper-tools-available')).toHaveTextContent('Paper tools')
     expect(screen.getByTestId('context-bar')).toHaveTextContent('context included')
-    expect(screen.getByTestId('context-bar')).not.toHaveTextContent('KAN Autoencoders · 2026 · AAAI')
+    expect(screen.getByTestId('ai-paper-context-preview')).toHaveTextContent('Active Paper: KAN Autoencoders · 2026 · AAAI')
   })
 
   it('shows Paper citation and mounted read-only vault indicators', () => {
@@ -489,6 +490,8 @@ describe('AiPanel', () => {
     expect(screen.getByTestId('context-bar')).toHaveTextContent('Paper tools')
     expect(screen.getByTestId('ai-paper-citation-count')).toHaveTextContent('1')
     expect(screen.getByTestId('ai-paper-mounted-vault-count')).toHaveTextContent('1 read-only vaults')
+    expect(screen.getByTestId('ai-paper-context-preview')).toHaveTextContent('1 block citations resolved')
+    expect(screen.getByTestId('ai-paper-context-preview')).toHaveTextContent('1 mounted Paper Vaults available read-only')
   })
 
   it('renders input field enabled', () => {

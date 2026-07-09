@@ -231,6 +231,43 @@ describe('aiAgentStreamCallbacks', () => {
     )
   })
 
+  it('updates the streaming assistant response as text chunks arrive', () => {
+    const messages = createMessageStore([
+      {
+        id: 'msg-1',
+        userMessage: 'Question',
+        actions: [],
+        isStreaming: true,
+      },
+    ])
+    const responseAccRef = { current: '' }
+
+    const callbacks = createStreamCallbacks({
+      agent: 'claude_code',
+      messageId: 'msg-1',
+      vaultPath: '/vault',
+      setMessages: messages.setMessages,
+      setStatus: createStatusStore().setStatus,
+      abortRef: { current: { aborted: false } },
+      responseAccRef,
+      toolInputMapRef: { current: new Map() },
+      fileCallbacksRef: { current: undefined },
+    })
+
+    callbacks.onText('First chunk. ')
+    expect(messages.getMessages()[0]).toMatchObject({
+      isStreaming: true,
+      reasoningDone: true,
+      response: 'First chunk. ',
+    })
+
+    callbacks.onText('Second chunk.')
+    expect(messages.getMessages()[0]).toMatchObject({
+      isStreaming: true,
+      response: 'First chunk. Second chunk.',
+    })
+  })
+
   it('keeps response normalization compatible with WebKit regex syntax support', () => {
     const source = readFileSync(join(process.cwd(), 'src/lib/aiAgentStreamCallbacks.ts'), 'utf8')
 

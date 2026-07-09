@@ -19,9 +19,9 @@ import {
 } from './metadata'
 import { loadPaperBlocks, type PaperBlocksReadResult } from './blocks'
 import {
-  type PaperAnnotation,
-  type PaperAnnotationKind,
-} from './annotations'
+  type PaperComment,
+  type PaperCommentKind,
+} from './comments'
 import {
   type PaperReaderBlocksState,
   paperMetadataForReader,
@@ -39,8 +39,8 @@ import {
   paperCommentsByBlockId,
 } from './paperCommentProvider'
 import {
-  usePaperAnnotations,
-} from './usePaperAnnotations'
+  usePaperComments,
+} from './usePaperComments'
 import {
   PaperActionConfirmDialog,
   PaperMetadataPanel,
@@ -268,6 +268,10 @@ export function PaperReaderShell({
       return blockId
     })
   }, [handleSelectBlock])
+  const handleOpenSelectedTextComment = useCallback((blockId: string) => {
+    handleSelectBlock(blockId)
+    setOpenCommentBlockId(blockId)
+  }, [handleSelectBlock])
   const handleSelectedTextContextChange = useCallback((context: AiSelectedTextContext | null) => {
     setSelectedPaperTextContext(context?.kind === 'text' ? context : null)
     onSelectedTextContextChange?.(context)
@@ -277,40 +281,40 @@ export function PaperReaderShell({
     handleSelectBlock(blockId)
     setOpenCommentBlockId(blockId)
   }, [handleSelectBlock])
-  const annotations = usePaperAnnotations(vaultPath, paperId)
+  const comments = usePaperComments(vaultPath, paperId)
   const commentsByAnchorId = useMemo(
-    () => paperCommentsByBlockId(annotations.annotations),
-    [annotations.annotations],
+    () => paperCommentsByBlockId(comments.comments),
+    [comments.comments],
   )
-  const createAnnotation = useCallback((block: SourceBlock, input: {
-    kind: PaperAnnotationKind
+  const createComment = useCallback((block: SourceBlock, input: {
+    kind: PaperCommentKind
     note?: string
     text?: string
   }) => {
-    void annotations.createBlockLevelAnnotation({
+    void comments.createBlockLevelComment({
       blockId: block.id,
       kind: input.kind,
       note: input.note,
       text: input.text,
     }).catch((error: unknown) => {
-      console.warn('[paper-reader] Failed to save annotation:', error)
+      console.warn('[paper-reader] Failed to save comment:', error)
     })
-  }, [annotations])
-  const saveAnnotation = useCallback((annotation: PaperAnnotation) => {
-    void annotations.saveAnnotation(annotation).catch((error: unknown) => {
-      console.warn('[paper-reader] Failed to update annotation:', error)
+  }, [comments])
+  const saveComment = useCallback((comment: PaperComment) => {
+    void comments.saveComment(comment).catch((error: unknown) => {
+      console.warn('[paper-reader] Failed to update comment:', error)
     })
-  }, [annotations])
-  const deleteAnnotation = useCallback((annotationId: string) => {
-    void annotations.deleteAnnotation(annotationId).catch((error: unknown) => {
-      console.warn('[paper-reader] Failed to delete annotation:', error)
+  }, [comments])
+  const deleteComment = useCallback((commentId: string) => {
+    void comments.deleteComment(commentId).catch((error: unknown) => {
+      console.warn('[paper-reader] Failed to delete comment:', error)
     })
-  }, [annotations])
-  const resetAnnotations = useCallback(() => {
-    void annotations.resetAnnotations().catch((error: unknown) => {
-      console.warn('[paper-reader] Failed to reset annotation sidecar:', error)
+  }, [comments])
+  const resetComments = useCallback(() => {
+    void comments.resetComments().catch((error: unknown) => {
+      console.warn('[paper-reader] Failed to reset comment sidecar:', error)
     })
-  }, [annotations])
+  }, [comments])
 
   useBlockCitationFocus(paperId, handleFocusBlockFromCitation)
   useReaderOpenedAnalytics(paperId, summary.blocksState)
@@ -354,9 +358,9 @@ export function PaperReaderShell({
           data-testid="paper-reader-markdown-layout"
         >
           <PaperMarkdownNoteSurface
-            annotationError={annotations.error}
-            annotationLoadState={annotations.loadState}
-            annotationsByBlockId={annotations.annotationsByBlockId}
+            commentError={comments.error}
+            commentLoadState={comments.loadState}
+            commentsByBlockId={comments.commentsByBlockId}
             blocks={blocks}
             blocksError={blocksState.error}
             blocksLoadState={loadingBlocks ? 'loading' : blocksState.state}
@@ -367,13 +371,14 @@ export function PaperReaderShell({
             health={sidecarHealth}
             locale={locale}
             onCloseCommentThread={closeCommentThread}
-            onCreateAnnotation={createAnnotation}
-            onDeleteAnnotation={deleteAnnotation}
+            onCreateComment={createComment}
+            onDeleteComment={deleteComment}
             onEditorChange={onEditorChange}
             onNavigateWikilink={onNavigateWikilink}
+            onOpenSelectedTextComment={handleOpenSelectedTextComment}
             onSelectedTextContextChange={handleSelectedTextContextChange}
-            onResetAnnotations={resetAnnotations}
-            onSaveAnnotation={saveAnnotation}
+            onResetComments={resetComments}
+            onSaveComment={saveComment}
             onToggleCommentThread={handleToggleCommentThread}
             openCommentBlockId={openCommentBlockId}
             selectedBlockId={selectedBlockId}

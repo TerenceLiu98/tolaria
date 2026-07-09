@@ -546,6 +546,29 @@
   word-break: break-word;
 }
 
+.ai-markdown .math {
+  color: var(--foreground);
+}
+
+.ai-markdown .math--inline {
+  display: inline-flex;
+  max-width: 100%;
+  vertical-align: baseline;
+}
+
+.ai-markdown .math--block {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.35em 0;
+  text-align: center;
+}
+
+.ai-markdown .math .katex-error {
+  color: var(--destructive) !important;
+  white-space: pre-wrap;
+}
+
 .ai-markdown .chat-wikilink {
   display: inline;
   color: var(--primary);

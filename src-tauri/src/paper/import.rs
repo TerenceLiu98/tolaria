@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use super::paths::{
     is_pdf_path, paper_bundle_paths, paper_title_from_source_path, unique_paper_slug,
-    ANNOTATIONS_FILENAME, BLOCKS_FILENAME, PAPER_NOTE_FILENAME, SOURCE_PDF_FILENAME,
+    BLOCKS_FILENAME, COMMENTS_FILENAME, PAPER_NOTE_FILENAME, SOURCE_PDF_FILENAME,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -15,7 +15,7 @@ pub struct ImportPaperPdfResult {
     pub paper_path: PathBuf,
     pub source_pdf_path: PathBuf,
     pub blocks_path: PathBuf,
-    pub annotations_path: PathBuf,
+    pub comments_path: PathBuf,
     pub created_files: Vec<String>,
     pub deduplicated: bool,
 }
@@ -45,7 +45,7 @@ pub fn import_paper_pdf(
         paper_path: paths.paper_note,
         source_pdf_path: paths.source_pdf,
         blocks_path: paths.blocks,
-        annotations_path: paths.annotations,
+        comments_path: paths.comments,
         created_files: vec![
             format!("papers/{paper_id}/{SOURCE_PDF_FILENAME}"),
             format!("papers/{paper_id}/{PAPER_NOTE_FILENAME}"),
@@ -90,7 +90,7 @@ status: imported\n\
 parse_status: unparsed\n\
 source_pdf: {SOURCE_PDF_FILENAME}\n\
 blocks: {BLOCKS_FILENAME}\n\
-annotations: {ANNOTATIONS_FILENAME}\n\
+comments: {COMMENTS_FILENAME}\n\
 ---\n\
 # {title}\n\n\
 ## Summary\n\n\
@@ -133,9 +133,9 @@ mod tests {
         assert!(paper.contains("paper_id: attention-is-all-you-need"));
         assert!(paper.contains("source_pdf: source.pdf"));
         assert!(paper.contains("blocks: blocks.jsonl"));
-        assert!(paper.contains("annotations: annotations.jsonl"));
+        assert!(paper.contains("comments: comments.jsonl"));
         assert!(!result.blocks_path.exists());
-        assert!(!result.annotations_path.exists());
+        assert!(!result.comments_path.exists());
     }
 
     #[test]

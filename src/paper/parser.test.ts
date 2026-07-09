@@ -18,7 +18,7 @@ function paperMarkdown(parseStatus = 'unparsed'): string {
     `parse_status: ${parseStatus}`,
     'source_pdf: source.pdf',
     'blocks: blocks.jsonl',
-    'annotations: annotations.jsonl',
+    'comments: comments.jsonl',
     '---',
     '# Attention Is All You Need',
   ].join('\n')

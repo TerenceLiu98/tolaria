@@ -54,6 +54,27 @@ export function selectedQuoteForPaperBlock(
   return selectedQuote.length > 0 ? selectedQuote : null
 }
 
+function normalizedQuoteText(value: string): string {
+  return value.replace(/\s+/gu, ' ').trim().toLowerCase()
+}
+
+export function sourceBlockForSelectedQuote(
+  blocks: readonly SourceBlock[],
+  quote: string | null | undefined,
+): SourceBlock | null {
+  const normalizedQuote = normalizedQuoteText(quote ?? '')
+  if (normalizedQuote.length === 0) return null
+
+  return blocks.find((block) => {
+    const sourceText = normalizedQuoteText([
+      typeof block.text === 'string' ? block.text : '',
+      typeof block.caption === 'string' ? block.caption : '',
+      typeof block.section === 'string' ? block.section : '',
+    ].filter(Boolean).join(' '))
+    return sourceText.includes(normalizedQuote)
+  }) ?? null
+}
+
 export function paperBlockPdfFocusRequest(block: SourceBlock | null | undefined): PaperPdfBlockFocusRequest | null {
   if (!block || !Number.isInteger(block.page) || block.page <= 0) return null
   return { blockId: block.id, page: block.page }

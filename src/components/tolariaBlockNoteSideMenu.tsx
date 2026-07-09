@@ -23,23 +23,16 @@ import {
 import { translate, type AppLocale } from '../lib/i18n'
 import {
   useCallback,
-  useLayoutEffect,
-  useState,
   type ComponentType,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
-import { createPortal } from 'react-dom'
-import { CommentGutter } from './comments/CommentUI'
-import { editorCommentAnchorForBlock, type EditorCommentAnchor, type EditorCommentOptions } from './comments/commentAnchors'
 import {
   captureEditorScrollForControl,
   editorElementFromControl,
   scheduleEditorScrollRestore,
   type EditorScrollSnapshot,
 } from './editorScrollPreservation'
-import { useEditorFloatingPortal } from './editorFloatingPortal'
-import { sideMenuCommentThreadPosition } from './sideMenuCommentPosition'
 import { usePointerBlockReorder } from './tolariaBlockReorder'
 import {
   tableHeaderContent,
@@ -63,7 +56,6 @@ import {
 } from './tolariaSideMenuBlocks'
 
 type TolariaSideMenuProps = SideMenuProps & {
-  commentOptions?: EditorCommentOptions
   locale?: AppLocale
 }
 
@@ -312,110 +304,7 @@ function TolariaDragHandleMenu() {
   )
 }
 
-function commentAnchorForSideMenuBlock({
-  anchors,
-  block,
-  editor,
-}: {
-  anchors: readonly EditorCommentAnchor[]
-  block: SideMenuBlock | undefined
-  editor: ReturnType<typeof useBlockNoteEditor<BlockSchema, InlineContentSchema, StyleSchema>>
-}): EditorCommentAnchor | null {
-  return editorCommentAnchorForBlock({
-    anchors,
-    blockId: block?.id,
-    editorBlocks: editor.document,
-  })
-}
-
-function useCommentThreadPortalPosition({
-  isOpen,
-  markerElement,
-  portalElement,
-}: {
-  isOpen: boolean
-  markerElement: HTMLElement | null
-  portalElement: HTMLElement | null
-}) {
-  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
-
-  useLayoutEffect(() => {
-    if (!isOpen || !markerElement || !portalElement) {
-      return undefined
-    }
-
-    const updatePosition = () => {
-      const markerRect = markerElement.getBoundingClientRect()
-      const portalRect = portalElement.getBoundingClientRect()
-      setPosition(sideMenuCommentThreadPosition({ markerRect, portalRect }))
-    }
-
-    updatePosition()
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, true)
-    return () => {
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition, true)
-    }
-  }, [isOpen, markerElement, portalElement])
-
-  return position
-}
-
-function TolariaCommentSideMenuButton({
-  commentOptions,
-}: {
-  commentOptions: EditorCommentOptions
-}) {
-  const [markerElement, setMarkerElement] = useState<HTMLDivElement | null>(null)
-  const portalElement = useEditorFloatingPortal()
-  const { block, editor } = useSideMenuBlock()
-  const anchor = commentAnchorForSideMenuBlock({
-    anchors: commentOptions.anchors,
-    block,
-    editor,
-  })
-  const isOpen = Boolean(anchor && commentOptions.selectedAnchorId === anchor.id)
-  const portalPosition = useCommentThreadPortalPosition({
-    isOpen,
-    markerElement,
-    portalElement,
-  })
-  const handleMarkerRef = useCallback((element: HTMLDivElement | null) => {
-    setMarkerElement(element)
-  }, [])
-
-  if (!anchor) return null
-
-  const thread = isOpen ? (
-    <div
-      className="pointer-events-auto absolute z-50 w-[min(22rem,calc(100vw-5rem))] max-w-[80vw]"
-      data-testid={`tolaria-side-menu-comment-thread-layer-${anchor.id}`}
-      style={portalElement && portalPosition ? portalPosition : { left: 36, top: 0 }}
-    >
-      {commentOptions.renderThread(anchor.id)}
-    </div>
-  ) : null
-
-  return (
-    <div
-      ref={handleMarkerRef}
-      className="group/comment-anchor relative"
-      data-testid={`tolaria-side-menu-comment-anchor-${anchor.id}`}
-    >
-      <CommentGutter
-        anchorId={anchor.id}
-        count={anchor.comments.length}
-        isOpen={isOpen}
-        onToggleThread={commentOptions.onToggleThread}
-        title={anchor.title}
-      />
-      {thread && portalElement && portalPosition ? createPortal(thread, portalElement) : thread}
-    </div>
-  )
-}
-
-export function TolariaSideMenu({ commentOptions, locale = 'en', ...props }: TolariaSideMenuProps) {
+export function TolariaSideMenu({ locale = 'en', ...props }: TolariaSideMenuProps) {
   const { block, editor } = useSideMenuBlock()
   useSideMenuTextAlignment(editor, block)
 
@@ -423,7 +312,6 @@ export function TolariaSideMenu({ commentOptions, locale = 'en', ...props }: Tol
     <SideMenu {...props}>
       <TolariaDragHandleButton dragHandleMenu={TolariaDragHandleMenu} />
       <TolariaSectionControlButton locale={locale} />
-      {commentOptions ? <TolariaCommentSideMenuButton commentOptions={commentOptions} /> : null}
     </SideMenu>
   )
 }

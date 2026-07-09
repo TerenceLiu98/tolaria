@@ -24,6 +24,7 @@ export interface NoteSurfaceProps {
   entries: VaultEntry[]
   locale?: AppLocale
   onChange?: () => void
+  onCommentSelectedTextContext?: (context: AiSelectedTextContext) => void
   onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   onNavigateWikilink: (target: string) => void
   sourceEntry?: VaultEntry | null
@@ -39,6 +40,7 @@ export const NoteSurface = forwardRef<NoteSurfaceAdapter, NoteSurfaceProps>(func
   entries,
   locale = 'en',
   onChange,
+  onCommentSelectedTextContext,
   onSelectedTextContextChange,
   onNavigateWikilink,
   sourceEntry,
@@ -89,6 +91,7 @@ export const NoteSurface = forwardRef<NoteSurfaceAdapter, NoteSurfaceProps>(func
           entries={entries}
           onNavigateWikilink={onNavigateWikilink}
           onChange={onChange}
+          onCommentSelectedTextContext={onCommentSelectedTextContext}
           onSelectedTextContextChange={onSelectedTextContextChange}
           editorAdapter={editorAdapter}
           onSelectedAttachmentContextChange={handleSelectedAttachmentContextChange}

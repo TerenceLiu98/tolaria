@@ -10,7 +10,6 @@ import {
   TolariaCollapsedHeadingsController,
   TolariaSideMenu,
 } from './tolariaBlockNoteSideMenu'
-import type { EditorCommentOptions } from './comments/commentAnchors'
 import { EditorFloatingPortalProvider } from './editorFloatingPortal'
 
 type MockBlock = {
@@ -37,7 +36,6 @@ type MenuItemProps = PropsWithChildren<{
 }>
 
 type RenderSideMenuOptions = {
-  commentOptions?: EditorCommentOptions
   locale?: 'en' | 'it-IT'
 }
 
@@ -216,7 +214,7 @@ vi.mock('@blocknote/react', () => ({
 function renderSideMenuWithBlock(block: MockBlock | undefined, options: RenderSideMenuOptions = {}) {
   sideMenuBlock = block
   const locale = options.locale ?? 'en'
-  render(<TolariaSideMenu commentOptions={options.commentOptions} locale={locale} />)
+  render(<TolariaSideMenu locale={locale} />)
 }
 
 function renderSideMenuAndCollapseControllerWithBlock(block: MockBlock | undefined, options: RenderSideMenuOptions = {}) {
@@ -225,7 +223,7 @@ function renderSideMenuAndCollapseControllerWithBlock(block: MockBlock | undefin
   render(
     <>
       <TolariaCollapsedHeadingsController />
-      <TolariaSideMenu commentOptions={options.commentOptions} locale={locale} />
+      <TolariaSideMenu locale={locale} />
     </>,
   )
 }
@@ -698,33 +696,19 @@ describe('TolariaSideMenu', () => {
     ])
   })
 
-  it('renders the current block comment marker from provider-backed anchors', () => {
+  it('leaves comment rendering to the editor comment gutter layer', () => {
     const first = testBlock('first-block', 'paragraph', ['First'])
     const second = testBlock('second-block', 'paragraph', ['Second'])
-    const onToggleThread = vi.fn()
-    const commentOptions: EditorCommentOptions = {
-      anchors: [
-        { comments: [], id: 'b0001', title: 'First source block' },
-        { comments: [{ anchorId: 'b0002', body: 'Existing', id: 'c1', kind: 'comment' }], id: 'b0002', title: 'Second source block' },
-      ],
-      onToggleThread,
-      renderThread: (anchorId) => <section data-testid="side-menu-comment-thread">Thread for {anchorId}</section>,
-      selectedAnchorId: 'b0002',
-    }
     mockEditor.document = [first, second]
     mockEditor.getBlock.mockReturnValue(second)
 
-    renderSideMenuWithBlock(second, { commentOptions })
+    renderSideMenuWithBlock(second)
 
-    const marker = screen.getByTestId('tolaria-side-menu-comment-anchor-b0002')
-    expect(marker).toContainElement(screen.getByTestId('comment-gutter-count-b0002'))
-    expect(screen.getByTestId('side-menu-comment-thread')).toHaveTextContent('Thread for b0002')
-    fireEvent.click(screen.getByRole('button', { name: 'Second source block' }))
-
-    expect(onToggleThread).toHaveBeenCalledWith('b0002')
+    expect(screen.queryByTestId('tolaria-side-menu-comment-anchor-b0002')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('side-menu-comment-thread')).not.toBeInTheDocument()
   })
 
-  it('portals the selected comment thread through the editor floating portal when available', () => {
+  it('does not portal comment threads from the hover-driven side menu', () => {
     const block = testBlock('second-block', 'paragraph', ['Second'])
     const portal = document.createElement('div')
     document.body.appendChild(portal)
@@ -742,27 +726,18 @@ describe('TolariaSideMenu', () => {
         toJSON: () => ({}),
       }),
     })
-    const commentOptions: EditorCommentOptions = {
-      anchors: [
-        { comments: [{ anchorId: 'b0002', body: 'Existing', id: 'c1', kind: 'comment' }], id: 'b0002', title: 'Second source block' },
-      ],
-      onToggleThread: vi.fn(),
-      renderThread: (anchorId) => <section data-testid="side-menu-comment-thread">Thread for {anchorId}</section>,
-      selectedAnchorId: 'b0002',
-    }
     mockEditor.document = [block]
     mockEditor.getBlock.mockReturnValue(block)
     sideMenuBlock = block
 
     render(
       <EditorFloatingPortalProvider value={portal}>
-        <TolariaSideMenu commentOptions={commentOptions} locale="en" />
+        <TolariaSideMenu locale="en" />
       </EditorFloatingPortalProvider>,
     )
 
-    const threadLayer = screen.getByTestId('tolaria-side-menu-comment-thread-layer-b0002')
-    expect(portal).toContainElement(threadLayer)
-    expect(threadLayer).toContainElement(screen.getByTestId('side-menu-comment-thread'))
+    expect(screen.queryByTestId('tolaria-side-menu-comment-thread-layer-b0002')).not.toBeInTheDocument()
+    expect(portal).toBeEmptyDOMElement()
   })
 
   it('localizes heading collapse and expand labels', () => {

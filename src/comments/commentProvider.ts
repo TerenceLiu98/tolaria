@@ -21,7 +21,6 @@ export interface NoteCommentReaction {
 export interface NoteComment {
   anchorId: string
   body: string
-  color?: string | null
   createdAt?: string | null
   id: string
   kind: string
@@ -34,7 +33,6 @@ export interface NoteComment {
 export interface NoteCommentDraft {
   anchorId: string
   body: string
-  color?: string | null
   kind: string
   quote?: string | null
 }

@@ -180,6 +180,7 @@ type BlockNotePasteHandlerContext = {
 }
 type BlockNoteCreationOptions = {
   pasteHandler?: (context: BlockNotePasteHandlerContext) => boolean | undefined
+  tabBehavior?: string
 }
 
 function render(ui: ReactElement) {
@@ -333,6 +334,17 @@ describe('Editor', () => {
     expect(handled).toBe(true)
     expect(pasteText).toHaveBeenCalledWith('SELECT * FROM OPENQUERY')
     expect(defaultPasteHandler).not.toHaveBeenCalled()
+  })
+
+  it('keeps Tab reserved for rich-editor indentation instead of UI focus navigation', () => {
+    renderEditor({
+      tabs: [mockTab],
+      activeTabPath: mockEntry.path,
+    })
+
+    expect(latestBlockNoteOptions()).toMatchObject({
+      tabBehavior: 'prefer-indent',
+    })
   })
 
   it('keeps plain Markdown emphasis on the BlockNote default paste path', () => {

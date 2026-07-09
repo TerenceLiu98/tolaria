@@ -23,7 +23,7 @@ status: imported
 parse_status: unparsed
 source_pdf: source.pdf
 blocks: blocks.jsonl
-annotations: annotations.jsonl
+comments: comments.jsonl
 ---
 # Attention Is All You Need
 `)
@@ -38,7 +38,7 @@ annotations: annotations.jsonl
       parseError: null,
       sourcePdf: 'source.pdf',
       blocks: 'blocks.jsonl',
-      annotations: 'annotations.jsonl',
+      comments: 'comments.jsonl',
       authors: ['Ashish Vaswani'],
       venue: 'NeurIPS',
       venueShort: 'NeurIPS',

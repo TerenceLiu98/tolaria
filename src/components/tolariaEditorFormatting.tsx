@@ -60,6 +60,7 @@ import {
   type MediaReplacementHandler,
 } from './formatting/MediaToolbarButtons'
 import { SelectedTextContextButton } from './formatting/SelectedTextContextButton'
+import { SelectedTextCommentButton } from './formatting/SelectedTextCommentButton'
 import {
   getCursorBlockSafely,
 } from './formatting/toolbarBlocks'
@@ -67,6 +68,7 @@ import { withViewportSafeMiddleware } from './formatting/toolbarPositioning'
 import { useEditorFloatingPortal } from './editorFloatingPortal'
 
 type AttachSelectedTextHandler = (text: string) => void
+type CommentSelectedTextHandler = (text: string, editorBlockId?: string | null) => void
 
 export type { MediaReplacementHandler }
 export type { InlineAiSuggestionHandler }
@@ -221,6 +223,7 @@ function insertExtraTextStyleButtons(
   items: ReactElement[],
   locale: AppLocale,
   onAttachSelectedTextContext?: AttachSelectedTextHandler,
+  onCommentSelectedText?: CommentSelectedTextHandler,
   onRequestInlineAiSuggestion?: InlineAiSuggestionHandler,
 ) {
   const strikeButtonIndex = items.findIndex(
@@ -245,6 +248,11 @@ function insertExtraTextStyleButtons(
       locale={locale}
       onAttachSelectedTextContext={onAttachSelectedTextContext}
     />,
+    <SelectedTextCommentButton
+      key="commentSelectedTextButton"
+      locale={locale}
+      onCommentSelectedText={onCommentSelectedText}
+    />,
     <InlineAiSuggestionButton
       key="inlineAiSuggestionButton"
       locale={locale}
@@ -258,6 +266,7 @@ function getTolariaFormattingToolbarItems(
   vaultPath: string | undefined,
   locale: AppLocale,
   onAttachSelectedTextContext?: AttachSelectedTextHandler,
+  onCommentSelectedText?: CommentSelectedTextHandler,
   onRequestInlineAiSuggestion?: InlineAiSuggestionHandler,
   onRequestMediaReplacement?: MediaReplacementHandler,
 ) {
@@ -272,6 +281,7 @@ function getTolariaFormattingToolbarItems(
     ),
     locale,
     onAttachSelectedTextContext,
+    onCommentSelectedText,
     onRequestInlineAiSuggestion,
   )
 }
@@ -279,12 +289,14 @@ function getTolariaFormattingToolbarItems(
 export function TolariaFormattingToolbar({
   locale = 'en',
   onAttachSelectedTextContext,
+  onCommentSelectedText,
   onRequestInlineAiSuggestion,
   onRequestMediaReplacement,
   vaultPath,
 }: {
   locale?: AppLocale
   onAttachSelectedTextContext?: AttachSelectedTextHandler
+  onCommentSelectedText?: CommentSelectedTextHandler
   onRequestInlineAiSuggestion?: InlineAiSuggestionHandler
   onRequestMediaReplacement?: MediaReplacementHandler
   vaultPath?: string
@@ -295,6 +307,7 @@ export function TolariaFormattingToolbar({
         vaultPath,
         locale,
         onAttachSelectedTextContext,
+        onCommentSelectedText,
         onRequestInlineAiSuggestion,
         onRequestMediaReplacement,
       )}

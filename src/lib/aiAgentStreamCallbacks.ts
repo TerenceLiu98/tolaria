@@ -158,6 +158,10 @@ export function createStreamCallbacks(context: StreamMutationContext) {
       if (abortRef.current.aborted) return
       markReasoningDone(setMessages, messageId)
       responseAccRef.current += chunk
+      updateMessage(setMessages, messageId, (message) => ({
+        ...message,
+        response: responseAccRef.current,
+      }))
     },
 
     onToolStart: (toolName: string, toolId: string, input?: string) => {

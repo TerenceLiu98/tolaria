@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  PAPER_ANNOTATIONS_FILENAME,
+  PAPER_COMMENTS_FILENAME,
   PAPER_BLOCKS_FILENAME,
   PAPER_METADATA_FILENAME,
   PAPER_NOTE_FILENAME,
@@ -24,7 +24,7 @@ describe('paper path conventions', () => {
     expect(paths.paperNote).toBe(`papers/vaswani-2017-attention/${PAPER_NOTE_FILENAME}`)
     expect(paths.sourcePdf).toBe(`papers/vaswani-2017-attention/${PAPER_SOURCE_PDF_FILENAME}`)
     expect(paths.blocks).toBe(`papers/vaswani-2017-attention/${PAPER_BLOCKS_FILENAME}`)
-    expect(paths.annotations).toBe(`papers/vaswani-2017-attention/${PAPER_ANNOTATIONS_FILENAME}`)
+    expect(paths.comments).toBe(`papers/vaswani-2017-attention/${PAPER_COMMENTS_FILENAME}`)
     expect(paths.metadata).toBe(`papers/vaswani-2017-attention/${PAPER_METADATA_FILENAME}`)
   })
 

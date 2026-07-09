@@ -27,6 +27,7 @@ vi.mock('../components/NoteSurface', () => ({
     className,
     commentOptions,
     editable,
+    onCommentSelectedTextContext,
     onChange,
     onSelectedTextContextChange,
     sourceEntry,
@@ -34,6 +35,12 @@ vi.mock('../components/NoteSurface', () => ({
     className?: string
     commentOptions?: NoteSurfaceCommentOptions
     editable?: boolean
+    onCommentSelectedTextContext?: (context: {
+      entryPath: string
+      entryTitle: string
+      kind: 'text'
+      text: string
+    }) => void
     onChange?: () => void
     onSelectedTextContextChange?: (context: {
       entryPath: string
@@ -64,8 +71,27 @@ vi.mock('../components/NoteSurface', () => ({
           Select text
         </button>
       ) : null}
+      {sourceEntry && onCommentSelectedTextContext ? (
+        <button
+          type="button"
+          data-testid="mock-comment-selected-paper-text"
+          onClick={() => {
+            const context = {
+              anchorId: 'cursor-block',
+              entryPath: sourceEntry.path,
+              entryTitle: sourceEntry.title,
+              kind: 'text' as const,
+              text: 'Text that does not need to match blocks.jsonl exactly',
+            }
+            onSelectedTextContextChange?.(context)
+            onCommentSelectedTextContext(context)
+          }}
+        >
+          Comment selected text
+        </button>
+      ) : null}
       {commentOptions ? (
-        <aside data-testid="mock-side-menu-comment-seam">
+        <aside data-testid="mock-editor-comment-margin-layer">
           {commentOptions.anchors.map((anchor) => (
             <button
               key={anchor.id}
@@ -96,9 +122,9 @@ vi.mock('../components/FilePreview', () => ({
 }))
 
 vi.mock('../lib/productAnalytics', () => ({
-  trackPaperAnnotationDeleted: vi.fn(),
-  trackPaperAnnotationSidecarReset: vi.fn(),
-  trackPaperAnnotationSaved: vi.fn(),
+  trackPaperCommentDeleted: vi.fn(),
+  trackPaperCommentSidecarReset: vi.fn(),
+  trackPaperCommentSaved: vi.fn(),
   trackPaperBlockCitationCopied: vi.fn(),
   trackPaperReaderModeChanged: vi.fn(),
   trackPaperReaderOpened: vi.fn(),
@@ -106,7 +132,7 @@ vi.mock('../lib/productAnalytics', () => ({
 
 const mockedLoadPaperBlocks = vi.mocked(loadPaperBlocks)
 const mockedParsePaper = vi.mocked(parsePaper)
-const annotationsPath = '/vault/papers/attention/annotations.jsonl'
+const commentsPath = '/vault/papers/attention/comments.jsonl'
 const metadataPath = '/vault/papers/attention/metadata.json'
 
 const paperContent = [
@@ -232,7 +258,7 @@ describe('PaperReaderShell', () => {
       configurable: true,
       value: vi.fn(),
     })
-    Reflect.deleteProperty(MOCK_CONTENT, annotationsPath)
+    Reflect.deleteProperty(MOCK_CONTENT, commentsPath)
     MOCK_CONTENT[metadataPath] = `${JSON.stringify({
       authors: ['Ashish Vaswani'],
       candidates: [],
@@ -272,7 +298,7 @@ describe('PaperReaderShell', () => {
     expect(screen.getByTestId('note-surface')).toHaveAttribute('data-readonly', 'false')
     expect(screen.getByTestId('note-surface')).toHaveAttribute('data-has-on-change', 'true')
     expect(screen.getByTestId('note-surface')).toHaveAttribute('data-source-path', '/vault/papers/attention/paper.md')
-    expect(screen.getByTestId('mock-side-menu-comment-seam')).toBeInTheDocument()
+    expect(screen.getByTestId('mock-editor-comment-margin-layer')).toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-source-preview')).not.toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-metadata-inspector')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Paper metadata' })).toBeInTheDocument()
@@ -283,7 +309,14 @@ describe('PaperReaderShell', () => {
     readyBlocks()
     Reflect.deleteProperty(MOCK_CONTENT, metadataPath)
 
-    renderPaperReader()
+    renderPaperReader({
+      editor: {
+        document: [
+          { id: 'heading-block' },
+          { id: 'cursor-block' },
+        ],
+      } as PaperReaderShellProps['editor'],
+    })
 
     const dialog = await openMetadataDialog()
     expect(await within(dialog).findByText('Metadata needs review')).toBeInTheDocument()
@@ -679,47 +712,46 @@ describe('PaperReaderShell', () => {
     expect(screen.getByTestId('paper-reader-shell')).toBeInTheDocument()
   })
 
-  it('renders malformed annotation sidecar errors without hiding the NoteSurface', async () => {
+  it('renders malformed comment sidecar errors without hiding the NoteSurface', async () => {
     readyBlocks()
-    MOCK_CONTENT[annotationsPath] = '{not json}\n'
+    MOCK_CONTENT[commentsPath] = '{not json}\n'
 
     renderPaperReader()
 
-    expect(await screen.findByTestId('paper-reader-annotations-error')).toHaveTextContent('annotations.jsonl contains malformed PaperAnnotation lines')
+    expect(await screen.findByTestId('paper-reader-comments-error')).toHaveTextContent('comments.jsonl contains malformed PaperComment lines')
     expect(screen.getByTestId('note-surface')).toBeInTheDocument()
   })
 
-  it('hides empty annotation states and resets malformed annotation sidecars', async () => {
+  it('hides empty comment states and resets malformed comment sidecars', async () => {
     readyBlocks()
 
     const { unmount } = renderPaperReader()
 
     expect(await screen.findByTestId('note-surface')).toBeInTheDocument()
-    expect(screen.queryByText('No annotations yet')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Enable annotations' })).not.toBeInTheDocument()
+    expect(screen.queryByText('No comments yet')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Enable comments' })).not.toBeInTheDocument()
     unmount()
 
     readyBlocks()
-    MOCK_CONTENT[annotationsPath] = '{not json}\n'
+    MOCK_CONTENT[commentsPath] = '{not json}\n'
     renderPaperReader()
 
-    expect(await screen.findByTestId('paper-reader-annotations-error')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Reset annotations' }))
+    expect(await screen.findByTestId('paper-reader-comments-error')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Reset comments' }))
 
     await waitFor(() => {
-      expect(screen.queryByTestId('paper-reader-annotations-error')).not.toBeInTheDocument()
-      expect(MOCK_CONTENT[annotationsPath]).toBe('')
+      expect(screen.queryByTestId('paper-reader-comments-error')).not.toBeInTheDocument()
+      expect(MOCK_CONTENT[commentsPath]).toBe('')
     })
   })
 
   it('shows paper comments through the NoteSurface seam', async () => {
     readyBlocks()
-    MOCK_CONTENT[annotationsPath] = `${JSON.stringify({
+    MOCK_CONTENT[commentsPath] = `${JSON.stringify({
       block_id: 'b0002',
-      color: 'important',
       created_at: '2026-07-02T10:15:00Z',
       id: 'ann-1',
-      kind: 'highlight',
+      kind: 'comment',
       paper_id: 'attention',
     })}\n`
 
@@ -727,7 +759,7 @@ describe('PaperReaderShell', () => {
 
     expect(await screen.findByTestId('comment-gutter-count-b0002')).toHaveTextContent('1')
     fireEvent.click(screen.getByTestId('note-surface-anchor-b0002'))
-    expect(screen.getByTestId('paper-reader-annotations-b0002')).toBeInTheDocument()
+    expect(screen.getByTestId('paper-reader-comments-b0002')).toBeInTheDocument()
     expect(screen.queryByText('Highlight')).not.toBeInTheDocument()
     fireEvent.click(screen.getByTestId('note-surface-anchor-b0002'))
     expect(screen.queryByTestId('paper-reader-comment-thread-b0002')).not.toBeInTheDocument()
@@ -735,7 +767,7 @@ describe('PaperReaderShell', () => {
 
   it('filters and sorts Paper comment threads', async () => {
     readyBlocks()
-    MOCK_CONTENT[annotationsPath] = `${JSON.stringify({
+    MOCK_CONTENT[commentsPath] = `${JSON.stringify({
       block_id: 'b0002',
       created_at: '2026-07-02T10:15:00Z',
       id: 'ann-old-resolved',
@@ -756,7 +788,7 @@ describe('PaperReaderShell', () => {
 
     fireEvent.click(await screen.findByTestId('note-surface-anchor-b0002'))
     const thread = await screen.findByTestId('paper-reader-comment-thread-b0002')
-    const list = await within(thread).findByTestId('paper-reader-annotations-b0002')
+    const list = await within(thread).findByTestId('paper-reader-comments-b0002')
     const newestFirstText = list.textContent ?? ''
     expect(newestFirstText.indexOf('New open comment')).toBeLessThan(newestFirstText.indexOf('Old resolved comment'))
 
@@ -773,6 +805,39 @@ describe('PaperReaderShell', () => {
     fireEvent.click(within(thread).getByRole('button', { name: 'Resolved' }))
     expect(within(thread).getByText('Old resolved comment')).toBeInTheDocument()
     expect(within(thread).queryByText('New open comment')).not.toBeInTheDocument()
+  })
+
+  it('opens a Paper comment thread from selected text in the formatting toolbar', async () => {
+    readyBlocks()
+    MOCK_CONTENT[paperEntry().path] = paperContent
+
+    renderPaperReader({
+      editor: {
+        document: [
+          { id: 'heading-block' },
+          { id: 'cursor-block' },
+        ],
+      } as PaperReaderShellProps['editor'],
+    })
+
+    fireEvent.click(await screen.findByTestId('mock-comment-selected-paper-text'))
+
+    const thread = await screen.findByTestId('paper-reader-comment-thread-b0002')
+    expect(within(thread).getByTestId('paper-reader-comment-selected-quote-b0002')).toHaveTextContent('Text that does not need to match blocks.jsonl exactly')
+    expect(MOCK_CONTENT[commentsPath] ?? '').not.toContain('"kind":"comment"')
+
+    const controls = within(thread).getByTestId('paper-reader-comment-controls-b0002')
+    fireEvent.change(within(controls).getByLabelText('Comment'), {
+      target: { value: 'Toolbar-created note.' },
+    })
+    fireEvent.click(within(controls).getByRole('button', { name: 'Comment' }))
+
+    await waitFor(() => {
+      expect(MOCK_CONTENT[commentsPath]).toContain('"kind":"comment"')
+      expect(MOCK_CONTENT[commentsPath]).toContain('"text":"Text that does not need to match blocks.jsonl exactly"')
+      expect(MOCK_CONTENT[commentsPath]).toContain('"note":"Toolbar-created note."')
+      expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
+    })
   })
 
   it('creates, updates, deletes, and copies citations from a Paper comment thread without changing paper.md', async () => {
@@ -795,9 +860,9 @@ describe('PaperReaderShell', () => {
     fireEvent.click(screen.getByTestId('mock-select-paper-text'))
     await waitFor(() => expect(within(reopenedThread).getByTestId('paper-reader-comment-selected-quote-b0002')).toHaveTextContent('Selected evidence quote'))
 
-    const controls = within(reopenedThread).getByTestId('paper-reader-annotation-controls-b0002')
-    expect(within(controls).queryByRole('combobox', { name: 'Annotation kind' })).not.toBeInTheDocument()
-    expect(within(controls).queryByRole('combobox', { name: 'Annotation color' })).not.toBeInTheDocument()
+    const controls = within(reopenedThread).getByTestId('paper-reader-comment-controls-b0002')
+    expect(within(controls).queryByRole('combobox', { name: 'Comment kind' })).not.toBeInTheDocument()
+    expect(within(controls).queryByRole('combobox', { name: 'Comment color' })).not.toBeInTheDocument()
     expect(within(reopenedThread).queryByText(/b0002|p\.2/u)).not.toBeInTheDocument()
     fireEvent.change(within(controls).getByLabelText('Comment'), {
       target: { value: 'This claim needs a citation.' },
@@ -805,55 +870,55 @@ describe('PaperReaderShell', () => {
     fireEvent.click(within(controls).getByRole('button', { name: 'Comment' }))
 
     await waitFor(() => {
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"comment"')
-      expect(MOCK_CONTENT[annotationsPath]).not.toContain('"color"')
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"text":"Selected evidence quote"')
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"note":"This claim needs a citation."')
+      expect(MOCK_CONTENT[commentsPath]).toContain('"kind":"comment"')
+      expect(MOCK_CONTENT[commentsPath]).not.toContain('"color"')
+      expect(MOCK_CONTENT[commentsPath]).toContain('"text":"Selected evidence quote"')
+      expect(MOCK_CONTENT[commentsPath]).toContain('"note":"This claim needs a citation."')
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })
 
-    const editor = await screen.findByTestId(/paper-reader-annotation-editor-/u)
-    expect(within(editor).queryByRole('combobox', { name: 'Annotation kind' })).not.toBeInTheDocument()
-    expect(within(editor).queryByRole('combobox', { name: 'Annotation color' })).not.toBeInTheDocument()
+    const editor = await screen.findByTestId(/paper-reader-comment-editor-/u)
+    expect(within(editor).queryByRole('combobox', { name: 'Comment kind' })).not.toBeInTheDocument()
+    expect(within(editor).queryByRole('combobox', { name: 'Comment color' })).not.toBeInTheDocument()
     fireEvent.change(within(editor).getByLabelText('Reply'), {
       target: { value: 'Follow-up from a second reading.' },
     })
     fireEvent.click(within(editor).getByRole('button', { name: 'Reply' }))
     await waitFor(() => {
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"replies"')
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"note":"Follow-up from a second reading."')
-      expect(screen.getByTestId(/paper-reader-annotation-reply-count-/u)).toHaveTextContent('Replies (1)')
-      expect(screen.getByTestId(/paper-reader-annotation-replies-/u)).toHaveTextContent('Follow-up from a second reading.')
+      expect(MOCK_CONTENT[commentsPath]).toContain('"replies"')
+      expect(MOCK_CONTENT[commentsPath]).toContain('"note":"Follow-up from a second reading."')
+      expect(screen.getByTestId(/paper-reader-comment-reply-count-/u)).toHaveTextContent('Replies (1)')
+      expect(screen.getByTestId(/paper-reader-comment-replies-/u)).toHaveTextContent('Follow-up from a second reading.')
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })
-    fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-replies-/u)).getByRole('button', { name: 'Delete reply' }))
+    fireEvent.click(within(await screen.findByTestId(/paper-reader-comment-replies-/u)).getByRole('button', { name: 'Delete reply' }))
     await waitFor(() => {
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"deleted_at"')
-      expect(screen.queryByTestId(/paper-reader-annotation-reply-count-/u)).not.toBeInTheDocument()
-      expect(screen.queryByTestId(/paper-reader-annotation-replies-/u)).not.toBeInTheDocument()
+      expect(MOCK_CONTENT[commentsPath]).toContain('"deleted_at"')
+      expect(screen.queryByTestId(/paper-reader-comment-reply-count-/u)).not.toBeInTheDocument()
+      expect(screen.queryByTestId(/paper-reader-comment-replies-/u)).not.toBeInTheDocument()
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })
-    fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-editor-/u)).getByRole('button', { name: 'React 👍' }))
+    fireEvent.click(within(await screen.findByTestId(/paper-reader-comment-editor-/u)).getByRole('button', { name: 'React 👍' }))
     await waitFor(() => {
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"reactions"')
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"emoji":"👍"')
-      expect(screen.getByTestId(/paper-reader-annotation-reaction-/u)).toHaveTextContent('👍 1')
+      expect(MOCK_CONTENT[commentsPath]).toContain('"reactions"')
+      expect(MOCK_CONTENT[commentsPath]).toContain('"emoji":"👍"')
+      expect(screen.getByTestId(/paper-reader-comment-reaction-/u)).toHaveTextContent('👍 1')
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })
-    fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-editor-/u)).getByRole('button', { name: 'Remove 👍' }))
+    fireEvent.click(within(await screen.findByTestId(/paper-reader-comment-editor-/u)).getByRole('button', { name: 'Remove 👍' }))
     await waitFor(() => {
-      expect(screen.queryByTestId(/paper-reader-annotation-reaction-/u)).not.toBeInTheDocument()
+      expect(screen.queryByTestId(/paper-reader-comment-reaction-/u)).not.toBeInTheDocument()
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })
-    fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-editor-/u)).getByRole('button', { name: 'Resolve' }))
+    fireEvent.click(within(await screen.findByTestId(/paper-reader-comment-editor-/u)).getByRole('button', { name: 'Resolve' }))
     await waitFor(() => {
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"resolved_at"')
-      expect(screen.getByTestId(/paper-reader-annotation-resolved-/u)).toBeInTheDocument()
+      expect(MOCK_CONTENT[commentsPath]).toContain('"resolved_at"')
+      expect(screen.getByTestId(/paper-reader-comment-resolved-/u)).toBeInTheDocument()
     })
-    fireEvent.click(within(await screen.findByTestId(/paper-reader-annotation-editor-/u)).getByRole('button', { name: 'Reopen' }))
+    fireEvent.click(within(await screen.findByTestId(/paper-reader-comment-editor-/u)).getByRole('button', { name: 'Reopen' }))
     await waitFor(() => {
-      expect(MOCK_CONTENT[annotationsPath]).not.toContain('"resolved_at"')
-      expect(screen.queryByTestId(/paper-reader-annotation-resolved-/u)).not.toBeInTheDocument()
+      expect(MOCK_CONTENT[commentsPath]).not.toContain('"resolved_at"')
+      expect(screen.queryByTestId(/paper-reader-comment-resolved-/u)).not.toBeInTheDocument()
     })
     fireEvent.change(within(editor).getByLabelText('Comment'), {
       target: { value: 'Updated interpretation' },
@@ -861,16 +926,16 @@ describe('PaperReaderShell', () => {
     fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"kind":"comment"')
-      expect(MOCK_CONTENT[annotationsPath]).not.toContain('"color"')
-      expect(MOCK_CONTENT[annotationsPath]).toContain('"note":"Updated interpretation"')
+      expect(MOCK_CONTENT[commentsPath]).toContain('"kind":"comment"')
+      expect(MOCK_CONTENT[commentsPath]).not.toContain('"color"')
+      expect(MOCK_CONTENT[commentsPath]).toContain('"note":"Updated interpretation"')
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })
 
-    fireEvent.click(within(await screen.findByTestId('paper-reader-annotations-b0002')).getByRole('button', { name: 'Delete comment' }))
+    fireEvent.click(within(await screen.findByTestId('paper-reader-comments-b0002')).getByRole('button', { name: 'Delete comment' }))
 
     await waitFor(() => {
-      expect(MOCK_CONTENT[annotationsPath]).toBe('')
+      expect(MOCK_CONTENT[commentsPath]).toBe('')
       expect(MOCK_CONTENT[paperEntry().path]).toBe(paperContent)
     })
   })

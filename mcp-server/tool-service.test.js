@@ -44,6 +44,17 @@ beforeEach(async () => {
       errors: [],
     }),
     'papers/kan-autoencoders/source.pdf': 'fixture pdf',
+    'loose-paper.md': paperFixture({
+      paperId: 'loose-paper',
+      title: 'Loose Paper Note',
+      authors: ['Loose Author'],
+      year: 2024,
+      venue: 'Local Workshop',
+      body: '# Loose Paper Note\n\n@block[loose-paper#b0001]\n',
+    }),
+    'blocks.jsonl': blocksFixture('loose-paper', [
+      { id: 'b0001', kind: 'paragraph', text: 'Loose paper evidence without page provenance.' },
+    ]),
   })
   await seedVault(secondVault, {
     'AGENTS.md': '# Second Vault Rules\n',
@@ -135,8 +146,9 @@ describe('createMcpToolService', () => {
     const listed = await service.listPapers({ vaultPath: firstVault })
     const results = await service.searchPapers({ query: 'autoencoders' })
 
-    assert.equal(listed.length, 1)
+    assert.equal(listed.length, 2)
     assert.equal(listed[0].wikilink, '[[Kolmogorov-Arnold Network Autoencoders]]')
+    assert.equal(listed[1].wikilink, '[[Loose Paper Note]]')
     assert.equal(listed[0].metadata, undefined)
     assert.equal(results.length, 2)
     assert.deepEqual(
@@ -195,6 +207,28 @@ describe('createMcpToolService', () => {
     assert.match(blocks.blocks[0].text, /sparsify latent/)
     assert.equal(citation.blockCitation, '@block[kan-autoencoders#b0002]')
     assert.equal(citation.page, 2)
+  })
+
+  it('discovers non-canonical Paper notes and degrades missing block pages to null', async () => {
+    const service = makeService()
+
+    const listed = await service.listPapers({ vaultPath: firstVault })
+    const blocks = await service.readPaperBlocks({
+      paperId: 'loose-paper',
+      blockIds: ['b0001'],
+      vaultPath: firstVault,
+    })
+
+    assert.deepEqual(
+      listed.map(paper => ({ paperId: paper.paperId, path: paper.path })),
+      [
+        { paperId: 'kan-autoencoders', path: 'papers/kan-autoencoders/paper.md' },
+        { paperId: 'loose-paper', path: 'loose-paper.md' },
+      ],
+    )
+    assert.equal(blocks.blocks.length, 1)
+    assert.equal(blocks.blocks[0].page, null)
+    assert.equal(blocks.blocks[0].blockCitation, '@block[loose-paper#b0001]')
   })
 
   it('searches Paper blocks without dumping full papers', async () => {
@@ -281,7 +315,7 @@ function paperFixture({ paperId, title, authors, year, venue, body }) {
     `paper_id: ${JSON.stringify(paperId)}`,
     'source_pdf: source.pdf',
     'blocks: blocks.jsonl',
-    'annotations: annotations.jsonl',
+    'comments: comments.jsonl',
     'parse_status: parsed',
     'metadata_status: ready',
     `authors: [${authors.map(author => JSON.stringify(author)).join(', ')}]`,

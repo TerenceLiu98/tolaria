@@ -51,7 +51,7 @@ const metadata: PaperMetadata = {
   title: 'Attention Is All You Need',
   sourcePdf: 'source.pdf',
   blocks: 'blocks.jsonl',
-  annotations: 'annotations.jsonl',
+  comments: 'comments.jsonl',
   status: null,
   parseStatus: 'parsed',
   year: 2017,

@@ -36,6 +36,7 @@ import { getRuntimeStyleNonce } from '../lib/runtimeStyleNonce'
 import { WikilinkSuggestionMenu, type WikilinkSuggestionItem } from './WikilinkSuggestionMenu'
 import type { VaultEntry } from '../types'
 import type { AiSelectedTextContext } from '../utils/ai-context'
+import { EditorCommentGutterLayer } from './comments/EditorCommentGutterLayer'
 import type { EditorCommentOptions } from './comments/commentAnchors'
 import { _editorLocaleRef, _wikilinkEntriesRef } from './editorSchema'
 import {
@@ -1017,9 +1018,9 @@ function useSuggestionMenuItems(options: {
 }
 
 type EditorInteractionControllersProps = ReturnType<typeof useSuggestionMenuItems> & {
-  commentOptions?: EditorCommentOptions
   locale: AppLocale
   onAttachSelectedTextContext?: (text: string) => void
+  onCommentSelectedText?: (text: string, editorBlockId?: string | null) => void
   onRequestInlineAiSuggestion?: InlineAiSuggestionHandler
   onRequestMediaReplacement?: MediaReplacementHandler
   onToolbarInteractionEnd: () => void
@@ -1029,13 +1030,13 @@ type EditorInteractionControllersProps = ReturnType<typeof useSuggestionMenuItem
 }
 
 function EditorInteractionControllers({
-  commentOptions,
   getEmojiItems,
   getPersonMentionItems,
   getSlashMenuItems,
   getWikilinkItems,
   locale,
   onAttachSelectedTextContext,
+  onCommentSelectedText,
   onRequestInlineAiSuggestion,
   onRequestMediaReplacement,
   onToolbarInteractionEnd,
@@ -1044,8 +1045,8 @@ function EditorInteractionControllers({
   vaultPath,
 }: EditorInteractionControllersProps) {
   const sideMenu = useCallback((props: SideMenuProps) => (
-    <TolariaSideMenu {...props} commentOptions={commentOptions} locale={locale} />
-  ), [commentOptions, locale])
+    <TolariaSideMenu {...props} locale={locale} />
+  ), [locale])
   const handleToolbarPointerDownCapture = useCallback((event: Pick<React.MouseEvent<HTMLElement>, 'target' | 'preventDefault'>) => {
     onToolbarInteractionStart()
     handleToolbarMouseDownCapture(event)
@@ -1064,6 +1065,7 @@ function EditorInteractionControllers({
             {...props}
             locale={locale}
             onAttachSelectedTextContext={onAttachSelectedTextContext}
+            onCommentSelectedText={onCommentSelectedText}
             onRequestInlineAiSuggestion={onRequestInlineAiSuggestion}
             onRequestMediaReplacement={onRequestMediaReplacement}
             vaultPath={vaultPath}
@@ -1225,13 +1227,14 @@ function refreshCodeBlockSyntaxHighlighting(editor: ReturnType<typeof useCreateB
 }
 
 /** Single BlockNote editor view — content is swapped via replaceBlocks */
-export function SingleEditorView({ commentOptions, editor, editorAdapter, entries, onNavigateWikilink, onChange, onRequestInlineAiSuggestion, onRequestMediaReplacement, onSelectedAttachmentContextChange, onSelectedTextContextChange, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
+export function SingleEditorView({ commentOptions, editor, editorAdapter, entries, onNavigateWikilink, onChange, onCommentSelectedTextContext, onRequestInlineAiSuggestion, onRequestMediaReplacement, onSelectedAttachmentContextChange, onSelectedTextContextChange, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
   commentOptions?: EditorCommentOptions
   editor: ReturnType<typeof useCreateBlockNote>
   editorAdapter?: SapientiaEditorAdapter
   entries: VaultEntry[]
   onNavigateWikilink: (target: string) => void
   onChange?: () => void
+  onCommentSelectedTextContext?: (context: AiSelectedTextContext) => void
   onRequestInlineAiSuggestion?: InlineAiSuggestionHandler
   onRequestMediaReplacement?: MediaReplacementHandler
   onSelectedAttachmentContextChange?: (context: AiSelectedTextContext | null) => void
@@ -1428,6 +1431,31 @@ export function SingleEditorView({ commentOptions, editor, editorAdapter, entrie
 
     onSelectedTextContextChange(context)
   }, [editorAdapter, onSelectedAttachmentContextChange, onSelectedTextContextChange, sourceEntry])
+  const handleCommentSelectedText = useCallback((text: string, editorBlockId?: string | null) => {
+    if (!sourceEntry) return
+
+    selectedImageContextRef.current = null
+    onSelectedAttachmentContextChange?.(null)
+    const selectionContext = editorAdapter?.getSelectionContext()
+    const context = selectionContext ?? selectedTextContextFromText({
+      sourceEntry,
+      text,
+    })
+    if (!context || context.kind !== 'text') return
+
+    const anchoredContext = editorBlockId && !context.anchorId
+      ? { ...context, anchorId: editorBlockId }
+      : context
+
+    onSelectedTextContextChange?.(anchoredContext)
+    onCommentSelectedTextContext?.(anchoredContext)
+  }, [
+    editorAdapter,
+    onCommentSelectedTextContext,
+    onSelectedAttachmentContextChange,
+    onSelectedTextContextChange,
+    sourceEntry,
+  ])
 
   const insertWikilink = useInsertWikilink(editor, runEditorAction)
   const suggestionMenuItems = useSuggestionMenuItems({
@@ -1479,9 +1507,9 @@ export function SingleEditorView({ commentOptions, editor, editorAdapter, entrie
             >
               <EditorInteractionControllers
                 {...suggestionMenuItems}
-                commentOptions={commentOptions}
                 locale={locale}
                 onAttachSelectedTextContext={handleAttachSelectedTextContext}
+                onCommentSelectedText={handleCommentSelectedText}
                 onRequestInlineAiSuggestion={onRequestInlineAiSuggestion}
                 onRequestMediaReplacement={onRequestMediaReplacement}
                 onToolbarInteractionEnd={handleToolbarInteractionEnd}
@@ -1497,6 +1525,12 @@ export function SingleEditorView({ commentOptions, editor, editorAdapter, entrie
         ref={setFloatingPortalElement}
         className="pointer-events-none absolute inset-0 z-50"
         data-testid="editor-floating-portal"
+      />
+      <EditorCommentGutterLayer
+        commentOptions={commentOptions}
+        containerRef={containerRef}
+        editor={editor as never}
+        portalElement={floatingPortalElement}
       />
       {copyTarget && <CodeBlockCopyButton copyTarget={copyTarget} locale={locale} />}
       <ImageLightbox image={lightbox.image} locale={locale} onClose={lightbox.close} />

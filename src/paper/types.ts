@@ -9,7 +9,7 @@ export interface PaperMetadata {
   title: string
   sourcePdf: string
   blocks: string
-  annotations: string
+  comments: string
   status: string | null
   parseStatus: PaperParseStatus | string | null
   parseError: string | null
@@ -37,7 +37,7 @@ export interface ImportPaperPdfResult {
   paperPath: string
   sourcePdfPath: string
   blocksPath: string
-  annotationsPath: string
+  commentsPath: string
   createdFiles: string[]
   deduplicated: boolean
 }
@@ -69,7 +69,7 @@ export function parsePaperMetadata(content: string | null): PaperMetadata | null
     title: stringValue(frontmatter.title) ?? paperId,
     sourcePdf,
     blocks: stringValue(frontmatter.blocks) ?? 'blocks.jsonl',
-    annotations: stringValue(frontmatter.annotations) ?? 'annotations.jsonl',
+    comments: stringValue(frontmatter.comments) ?? 'comments.jsonl',
     status: stringValue(frontmatter.status),
     parseStatus: stringValue(frontmatter.parse_status),
     parseError: stringValue(frontmatter.parse_error),

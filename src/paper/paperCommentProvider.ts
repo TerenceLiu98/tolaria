@@ -5,12 +5,12 @@ import {
   type NoteCommentReply,
   type NoteCommentAnchor,
 } from '../comments/commentProvider'
-import type { PaperAnnotation } from './annotations'
+import type { PaperComment } from './comments'
 import { blockDisplayText } from './paperReaderModel'
 import type { SourceBlock } from './sourceBlocks'
 
-function paperAnnotationReplies(annotation: PaperAnnotation): NoteCommentReply[] {
-  const replies = Array.isArray(annotation.replies) ? annotation.replies : []
+function paperCommentReplies(comment: PaperComment): NoteCommentReply[] {
+  const replies = Array.isArray(comment.replies) ? comment.replies : []
   return replies
     .filter((reply) => typeof reply.deleted_at !== 'string')
     .map((reply) => ({
@@ -21,8 +21,8 @@ function paperAnnotationReplies(annotation: PaperAnnotation): NoteCommentReply[]
     }))
 }
 
-function paperAnnotationReactions(annotation: PaperAnnotation): NoteCommentReaction[] {
-  const reactions = Array.isArray(annotation.reactions) ? annotation.reactions : []
+function paperCommentReactions(comment: PaperComment): NoteCommentReaction[] {
+  const reactions = Array.isArray(comment.reactions) ? comment.reactions : []
   return reactions
     .filter((reaction) => typeof reaction.deleted_at !== 'string')
     .map((reaction) => ({
@@ -33,25 +33,24 @@ function paperAnnotationReactions(annotation: PaperAnnotation): NoteCommentReact
     }))
 }
 
-export function paperAnnotationToComment(annotation: PaperAnnotation): NoteComment | null {
-  if (!annotation.block_id) return null
+export function paperCommentToComment(comment: PaperComment): NoteComment | null {
+  if (!comment.block_id) return null
   return {
-    anchorId: annotation.block_id,
-    body: annotation.note ?? annotation.text ?? '',
-    color: annotation.color ?? null,
-    createdAt: annotation.created_at,
-    id: annotation.id,
-    kind: annotation.kind,
-    quote: annotation.text ?? null,
-    reactions: paperAnnotationReactions(annotation),
-    replies: paperAnnotationReplies(annotation),
-    updatedAt: annotation.updated_at ?? null,
+    anchorId: comment.block_id,
+    body: comment.note ?? comment.text ?? '',
+    createdAt: comment.created_at,
+    id: comment.id,
+    kind: comment.kind,
+    quote: comment.text ?? null,
+    reactions: paperCommentReactions(comment),
+    replies: paperCommentReplies(comment),
+    updatedAt: comment.updated_at ?? null,
   }
 }
 
-export function paperCommentsByBlockId(annotations: readonly PaperAnnotation[]): Record<string, NoteComment[]> {
-  return groupCommentsByAnchor(annotations
-    .map(paperAnnotationToComment)
+export function paperCommentsByBlockId(comments: readonly PaperComment[]): Record<string, NoteComment[]> {
+  return groupCommentsByAnchor(comments
+    .map(paperCommentToComment)
     .filter((comment): comment is NoteComment => comment !== null))
 }
 

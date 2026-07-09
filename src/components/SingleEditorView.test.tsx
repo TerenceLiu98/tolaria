@@ -300,6 +300,100 @@ describe('SingleEditorView', () => {
     expect(blockNoteView.closest('.editor__blocknote-container')).toContainElement(portal)
   })
 
+  it('renders paper comment gutters in an editor overlay instead of the hover side menu', async () => {
+    const editor = createEditor()
+    editor.document = [
+      { id: 'b0001', type: 'paragraph', content: [], children: [] },
+      { id: 'b0002', type: 'paragraph', content: [], children: [] },
+    ]
+    const onToggleThread = vi.fn()
+    render(
+      <SingleEditorView
+        commentOptions={{
+          anchors: [
+            { comments: [], id: 'b0001', title: 'First source block' },
+            { comments: [{ anchorId: 'b0002', body: 'Existing', id: 'c1', kind: 'comment' }], id: 'b0002', title: 'Second source block' },
+          ],
+          onToggleThread,
+          renderThread: (anchorId) => <section data-testid="editor-comment-thread">Thread for {anchorId}</section>,
+          selectedAnchorId: 'b0002',
+        }}
+        editor={editor as never}
+        entries={[makeEntry()]}
+        onNavigateWikilink={vi.fn()}
+      />,
+      { wrapper: TooltipProvider },
+    )
+
+    const container = screen.getByTestId('blocknote-view').closest('.editor__blocknote-container') as HTMLElement
+    const portal = screen.getByTestId('editor-floating-portal')
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        bottom: 500,
+        height: 500,
+        left: 0,
+        right: 640,
+        toJSON: () => ({}),
+        top: 0,
+        width: 640,
+        x: 0,
+        y: 0,
+      }),
+    })
+    Object.defineProperty(portal, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        bottom: 500,
+        height: 500,
+        left: 0,
+        right: 640,
+        toJSON: () => ({}),
+        top: 0,
+        width: 640,
+        x: 0,
+        y: 0,
+      }),
+    })
+    for (const [index, blockId] of ['b0001', 'b0002'].entries()) {
+      const block = document.createElement('div')
+      block.setAttribute('data-node-type', 'blockContainer')
+      block.setAttribute('data-id', blockId)
+      block.textContent = blockId
+      Object.defineProperty(block, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+          bottom: 80 + index * 40,
+          height: 32,
+          left: 80,
+          right: 560,
+          toJSON: () => ({}),
+          top: 48 + index * 40,
+          width: 480,
+          x: 80,
+          y: 48 + index * 40,
+        }),
+      })
+      container.appendChild(block)
+    }
+
+    fireEvent.scroll(window)
+
+    const anchor = await screen.findByTestId('editor-comment-gutter-anchor-b0002')
+    expect(anchor).toHaveStyle({ top: '88px' })
+    expect(portal).toContainElement(screen.getByTestId('editor-comment-gutter-layer'))
+    expect(screen.queryByTestId('editor-comment-gutter-anchor-b0001')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('tolaria-side-menu-comment-anchor-b0002')).not.toBeInTheDocument()
+    expect(screen.getByTestId('editor-comment-thread-layer-b0002')).toContainElement(screen.getByTestId('editor-comment-thread'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Second source block' }))
+    expect(onToggleThread).toHaveBeenCalledWith('b0002')
+
+    fireEvent.mouseMove(container.querySelector('[data-id="b0001"]')!)
+    expect(screen.getByTestId('editor-comment-thread-layer-b0002')).toContainElement(screen.getByTestId('editor-comment-thread'))
+    expect(screen.queryByTestId('editor-comment-thread-layer-b0001')).not.toBeInTheDocument()
+  })
+
   it('does not refresh selected AI context while the formatting toolbar is being clicked', () => {
     const editor = createEditor()
     const sourceEntry = makeEntry({
@@ -389,6 +483,50 @@ describe('SingleEditorView', () => {
       entryTitle: 'Toolbar Note',
       text: 'Attach this text',
     })
+  })
+
+  it('opens selected text comments through the formatting toolbar action', () => {
+    const editor = createEditor()
+    const sourceEntry = makeEntry({
+      path: '/vault/note.md',
+      title: 'Toolbar Note',
+    })
+    const onSelectedTextContextChange = vi.fn()
+    const onCommentSelectedTextContext = vi.fn()
+    render(
+      <SingleEditorView
+        editor={editor as never}
+        entries={[sourceEntry]}
+        onCommentSelectedTextContext={onCommentSelectedTextContext}
+        onNavigateWikilink={vi.fn()}
+        onSelectedTextContextChange={onSelectedTextContextChange}
+        sourceEntry={sourceEntry}
+      />,
+      { wrapper: TooltipProvider },
+    )
+
+    const formattingToolbar = state.capturedToolbarProps?.formattingToolbar as
+      | ((props: Record<string, unknown>) => ReactElement)
+      | undefined
+    expect(formattingToolbar).toBeDefined()
+    render(formattingToolbar?.({}) ?? <div />)
+    const onCommentSelectedText = state.capturedTolariaFormattingToolbarProps
+      ?.onCommentSelectedText as ((text: string) => void) | undefined
+    expect(onCommentSelectedText).toBeDefined()
+
+    act(() => {
+      onCommentSelectedText?.('Comment on this text', 'editor-block-2')
+    })
+
+    const expectedContext = {
+      kind: 'text',
+      entryPath: '/vault/note.md',
+      entryTitle: 'Toolbar Note',
+      text: 'Comment on this text',
+      anchorId: 'editor-block-2',
+    }
+    expect(onSelectedTextContextChange).toHaveBeenCalledWith(expectedContext)
+    expect(onCommentSelectedTextContext).toHaveBeenCalledWith(expectedContext)
   })
 
   it('renders when a reload returns an entry with missing suggestion metadata', () => {

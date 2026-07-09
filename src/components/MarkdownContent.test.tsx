@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 vi.mock('../utils/url', async () => {
   const actual = await vi.importActual('../utils/url') as typeof import('../utils/url')
@@ -31,6 +31,21 @@ describe('MarkdownContent', () => {
     render(<MarkdownContent content="Use `console.log`" />)
     const code = screen.getByText('console.log')
     expect(code.tagName).toBe('CODE')
+  })
+
+  it('renders inline LaTeX math in AI markdown responses', async () => {
+    const { container } = render(<MarkdownContent content="Energy is $E=mc^2$." />)
+
+    await waitFor(() => expect(container.querySelector('.math--inline .katex')).toBeInTheDocument())
+    expect(container.querySelector('.math--inline')).toHaveAttribute('data-latex', 'E=mc^2')
+    expect(container.textContent).not.toContain('$E=mc^2$')
+  })
+
+  it('renders display LaTeX math in AI markdown responses', async () => {
+    const { container } = render(<MarkdownContent content={'Before\n\n$$\n\\frac{a}{b}\n$$\n\nAfter'} />)
+
+    await waitFor(() => expect(container.querySelector('.math--block .katex')).toBeInTheDocument())
+    expect(container.querySelector('.math--block')).toHaveAttribute('data-latex', '\\frac{a}{b}')
   })
 
   it('renders fenced code blocks', () => {

@@ -18,8 +18,7 @@ type PaperImportSource = 'command_palette'
 type PaperReaderBlocksState = 'missing' | 'empty' | 'ready' | 'loading' | 'error' | 'unavailable'
 type PaperReaderMode = 'markdown' | 'pdf'
 type PaperParserProvider = 'none' | 'dev-fixture' | 'mineru'
-type PaperAnnotationActionKind = 'highlight' | 'underline' | 'question' | 'comment' | 'bookmark'
-type PaperAnnotationActionColor = 'questioning' | 'important' | 'original' | 'pending' | 'conclusion'
+type PaperCommentActionKind = 'comment'
 type AnalyticsBoolean = boolean
 type AiAgentResponseText = string
 type AiAgentToolCount = number
@@ -121,22 +120,20 @@ export function trackPaperBlockCitationCopied(): void {
   trackEvent('paper_block_citation_copied')
 }
 
-export function trackPaperAnnotationSaved(params: {
-  color?: PaperAnnotationActionColor
-  kind: PaperAnnotationActionKind
+export function trackPaperCommentSaved(params: {
+  kind: PaperCommentActionKind
 }): void {
-  trackEvent('paper_annotation_saved', {
-    color: params.color ?? 'none',
+  trackEvent('paper_comment_saved', {
     kind: params.kind,
   })
 }
 
-export function trackPaperAnnotationDeleted(): void {
-  trackEvent('paper_annotation_deleted')
+export function trackPaperCommentDeleted(): void {
+  trackEvent('paper_comment_deleted')
 }
 
-export function trackPaperAnnotationSidecarReset(): void {
-  trackEvent('paper_annotation_sidecar_reset')
+export function trackPaperCommentSidecarReset(): void {
+  trackEvent('paper_comment_sidecar_reset')
 }
 
 export function trackAllNotesVisibilityChanged(

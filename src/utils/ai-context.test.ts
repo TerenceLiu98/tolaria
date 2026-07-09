@@ -176,6 +176,13 @@ describe('buildContextSnapshot', () => {
     expect(result).toContain('"owner": "Alice"')
   })
 
+  it('guides paper answers toward exact block citations', () => {
+    const result = buildContextSnapshot({ activeEntry: active, entries })
+
+    expect(result).toContain('@block[paper_id#block_id]')
+    expect(result).toContain('search_paper_blocks/read_paper_blocks first')
+  })
+
   it('includes explicitly selected text as local AI context', () => {
     const result = buildContextSnapshot({
       activeEntry: active,
@@ -259,7 +266,7 @@ describe('buildContextSnapshot', () => {
         metadata_status: 'ready',
         source_pdf: 'source.pdf',
         blocks: 'blocks.jsonl',
-        annotations: 'annotations.jsonl',
+        comments: 'comments.jsonl',
       },
     })
     const result = buildContextSnapshot({ activeEntry: paper, entries: [paper], activeNoteContent: '# KAN Autoencoders' })
@@ -276,9 +283,9 @@ describe('buildContextSnapshot', () => {
       metadata_status: 'ready',
       source_pdf: 'source.pdf',
       blocks: 'blocks.jsonl',
-      annotations: 'annotations.jsonl',
+      comments_sidecar: 'comments.jsonl',
       comments: {
-        storage: 'annotations.jsonl',
+        storage: 'comments.jsonl',
       },
     })
   })

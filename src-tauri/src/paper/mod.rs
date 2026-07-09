@@ -1,6 +1,6 @@
-mod annotations;
 mod blocks;
 mod catalog;
+mod comments;
 mod import;
 mod markdown;
 mod metadata;
@@ -8,12 +8,6 @@ mod parse;
 pub mod paths;
 mod pdf_outline;
 
-pub use annotations::{
-    annotations_by_block, delete_paper_annotation_file, parse_annotations_jsonl,
-    read_paper_annotations_file, reset_paper_annotations_file, save_paper_annotation_file,
-    PaperAnnotation, PaperAnnotationColor, PaperAnnotationKind, PaperAnnotationsError,
-    PaperAnnotationsLineError, PaperAnnotationsReadResult, PaperAnnotationsState,
-};
 pub use blocks::{
     find_paper_block, read_paper_blocks_file, sample_blocks_jsonl, search_paper_blocks_file,
     PaperBlockLookupResult, PaperBlockSearchResult, PaperBlocksError, PaperBlocksLineError,
@@ -25,6 +19,11 @@ pub use catalog::{
     normalize_doi as normalize_catalog_doi, search_paper_catalog_file, title_fingerprint,
     PaperCatalogDuplicateCandidate, PaperCatalogDuplicateMatch, PaperCatalogDuplicateState,
     PaperCatalogEntry, PaperCatalogSourcePdfState,
+};
+pub use comments::{
+    comments_by_block, delete_paper_comment_file, parse_comments_jsonl, read_paper_comments_file,
+    reset_paper_comments_file, save_paper_comment_file, PaperComment, PaperCommentKind,
+    PaperCommentsError, PaperCommentsLineError, PaperCommentsReadResult, PaperCommentsState,
 };
 pub use import::{import_paper_pdf, ImportPaperPdfResult};
 pub use markdown::{paper_block_anchor, paper_markdown_from_blocks, paper_note_with_markdown_body};

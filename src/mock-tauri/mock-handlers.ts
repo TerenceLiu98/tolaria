@@ -26,10 +26,10 @@ import { paperMarkdownFromSourceBlocks } from '../paper/paperMarkdown'
 import type { PaperMetadata, PaperMetadataValues } from '../paper/metadata'
 import { buildPaperCatalog, filterPaperCatalog } from '../paper/catalog'
 import {
-  parsePaperAnnotationsJsonl,
-  validatePaperAnnotation,
-  type PaperAnnotation,
-} from '../paper/paperAnnotations'
+  parsePaperCommentsJsonl,
+  validatePaperComment,
+  type PaperComment,
+} from '../paper/paperComments'
 import type { PaperPdfOutlineItem } from '../paper/paperReaderBlocks'
 
 function syncWindowContent(): void {
@@ -271,7 +271,7 @@ function handleImportPaperPdf(args: { vaultPath?: string; vault_path?: string; s
   const paperPath = `${vaultPath}/papers/${paperId}/paper.md`
   const sourcePdfPath = `${vaultPath}/papers/${paperId}/source.pdf`
   const blocksPath = `${vaultPath}/papers/${paperId}/blocks.jsonl`
-  const annotationsPath = `${vaultPath}/papers/${paperId}/annotations.jsonl`
+  const commentsPath = `${vaultPath}/papers/${paperId}/comments.jsonl`
   const content = `---
 type: Paper
 paper_id: ${paperId}
@@ -280,7 +280,7 @@ status: imported
 parse_status: unparsed
 source_pdf: source.pdf
 blocks: blocks.jsonl
-annotations: annotations.jsonl
+comments: comments.jsonl
 ---
 # ${title}
 
@@ -323,7 +323,7 @@ annotations: annotations.jsonl
         parse_status: 'unparsed',
         source_pdf: 'source.pdf',
         blocks: 'blocks.jsonl',
-        annotations: 'annotations.jsonl',
+        comments: 'comments.jsonl',
       },
       organized: false,
       favorite: false,
@@ -341,7 +341,7 @@ annotations: annotations.jsonl
     paperPath,
     sourcePdfPath,
     blocksPath,
-    annotationsPath,
+    commentsPath,
     createdFiles: [`papers/${paperId}/source.pdf`, `papers/${paperId}/paper.md`],
     deduplicated: paperId !== baseSlug,
   }
@@ -356,12 +356,12 @@ function mockPaperBlocksPath(args: { vaultPath?: string; vault_path?: string; pa
   }
 }
 
-function mockPaperAnnotationsPath(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+function mockPaperCommentsPath(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
   const vaultPath = args.vaultPath ?? args.vault_path ?? mockLastVaultPath ?? DEFAULT_MOCK_VAULT_PATH
   const paperId = args.paperId ?? args.paper_id ?? ''
   return {
     paperId,
-    path: `${vaultPath}/papers/${paperId}/annotations.jsonl`,
+    path: `${vaultPath}/papers/${paperId}/comments.jsonl`,
   }
 }
 
@@ -402,18 +402,18 @@ function structuredMockBlocksError({
   }
 }
 
-function structuredMockAnnotationsError({
+function structuredMockCommentsError({
   lineErrors,
   paperId,
   path,
 }: {
-  lineErrors: ReturnType<typeof parsePaperAnnotationsJsonl>['errors']
+  lineErrors: ReturnType<typeof parsePaperCommentsJsonl>['errors']
   paperId: string
   path: string
 }) {
   return {
     kind: 'invalid_jsonl',
-    message: 'annotations.jsonl contains malformed PaperAnnotation lines',
+    message: 'comments.jsonl contains malformed PaperComment lines',
     paperId,
     path,
     lineErrors,
@@ -612,16 +612,16 @@ function handleParsePaper(args: {
   }
 }
 
-function readMockPaperAnnotations(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
-  const { paperId, path } = mockPaperAnnotationsPath(args)
+function readMockPaperComments(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const { paperId, path } = mockPaperCommentsPath(args)
   const content = Reflect.get(MOCK_CONTENT, path)
   if (typeof content !== 'string') {
-    return { paperId, path, state: 'missing' as const, annotations: [] }
+    return { paperId, path, state: 'missing' as const, comments: [] }
   }
 
-  const parsed = parsePaperAnnotationsJsonl(content, paperId)
-  if (parsed.errors.length > 0) throw structuredMockAnnotationsError({ lineErrors: parsed.errors, paperId, path })
-  return { paperId, path, state: parsed.state, annotations: parsed.annotations }
+  const parsed = parsePaperCommentsJsonl(content, paperId)
+  if (parsed.errors.length > 0) throw structuredMockCommentsError({ lineErrors: parsed.errors, paperId, path })
+  return { paperId, path, state: parsed.state, comments: parsed.comments }
 }
 
 function handleReadPaperPdfOutline(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
@@ -906,67 +906,67 @@ function handleSavePaperMetadata(args: {
   return metadata
 }
 
-function writeMockPaperAnnotations({
-  annotations,
+function writeMockPaperComments({
+  comments,
   path,
 }: {
-  annotations: readonly PaperAnnotation[]
+  comments: readonly PaperComment[]
   path: string
 }) {
-  const content = annotations.map((annotation) => JSON.stringify(annotation)).join('\n')
+  const content = comments.map((comment) => JSON.stringify(comment)).join('\n')
   writeMockContent({ path, content: content ? `${content}\n` : '' })
   mockSavedSinceCommit.add(path)
   syncWindowContent()
 }
 
-function handleReadPaperAnnotations(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
-  return readMockPaperAnnotations(args)
+function handleReadPaperComments(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  return readMockPaperComments(args)
 }
 
-function handleSavePaperAnnotation(args: {
-  annotation?: PaperAnnotation
+function handleSavePaperComment(args: {
+  comment?: PaperComment
   vaultPath?: string
   vault_path?: string
   paperId?: string
   paper_id?: string
 }) {
-  const { paperId, path } = mockPaperAnnotationsPath(args)
-  const annotation = args.annotation
-  const validation = validatePaperAnnotation(annotation, 1, paperId)
-  if (!validation.annotation) {
-    throw structuredMockAnnotationsError({ lineErrors: validation.errors, paperId, path })
+  const { paperId, path } = mockPaperCommentsPath(args)
+  const comment = args.comment
+  const validation = validatePaperComment(comment, 1, paperId)
+  if (!validation.comment) {
+    throw structuredMockCommentsError({ lineErrors: validation.errors, paperId, path })
   }
 
-  const existing = readMockPaperAnnotations(args).annotations
-  const nextAnnotations = existing.some((candidate) => candidate.id === validation.annotation?.id)
-    ? existing.map((candidate) => candidate.id === validation.annotation?.id ? validation.annotation : candidate)
-    : [...existing, validation.annotation]
-  writeMockPaperAnnotations({ annotations: nextAnnotations, path })
-  return readMockPaperAnnotations(args)
+  const existing = readMockPaperComments(args).comments
+  const nextComments = existing.some((candidate) => candidate.id === validation.comment?.id)
+    ? existing.map((candidate) => candidate.id === validation.comment?.id ? validation.comment : candidate)
+    : [...existing, validation.comment]
+  writeMockPaperComments({ comments: nextComments, path })
+  return readMockPaperComments(args)
 }
 
-function handleDeletePaperAnnotation(args: {
-  annotationId?: string
-  annotation_id?: string
+function handleDeletePaperComment(args: {
+  commentId?: string
+  comment_id?: string
   vaultPath?: string
   vault_path?: string
   paperId?: string
   paper_id?: string
 }) {
-  const { path } = mockPaperAnnotationsPath(args)
-  const annotationId = args.annotationId ?? args.annotation_id ?? ''
-  const existing = readMockPaperAnnotations(args).annotations
-  writeMockPaperAnnotations({
-    annotations: existing.filter((annotation) => annotation.id !== annotationId),
+  const { path } = mockPaperCommentsPath(args)
+  const commentId = args.commentId ?? args.comment_id ?? ''
+  const existing = readMockPaperComments(args).comments
+  writeMockPaperComments({
+    comments: existing.filter((comment) => comment.id !== commentId),
     path,
   })
-  return readMockPaperAnnotations(args)
+  return readMockPaperComments(args)
 }
 
-function handleResetPaperAnnotations(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
-  const { path } = mockPaperAnnotationsPath(args)
-  writeMockPaperAnnotations({ annotations: [], path })
-  return readMockPaperAnnotations(args)
+function handleResetPaperComments(args: { vaultPath?: string; vault_path?: string; paperId?: string; paper_id?: string }) {
+  const { path } = mockPaperCommentsPath(args)
+  writeMockPaperComments({ comments: [], path })
+  return readMockPaperComments(args)
 }
 
 function replaceMockTitleFrontmatter({ content, newTitle }: { content: string; newTitle: string }) {
@@ -1264,10 +1264,10 @@ export const mockHandlers: Record<string, (args: any) => any> = {
   refresh_paper_metadata: handleExtractPaperMetadata,
   apply_paper_metadata_candidate: handleApplyPaperMetadataCandidate,
   save_paper_metadata: handleSavePaperMetadata,
-  read_paper_annotations: handleReadPaperAnnotations,
-  save_paper_annotation: handleSavePaperAnnotation,
-  delete_paper_annotation: handleDeletePaperAnnotation,
-  reset_paper_annotations: handleResetPaperAnnotations,
+  read_paper_comments: handleReadPaperComments,
+  save_paper_comment: handleSavePaperComment,
+  delete_paper_comment: handleDeletePaperComment,
+  reset_paper_comments: handleResetPaperComments,
   list_paper_catalog: handleListPaperCatalog,
   search_paper_catalog: handleSearchPaperCatalog,
   find_paper_duplicates: handleFindPaperDuplicates,

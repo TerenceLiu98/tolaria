@@ -26,14 +26,14 @@ export function CommentGutter({
         size="icon-sm"
         className={cn(
           'relative size-8 rounded-md text-muted-foreground',
-          count === 0 && !isOpen && 'opacity-0 transition-opacity group-hover/comment-anchor:opacity-100 group-focus-within/comment-anchor:opacity-100',
+          count === 0 && !isOpen && 'opacity-50 transition-opacity hover:opacity-100 focus-visible:opacity-100 group-hover/comment-anchor:opacity-100 group-focus-within/comment-anchor:opacity-100',
         )}
         title={title}
         aria-label={title}
         aria-expanded={isOpen}
         onClick={() => onToggleThread(anchorId)}
       >
-        {count > 0 ? <NotePencil className="size-4" /> : <Plus className="size-4" />}
+        <NotePencil className="size-4" />
         {count > 0 ? (
           <span
             className="absolute -right-1 -top-1 min-w-4 rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground"

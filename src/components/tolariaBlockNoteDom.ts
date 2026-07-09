@@ -64,7 +64,7 @@ export function blockIdFromElement(blockElement: HTMLElement): string | null {
 }
 
 export function blockElementById(editorElement: HTMLElement, blockId: string): HTMLElement | null {
-  for (const element of editorElement.querySelectorAll(BLOCK_CONTAINER_SELECTOR)) {
+  for (const element of editorElement.querySelectorAll(`${BLOCK_OUTER_SELECTOR}, ${BLOCK_CONTAINER_SELECTOR}`)) {
     if (element instanceof HTMLElement && element.dataset.id === blockId) return element
   }
 

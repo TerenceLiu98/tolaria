@@ -15,8 +15,6 @@ export async function listPaperCatalog(vaultPath) {
 
   for (const filePath of files) {
     const relativePath = path.relative(vaultPath, filePath)
-    if (!PAPER_NOTE_RE.test(relativePath)) continue
-
     const entry = await readPaperEntry(vaultPath, relativePath)
     if (entry) entries.push(entry)
   }
@@ -122,7 +120,8 @@ async function readPaperEntry(vaultPath, relativePath) {
   const parsed = matter(raw)
   if (parsed.data.type !== 'Paper') return null
 
-  const slug = relativePath.match(PAPER_NOTE_RE)?.[2] ?? path.basename(path.dirname(relativePath))
+  const canonicalMatch = relativePath.match(PAPER_NOTE_RE)
+  const slug = canonicalMatch?.[2] ?? path.basename(relativePath, path.extname(relativePath))
   const paperId = stringValue(parsed.data.paper_id) ?? slug
   const paperDir = path.dirname(relativePath)
   const metadata = await readOptionalJson(path.join(vaultPath, paperDir, 'metadata.json'))
@@ -150,6 +149,7 @@ async function readPaperEntry(vaultPath, relativePath) {
     sourcePdfState: await fileExists(path.join(vaultPath, paperDir, 'source.pdf')) ? 'present' : 'missing',
     metadata,
     frontmatter: parsed.data,
+    isCanonicalBundle: Boolean(canonicalMatch),
   }
 }
 
@@ -179,11 +179,11 @@ function parseBlocksJsonl(content, paperId) {
     try {
       const block = JSON.parse(trimmed)
       const missing = ['id', 'kind', 'hash'].find(field => !stringValue(block[field]))
-      if (missing || !Number.isInteger(block.page) || block.page <= 0) {
+      if (missing) {
         errors.push(`line ${index + 1}: invalid SourceBlock`)
         continue
       }
-      blocks.push({ paper_id: paperId, ...block })
+      blocks.push({ paper_id: paperId, ...block, page: normalizedPage(block.page) })
     } catch (error) {
       errors.push(`line ${index + 1}: ${error.message}`)
     }
@@ -358,6 +358,15 @@ function numberValue(value) {
   return null
 }
 
+function normalizedPage(value) {
+  if (Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim())
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
+  return null
+}
+
 function stringArray(value) {
   if (Array.isArray(value)) return value.map(String).map(item => item.trim()).filter(Boolean)
   const scalar = stringValue(value)
@@ -374,7 +383,7 @@ function extractTitle(content) {
 }
 
 function paperSortKey(entry) {
-  return `${entry.year ?? '9999'}:${entry.title}`.toLowerCase()
+  return `${entry.isCanonicalBundle ? '0' : '1'}:${entry.year ?? '9999'}:${entry.title}`.toLowerCase()
 }
 
 function vaultLabel(vaultPath) {

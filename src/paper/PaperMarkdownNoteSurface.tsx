@@ -7,16 +7,17 @@ import {
 import { Button } from '@/components/ui/button'
 import { NoteSurface } from '../components/NoteSurface'
 import type { NoteSurfaceAdapter } from '../components/NoteSurface'
+import { editorCommentAnchorForBlock } from '../components/comments/commentAnchors'
 import type { NoteComment } from '../comments/commentProvider'
 import { translate, type AppLocale } from '../lib/i18n'
 import { trackPaperBlockCitationCopied } from '../lib/productAnalytics'
 import type { VaultEntry } from '../types'
 import type { AiSelectedTextContext } from '../utils/ai-context'
 import type {
-  AnnotationsByBlockId,
-  PaperAnnotation,
-  PaperAnnotationKind,
-} from './annotations'
+  CommentsByBlockId,
+  PaperComment,
+  PaperCommentKind,
+} from './comments'
 import type { PaperBlocksError, PaperBlocksReadResult } from './blocks'
 import { PaperCommentThread } from './PaperCommentThread'
 import type { PaperSidecarHealth } from './paperReaderBlocks'
@@ -25,14 +26,15 @@ import {
   paperCommentAnchors,
   scrollPaperMarkdownBlockIntoView,
   selectedQuoteForPaperBlock,
+  sourceBlockForSelectedQuote,
   sourceBlocksById,
 } from './paperReaderBridge'
 import type { SourceBlock, SourceBlockLineError } from './sourceBlocks'
 import {
-  isPaperAnnotationsError,
-  paperAnnotationsErrorMessage,
-  type AnnotationLoadState,
-} from './usePaperAnnotations'
+  isPaperCommentsError,
+  paperCommentsErrorMessage,
+  type CommentLoadState,
+} from './usePaperComments'
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error'
 
@@ -107,38 +109,38 @@ function BlocksStateNotice({
   return null
 }
 
-function AnnotationStateNotice({
+function CommentStateNotice({
   error,
   loadState,
   locale,
-  onResetAnnotations,
+  onResetComments,
 }: {
   error: unknown
-  loadState: AnnotationLoadState
+  loadState: CommentLoadState
   locale: AppLocale
-  onResetAnnotations: () => void
+  onResetComments: () => void
 }) {
   if (loadState === 'loading') {
-    return <p className="px-4 pb-3 text-sm text-muted-foreground">{translate(locale, 'paper.reader.annotationsLoading')}</p>
+    return <p className="px-4 pb-3 text-sm text-muted-foreground">{translate(locale, 'paper.reader.commentsLoading')}</p>
   }
 
   if (loadState === 'error') {
-    const lineErrors = isPaperAnnotationsError(error) ? error.lineErrors : []
+    const lineErrors = isPaperCommentsError(error) ? error.lineErrors : []
     return (
-      <div className="space-y-2 px-4 pb-3 text-sm text-destructive" data-testid="paper-reader-annotations-error">
+      <div className="space-y-2 px-4 pb-3 text-sm text-destructive" data-testid="paper-reader-comments-error">
         <div className="flex items-center gap-2 font-medium">
           <WarningCircle className="size-4" />
-          <span>{translate(locale, 'paper.reader.annotationsError')}</span>
+          <span>{translate(locale, 'paper.reader.commentsError')}</span>
         </div>
-        <p>{paperAnnotationsErrorMessage(error)}</p>
+        <p>{paperCommentsErrorMessage(error)}</p>
         {lineErrors.map((lineError) => (
           <p key={`${lineError.line}:${lineError.kind}`} className="text-xs text-muted-foreground">
             line {lineError.line}: {lineError.message}
           </p>
         ))}
-        <Button type="button" variant="outline" size="xs" onClick={onResetAnnotations}>
+        <Button type="button" variant="outline" size="xs" onClick={onResetComments}>
           <ArrowCounterClockwise className="size-3.5" />
-          {translate(locale, 'paper.reader.resetAnnotationSidecar')}
+          {translate(locale, 'paper.reader.resetCommentSidecar')}
         </Button>
       </div>
     )
@@ -148,9 +150,9 @@ function AnnotationStateNotice({
 }
 
 export function PaperMarkdownNoteSurface({
-  annotationError,
-  annotationLoadState,
-  annotationsByBlockId,
+  commentError,
+  commentLoadState,
+  commentsByBlockId,
   blocks,
   blocksError,
   blocksLoadState,
@@ -161,13 +163,14 @@ export function PaperMarkdownNoteSurface({
   health,
   locale,
   onCloseCommentThread,
-  onCreateAnnotation,
-  onDeleteAnnotation,
+  onCreateComment,
+  onDeleteComment,
   onEditorChange,
   onNavigateWikilink,
+  onOpenSelectedTextComment,
   onSelectedTextContextChange,
-  onResetAnnotations,
-  onSaveAnnotation,
+  onResetComments,
+  onSaveComment,
   onToggleCommentThread,
   openCommentBlockId,
   selectedBlockId,
@@ -175,9 +178,9 @@ export function PaperMarkdownNoteSurface({
   sourceEntry,
   vaultPath,
 }: {
-  annotationError: unknown
-  annotationLoadState: AnnotationLoadState
-  annotationsByBlockId: AnnotationsByBlockId
+  commentError: unknown
+  commentLoadState: CommentLoadState
+  commentsByBlockId: CommentsByBlockId
   blocks: SourceBlock[]
   blocksError: unknown
   blocksLoadState: LoadState
@@ -188,17 +191,18 @@ export function PaperMarkdownNoteSurface({
   health: PaperSidecarHealth
   locale: AppLocale
   onCloseCommentThread: () => void
-  onCreateAnnotation: (block: SourceBlock, input: {
-    kind: PaperAnnotationKind
+  onCreateComment: (block: SourceBlock, input: {
+    kind: PaperCommentKind
     note?: string
     text?: string
   }) => void
-  onDeleteAnnotation: (annotationId: string) => void
+  onDeleteComment: (commentId: string) => void
   onEditorChange?: () => void
   onNavigateWikilink: (target: string) => void
+  onOpenSelectedTextComment: (blockId: string) => void
   onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
-  onResetAnnotations: () => void
-  onSaveAnnotation: (annotation: PaperAnnotation) => void
+  onResetComments: () => void
+  onSaveComment: (comment: PaperComment) => void
   onToggleCommentThread: (blockId: string) => void
   openCommentBlockId: string | null
   selectedBlockId: string | null
@@ -210,6 +214,25 @@ export function PaperMarkdownNoteSurface({
   const noteSurfaceRef = useRef<NoteSurfaceAdapter>(null)
   const blocksById = useMemo(() => sourceBlocksById(blocks), [blocks])
   const commentAnchors = useMemo(() => paperCommentAnchors(blocks, commentsByAnchorId), [blocks, commentsByAnchorId])
+  const handleCommentSelectedTextContext = useCallback((context: AiSelectedTextContext) => {
+    if (context.kind !== 'text') return
+
+    const selectedAnchor = editorCommentAnchorForBlock({
+      anchors: commentAnchors,
+      blockId: context.anchorId,
+      editorBlocks: Array.isArray(editor.document) ? editor.document : [],
+    })
+    if (selectedAnchor && blocksById.has(selectedAnchor.id)) {
+      onOpenSelectedTextComment(selectedAnchor.id)
+      return
+    }
+
+    const quote = selectedQuoteForPaperBlock(context, sourceEntry)
+    const block = sourceBlockForSelectedQuote(blocks, quote)
+    if (!block) return
+
+    onOpenSelectedTextComment(block.id)
+  }, [blocks, blocksById, commentAnchors, editor, onOpenSelectedTextComment, sourceEntry])
 
   useEffect(() => {
     if (!selectedBlockId) return
@@ -237,26 +260,26 @@ export function PaperMarkdownNoteSurface({
     if (!block) return null
     return (
       <PaperCommentThread
-        annotations={annotationsByBlockId[block.id] ?? []}
+        comments={commentsByBlockId[block.id] ?? []}
         block={block}
         locale={locale}
         onCopyCitation={copyCitation}
         onClose={onCloseCommentThread}
-        onCreateAnnotation={onCreateAnnotation}
-        onDeleteAnnotation={onDeleteAnnotation}
-        onSaveAnnotation={onSaveAnnotation}
+        onCreateComment={onCreateComment}
+        onDeleteComment={onDeleteComment}
+        onSaveComment={onSaveComment}
         selectedQuote={selectedQuoteForPaperBlock(selectedTextContext, sourceEntry)}
       />
     )
   }, [
-    annotationsByBlockId,
+    commentsByBlockId,
     blocksById,
     copyCitation,
     locale,
     onCloseCommentThread,
-    onCreateAnnotation,
-    onDeleteAnnotation,
-    onSaveAnnotation,
+    onCreateComment,
+    onDeleteComment,
+    onSaveComment,
     selectedTextContext,
     sourceEntry,
   ])
@@ -277,11 +300,11 @@ export function PaperMarkdownNoteSurface({
         result={blocksReadResult}
         error={blocksError}
       />
-      <AnnotationStateNotice
+      <CommentStateNotice
         locale={locale}
-        loadState={annotationLoadState}
-        error={annotationError}
-        onResetAnnotations={onResetAnnotations}
+        loadState={commentLoadState}
+        error={commentError}
+        onResetComments={onResetComments}
       />
       <div
         ref={readScrollAreaRef}
@@ -302,6 +325,7 @@ export function PaperMarkdownNoteSurface({
           entries={entries}
           locale={locale}
           onChange={onEditorChange}
+          onCommentSelectedTextContext={handleCommentSelectedTextContext}
           onNavigateWikilink={onNavigateWikilink}
           onSelectedTextContextChange={onSelectedTextContextChange}
           sourceEntry={sourceEntry}

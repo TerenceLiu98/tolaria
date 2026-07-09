@@ -1,15 +1,15 @@
 import {
-  createBlockAnnotationId,
-  type PaperAnnotation,
-  type PaperAnnotationKind,
-  type PaperAnnotationReaction,
-  type PaperAnnotationReply,
-} from './annotations'
+  createBlockCommentId,
+  type PaperComment,
+  type PaperCommentKind,
+  type PaperCommentReaction,
+  type PaperCommentReply,
+} from './comments'
 
 export type PaperCommentThreadFilter = 'all' | 'open' | 'resolved'
 export type PaperCommentThreadSort = 'newest' | 'oldest'
 
-export const PAPER_COMMENT_KIND: PaperAnnotationKind = 'comment'
+export const PAPER_COMMENT_KIND: PaperCommentKind = 'comment'
 export const PAPER_COMMENT_REACTION_EMOJI = '👍'
 
 export function cleanOptionalCommentText(value: string | null | undefined): string | undefined {
@@ -17,23 +17,23 @@ export function cleanOptionalCommentText(value: string | null | undefined): stri
   return trimmed.length > 0 ? trimmed : undefined
 }
 
-export function activePaperAnnotationReplies(annotation: PaperAnnotation): PaperAnnotationReply[] {
-  return Array.isArray(annotation.replies)
-    ? annotation.replies.filter((reply) => typeof reply.deleted_at !== 'string')
+export function activePaperCommentReplies(comment: PaperComment): PaperCommentReply[] {
+  return Array.isArray(comment.replies)
+    ? comment.replies.filter((reply) => typeof reply.deleted_at !== 'string')
     : []
 }
 
-export function activePaperAnnotationReactions(annotation: PaperAnnotation): PaperAnnotationReaction[] {
-  return Array.isArray(annotation.reactions)
-    ? annotation.reactions.filter((reaction) => typeof reaction.deleted_at !== 'string')
+export function activePaperCommentReactions(comment: PaperComment): PaperCommentReaction[] {
+  return Array.isArray(comment.reactions)
+    ? comment.reactions.filter((reaction) => typeof reaction.deleted_at !== 'string')
     : []
 }
 
-export function createPaperAnnotationReply(
+export function createPaperCommentReply(
   note: string,
   now = new Date(),
-  createId: () => string = createBlockAnnotationId,
-): PaperAnnotationReply {
+  createId: () => string = createBlockCommentId,
+): PaperCommentReply {
   return {
     id: createId().replace(/^ann_/u, 'reply_'),
     note,
@@ -41,10 +41,10 @@ export function createPaperAnnotationReply(
   }
 }
 
-export function createPaperAnnotationReaction(
+export function createPaperCommentReaction(
   emoji: string,
   now = new Date(),
-): PaperAnnotationReaction {
+): PaperCommentReaction {
   return {
     emoji,
     count: 1,
@@ -52,84 +52,84 @@ export function createPaperAnnotationReaction(
   }
 }
 
-export function paperAnnotationIsResolved(annotation: PaperAnnotation): boolean {
-  return typeof annotation.resolved_at === 'string' && annotation.resolved_at.trim().length > 0
+export function paperCommentIsResolved(comment: PaperComment): boolean {
+  return typeof comment.resolved_at === 'string' && comment.resolved_at.trim().length > 0
 }
 
-export function paperAnnotationThreadTimestamp(annotation: PaperAnnotation): number {
-  const timestamp = Date.parse(annotation.updated_at ?? annotation.created_at)
+export function paperCommentThreadTimestamp(comment: PaperComment): number {
+  const timestamp = Date.parse(comment.updated_at ?? comment.created_at)
   return Number.isFinite(timestamp) ? timestamp : 0
 }
 
-export function visiblePaperCommentAnnotations(
-  annotations: readonly PaperAnnotation[],
+export function visiblePaperComments(
+  comments: readonly PaperComment[],
   filter: PaperCommentThreadFilter,
   sort: PaperCommentThreadSort,
-): PaperAnnotation[] {
-  const filteredAnnotations = annotations.filter((annotation) => {
-    if (filter === 'open') return !paperAnnotationIsResolved(annotation)
-    if (filter === 'resolved') return paperAnnotationIsResolved(annotation)
+): PaperComment[] {
+  const filteredComments = comments.filter((comment) => {
+    if (filter === 'open') return !paperCommentIsResolved(comment)
+    if (filter === 'resolved') return paperCommentIsResolved(comment)
     return true
   })
-  return [...filteredAnnotations].sort((left, right) => {
-    const delta = paperAnnotationThreadTimestamp(left) - paperAnnotationThreadTimestamp(right)
+  return [...filteredComments].sort((left, right) => {
+    const delta = paperCommentThreadTimestamp(left) - paperCommentThreadTimestamp(right)
     return sort === 'oldest' ? delta : -delta
   })
 }
 
-export function paperAnnotationHasReaction(annotation: PaperAnnotation, emoji: string): boolean {
-  return activePaperAnnotationReactions(annotation).some((reaction) => reaction.emoji === emoji && reaction.count > 0)
+export function paperCommentHasReaction(comment: PaperComment, emoji: string): boolean {
+  return activePaperCommentReactions(comment).some((reaction) => reaction.emoji === emoji && reaction.count > 0)
 }
 
-export function savePaperAnnotationNote(
-  annotation: PaperAnnotation,
+export function savePaperCommentNote(
+  comment: PaperComment,
   note: string,
   now = new Date(),
-): PaperAnnotation {
+): PaperComment {
   return {
-    ...annotation,
+    ...comment,
     note: cleanOptionalCommentText(note),
     updated_at: now.toISOString(),
   }
 }
 
-export function togglePaperAnnotationResolved(
-  annotation: PaperAnnotation,
+export function togglePaperCommentResolved(
+  comment: PaperComment,
   now = new Date(),
-): PaperAnnotation {
+): PaperComment {
   return {
-    ...annotation,
-    resolved_at: paperAnnotationIsResolved(annotation) ? undefined : now.toISOString(),
+    ...comment,
+    resolved_at: paperCommentIsResolved(comment) ? undefined : now.toISOString(),
     updated_at: now.toISOString(),
   }
 }
 
-export function addPaperAnnotationReply(
-  annotation: PaperAnnotation,
+export function addPaperCommentReply(
+  comment: PaperComment,
   replyNote: string,
   now = new Date(),
   createId?: () => string,
-): PaperAnnotation | null {
+): PaperComment | null {
   const cleanedReply = cleanOptionalCommentText(replyNote)
   if (!cleanedReply) return null
   return {
-    ...annotation,
+    ...comment,
     replies: [
-      ...activePaperAnnotationReplies(annotation),
-      createPaperAnnotationReply(cleanedReply, now, createId),
+      ...activePaperCommentReplies(comment),
+      createPaperCommentReply(cleanedReply, now, createId),
     ],
     updated_at: now.toISOString(),
   }
 }
 
-export function deletePaperAnnotationReply(
-  annotation: PaperAnnotation,
+export function deletePaperCommentReply(
+  comment: PaperComment,
   replyId: string,
   now = new Date(),
-): PaperAnnotation {
+): PaperComment {
   return {
-    ...annotation,
-    replies: (annotation.replies ?? []).map((reply) => reply.id === replyId
+    ...comment,
+    replies: (comment.replies ?? []).map((reply) => reply.id === replyId
       ? {
         ...reply,
         deleted_at: now.toISOString(),
@@ -140,19 +140,19 @@ export function deletePaperAnnotationReply(
   }
 }
 
-export function togglePaperAnnotationReaction(
-  annotation: PaperAnnotation,
+export function togglePaperCommentReaction(
+  comment: PaperComment,
   emoji: string,
   now = new Date(),
-): PaperAnnotation {
-  const reactions = activePaperAnnotationReactions(annotation)
+): PaperComment {
+  const reactions = activePaperCommentReactions(comment)
   return {
-    ...annotation,
-    reactions: paperAnnotationHasReaction(annotation, emoji)
+    ...comment,
+    reactions: paperCommentHasReaction(comment, emoji)
       ? reactions.filter((reaction) => reaction.emoji !== emoji)
       : [
         ...reactions,
-        createPaperAnnotationReaction(emoji, now),
+        createPaperCommentReaction(emoji, now),
       ],
     updated_at: now.toISOString(),
   }

@@ -18,7 +18,7 @@ Output:
 - `paperPath`
 - `sourcePdfPath`
 - `blocksPath`
-- `annotationsPath`
+- `commentsPath`
 - `createdFiles`
 - `deduplicated`
 
@@ -27,7 +27,7 @@ Behavior:
 - Create `papers/<paper-slug>/source.pdf`.
 - Create `papers/<paper-slug>/paper.md`.
 - Use a numeric suffix when the target paper folder already exists.
-- Do not create block or annotation sidecars in Phase 1.
+- Do not create block or comment sidecars in Phase 1.
 - Do not mutate the original selected PDF.
 
 ## Frontend Flow
@@ -45,9 +45,9 @@ Each parsed block is written as readable Markdown preceded by a hidden block anc
 Parsed paragraph text.
 ```
 
-Headings, paragraphs, figures, tables, equations, and captions render as normal Markdown. Figure and table blocks with extracted assets render as Markdown images that point at `papers/<paper-slug>/assets/...`; missing figure assets degrade to caption text. Table blocks prefer parser-provided Markdown tables when no image asset is available and can normalize simple tabular text into Markdown table syntax. Equation blocks render as `$$` display math after stripping Tolaria's internal math sentinels and applying light LaTeX spacing cleanup. The anchor binds the visible Markdown section to a stable SourceBlock id, page, kind, and hash so citations, annotation counts, comment threads, and future repair tooling can attach to the note without writing user comments into the paper text.
+Headings, paragraphs, figures, tables, equations, and captions render as normal Markdown. Figure and table blocks with extracted assets render as Markdown images that point at `papers/<paper-slug>/assets/...`; missing figure assets degrade to caption text. Table blocks prefer parser-provided Markdown tables when no image asset is available and can normalize simple tabular text into Markdown table syntax. Equation blocks render as `$$` display math after stripping Tolaria's internal math sentinels and applying light LaTeX spacing cleanup. The anchor binds the visible Markdown section to a stable SourceBlock id, page, kind, and hash so citations, comment counts, comment threads, and future repair tooling can attach to the note without writing user comments into the paper text.
 
-`source.pdf` remains immutable provenance. `blocks.jsonl` remains the machine index for lookup/search/citation validation and records source evidence extracted from the original Paper source. It is expected to match anchors immediately after parse, but user edits to `paper.md` can later diverge from the source index. `annotations.jsonl` remains the user comment sidecar. `metadata.json` remains the machine-readable bibliographic metadata sidecar. Long-form user synthesis is handled by ordinary Tolaria `Note` entries, connected to Paper through wikilinks, backlinks, and optional `@block[...]` citations.
+`source.pdf` remains immutable provenance. `blocks.jsonl` remains the machine index for lookup/search/citation validation and records source evidence extracted from the original Paper source. It is expected to match anchors immediately after parse, but user edits to `paper.md` can later diverge from the source index. `comments.jsonl` is the user comment/thread sidecar. `metadata.json` remains the machine-readable bibliographic metadata sidecar. Long-form user synthesis is handled by ordinary Tolaria `Note` entries, connected to Paper through wikilinks, backlinks, and optional `@block[...]` citations.
 
 ## SourceBlock Sidecar Contract
 
@@ -89,7 +89,7 @@ Phase 4H adds `metadata.json` as the Paper metadata sidecar. The sidecar stores 
 
 Metadata extraction starts locally from PDF document metadata and parsed `paper.md` text. DOI and arXiv IDs are extracted with deterministic regexes and treated as high-confidence identifiers. OpenAlex is the primary remote resolver: exact DOI matches query OpenAlex works by DOI, while Papers without a DOI can use OpenAlex title search and keep lower-confidence matches as review candidates. Crossref-shaped and arXiv-shaped normalization remains available for compatible records, but provider failures stay recoverable and are stored in `metadata.json` instead of blocking Paper reading.
 
-The Paper shell keeps normal metadata state out of the header. Successful extraction is reflected through ordinary Paper frontmatter and Properties rather than persistent status chips. The header's `Paper metadata` entry opens a bounded, scrollable metadata dialog where users can review candidates, manually edit visible metadata, refresh provider-derived metadata, or keep the current values and mark them reviewed. Candidate apply and manual save both rewrite `metadata.json`, update mirrored frontmatter, clear the review state, and leave `source.pdf`, `blocks.jsonl`, and `annotations.jsonl` untouched.
+The Paper shell keeps normal metadata state out of the header. Successful extraction is reflected through ordinary Paper frontmatter and Properties rather than persistent status chips. The header's `Paper metadata` entry opens a bounded, scrollable metadata dialog where users can review candidates, manually edit visible metadata, refresh provider-derived metadata, or keep the current values and mark them reviewed. Candidate apply and manual save both rewrite `metadata.json`, update mirrored frontmatter, clear the review state, and leave `source.pdf`, `blocks.jsonl`, and `comments.jsonl` untouched.
 
 Paper Reader keeps `Parse Paper` in the header and keeps metadata repair inside the `Paper metadata` dialog. `Parse Paper` runs directly for unparsed or failed Papers; if parsed content already exists, it asks before forcing a reparse. Metadata refresh asks before replacing existing provider-derived fields and candidates. After parsing succeeds, the Reader reloads SourceBlocks from the sidecar and keeps PDF preview behavior unchanged.
 
@@ -133,38 +133,38 @@ Phase 4C turns parsed SourceBlocks into the first readable paper view. Titles an
 
 The older block-list interaction stayed local to the Reader. Selecting a block opened the block's comment thread, kept citation actions available, and recorded a PDF focus request when the block had a page number. That design is now superseded by the shared Note surface path below, where block anchors, citations, and comments attach to the rendered Paper note rather than to a standalone block-list reader.
 
-Phase 4D makes the parsed Paper note the primary reading surface. The Reader prefers anchored sections from `paper.md` and uses `blocks.jsonl` as the supporting index for citation, comment, repair, and block-focus lookup. SourceBlocks still provide stable anchors, but the central readable prose comes from the Markdown projection whenever anchors are present. A compact gutter shows the count of attached comments and opens the block comment thread. The thread creates, edits, and deletes ordinary comments through the existing sidecar helpers, and exposes copy-citation actions. User comments remain `annotations.jsonl` records and are not written into `paper.md` or merged into parsed paper text.
+Phase 4D makes the parsed Paper note the primary reading surface. The Reader prefers anchored sections from `paper.md` and uses `blocks.jsonl` as the supporting index for citation, comment, repair, and block-focus lookup. SourceBlocks still provide stable anchors, but the central readable prose comes from the Markdown projection whenever anchors are present. A compact gutter shows the count of attached comments and opens the block comment thread. The thread creates, edits, and deletes ordinary comments through the existing sidecar helpers, and exposes copy-citation actions. User comments remain `comments.jsonl` records and are not written into `paper.md` or merged into parsed paper text.
 
-Phase 4E extracts the comment surface into a generic Note Editor seam while keeping Paper as the only consumer. `src/comments/commentProvider.ts` defines the provider contract, `src/components/comments/CommentUI.tsx` owns the reusable gutter/thread/composer UI, and `src/paper/paperCommentProvider.ts` maps Paper annotations into generic comment threads by block anchor.
+Phase 4E extracts the comment surface into a generic Note Editor seam while keeping Paper as the only consumer. `src/comments/commentProvider.ts` defines the provider contract, `src/components/comments/CommentUI.tsx` owns the reusable gutter/thread/composer UI, and `src/paper/paperCommentProvider.ts` maps Paper comment records into generic comment threads by block anchor.
 
-Phase 4F is the current contract. Paper Markdown mounts through the shared Note surface. `PaperReaderShell` is now a thin Paper wrapper: it owns metadata, parse status, Markdown/PDF mode, source PDF actions, selected block state, and Paper-specific annotation wiring. The Markdown Reading View uses the same editable `NoteSurface`/`SingleEditorView` path as ordinary notes with the Paper comment provider attached. Reading View switches only between Markdown and PDF. Paper-specific long-note modes, panes, commands, templates, append actions, and the standalone Paper structure column are removed.
+Phase 4F is the current contract. Paper Markdown mounts through the shared Note surface. `PaperReaderShell` is now a thin Paper wrapper: it owns metadata, parse status, Markdown/PDF mode, source PDF actions, selected block state, and Paper-specific comment wiring. The Markdown Reading View uses the same editable `NoteSurface`/`SingleEditorView` path as ordinary notes with the Paper comment provider attached. Reading View switches only between Markdown and PDF. Paper-specific long-note modes, panes, commands, templates, append actions, and the standalone Paper structure column are removed.
 
 The current Paper wrapper does not write `source.pdf` or comment records into `paper.md`. Missing and empty parsed-structure artifacts render recoverable states; malformed sidecars render structured line errors from the existing sidecar reader. PDF page-coordinate overlays, AI Ask, memory compilation, and graph UI remain out of scope for the current Paper-as-Note surface.
 
-## Annotation Sidecar Contract
+## Comment Sidecar Contract
 
-`annotations.jsonl` is the durable sidecar for user-created Paper comments. Each non-empty line is one PaperAnnotation JSON object. Required fields are:
+`comments.jsonl` is the durable sidecar for user-created Paper comments and threads. Each non-empty line is one Paper comment JSON object. Required fields are:
 
-- `id`: stable annotation id.
+- `id`: stable comment id.
 - `paper_id`: parent Paper id.
-- `kind`: `comment` for newly created Paper comments.
-- `created_at`: ISO timestamp written by the client that created the annotation.
+- `kind`: always `comment`.
+- `created_at`: ISO timestamp written by the client that created the comment.
 
-An annotation must target either a SourceBlock with `block_id` or a future PDF region with `page` plus `bbox`. The current Reader UI only creates block-level comments from the comment gutter; the model accepts coordinate targets so future PDF overlays can share the same sidecar without changing the file contract.
+A comment must target either a SourceBlock with `block_id` or a future PDF region with `page` plus `bbox`. The current Reader UI creates block-level comments from selected text or the comment gutter; the model accepts coordinate targets so future PDF overlays can share the same sidecar without changing the file contract.
 
-Optional fields include `text`, `note`, `updated_at`, and `deleted_at`; unknown fields are preserved by the Rust reader for forward compatibility. Older sidecars may still contain legacy `color` values or non-comment kinds from earlier Paper Reader experiments. Tolaria preserves those records but no longer exposes kind/color controls in the comment UI.
+Optional fields include `text`, `note`, `updated_at`, `deleted_at`, `replies`, `reactions`, and `resolved_at`; unknown fields are preserved by the Rust reader for forward compatibility. Legacy `highlight`, `underline`, `question`, `bookmark`, and semantic `color` records are deprecated and are no longer accepted by the current reader/writer. Highlight-style text formatting belongs to the normal BlockNote editor and Markdown serialization path, not the Paper comment sidecar.
 
 Reader commands:
 
-- `read_paper_annotations(vaultPath, paperId)`
-- `save_paper_annotation(vaultPath, paperId, annotation)`
-- `delete_paper_annotation(vaultPath, paperId, annotationId)`
-- `reset_paper_annotations(vaultPath, paperId)`
+- `read_paper_comments(vaultPath, paperId)`
+- `save_paper_comment(vaultPath, paperId, comment)`
+- `delete_paper_comment(vaultPath, paperId, commentId)`
+- `reset_paper_comments(vaultPath, paperId)`
 
-`save_paper_annotation` creates or updates by id and rewrites `annotations.jsonl` after validating the existing sidecar. `delete_paper_annotation` uses the simplest durable v1 behavior: rewrite the file without the deleted record. `reset_paper_annotations` rewrites only `annotations.jsonl` to an empty sidecar so missing or malformed annotation states can recover without touching `paper.md`, `blocks.jsonl`, or `source.pdf`. All commands stay inside the active-vault boundary and never modify `source.pdf`.
+These command names remain for compatibility with existing frontend/Tauri wiring, but they now read and write `comments.jsonl`. `save_paper_comment` creates or updates by id and rewrites `comments.jsonl` after validating the existing sidecar. `delete_paper_comment` uses the simplest durable v1 behavior: rewrite the file without the deleted record. `reset_paper_comments` rewrites only `comments.jsonl` to an empty sidecar so missing or malformed comment states can recover without touching `paper.md`, `blocks.jsonl`, or `source.pdf`. All commands stay inside the active-vault boundary and never modify `source.pdf`.
 
-The Paper Reader shows comment counts in the rendered block gutter. Selecting a block or clicking its gutter marker opens a compact thread with a block-level comment composer. Existing block-level comments can edit note text inline; saving rewrites the sidecar record with `updated_at`, and deleting a comment removes it from the sidecar and refreshes the gutter markers. Missing and empty annotation sidecars are valid zero-comment states. Malformed annotation sidecars render recoverable errors with an explicit reset action instead of hiding Paper content.
+The Paper Reader shows comment counts in the rendered block gutter. Selecting text, selecting a block, or clicking its gutter marker opens a compact thread with a comment composer. Existing block-level comments can edit note text inline; saving rewrites the sidecar record with `updated_at`, and deleting a comment removes it from the sidecar and refreshes the gutter markers. Missing and empty comment sidecars are valid zero-comment states. Malformed comment sidecars render recoverable errors with an explicit reset action instead of hiding Paper content.
 
 ## Long-Form Notes
 
-Paper no longer owns a special long-note workflow or a dedicated research-note type. Users create ordinary `Note` entries anywhere in the vault, link them to Paper with Tolaria's existing wikilink/backlink behavior, and use durable `@block[paper_id#block_id]` citations when they need exact evidence. This keeps long-form synthesis inside Tolaria's normal note model while leaving Paper comments in `annotations.jsonl`.
+Paper no longer owns a special long-note workflow or a dedicated research-note type. Users create ordinary `Note` entries anywhere in the vault, link them to Paper with Tolaria's existing wikilink/backlink behavior, and use durable `@block[paper_id#block_id]` citations when they need exact evidence. This keeps long-form synthesis inside Tolaria's normal note model while leaving Paper comments in `comments.jsonl`.

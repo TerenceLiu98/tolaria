@@ -12,6 +12,7 @@ import {
   paperBlockCitation,
   paperBlockPdfFocusRequest,
   paperCommentAnchors,
+  sourceBlockForSelectedQuote,
   scrollPaperMarkdownBlockIntoView,
   selectedQuoteForPaperBlock,
   sourceBlocksById,
@@ -96,6 +97,13 @@ describe('paperReaderBridge', () => {
       kind: 'image',
       path: '/vault/assets/image.png',
     }, sourceEntry)).toBeNull()
+  })
+
+  it('resolves selected text comments to the matching source block', () => {
+    expect(sourceBlockForSelectedQuote(blocks, 'Evidence paragraph')?.id).toBe('b0002')
+    expect(sourceBlockForSelectedQuote(blocks, ' evidence   paragraph ')?.id).toBe('b0002')
+    expect(sourceBlockForSelectedQuote(blocks, 'not in paper')).toBeNull()
+    expect(sourceBlockForSelectedQuote(blocks, '')).toBeNull()
   })
 
   it('formats citation and PDF focus provenance for valid source blocks', () => {

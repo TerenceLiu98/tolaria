@@ -305,7 +305,7 @@ function paperSummary(entry: VaultEntry): Record<string, unknown> {
   assignIfPresent(summary, 'parse_status', propertyString(entry.properties?.parse_status))
   assignIfPresent(summary, 'source_pdf', propertyString(entry.properties?.source_pdf))
   assignIfPresent(summary, 'blocks', propertyString(entry.properties?.blocks))
-  assignIfPresent(summary, 'annotations', propertyString(entry.properties?.annotations))
+  assignIfPresent(summary, 'comments_sidecar', propertyString(entry.properties?.comments) ?? propertyString(entry.properties?.annotations))
   assignIfPresent(summary, 'workspace', entry.workspace ? {
     id: entry.workspace.id,
     label: entry.workspace.label,
@@ -407,8 +407,8 @@ function appendPaperContext(snapshot: Record<string, unknown>, params: ContextSn
     snapshot.activePaper = {
       ...paperSummary(activeEntry),
       comments: {
-        storage: propertyString(activeEntry.properties?.annotations) ?? 'annotations.jsonl',
-        note: 'Paper comments and annotations are stored outside paper.md; use paper tools for block provenance before citing claims.',
+        storage: propertyString(activeEntry.properties?.comments) ?? propertyString(activeEntry.properties?.annotations) ?? 'comments.jsonl',
+        note: 'Paper comments are stored outside paper.md; use paper tools for block provenance before citing claims.',
       },
     }
   }
@@ -564,7 +564,7 @@ export function buildContextSnapshot(params: ContextSnapshotParams): string {
     'You are an AI assistant integrated into Sapientia, a personal knowledge management app.',
     'The user is viewing a specific note. Use the structured context below to answer questions accurately.',
     'You can also use MCP tools to search, read, create, or edit notes in the vault.',
-    'For Paper notes, use paper MCP tools such as search_papers, read_paper_metadata, search_paper_blocks, read_paper_blocks, and get_block_citation for citation-safe paper context.',
+    'For Paper notes, use paper MCP tools such as search_papers, read_paper_metadata, search_paper_blocks, read_paper_blocks, and get_block_citation for citation-safe paper context. Paper-grounded claims should cite exact evidence as @block[paper_id#block_id]; call search_paper_blocks/read_paper_blocks first if exact block evidence is not already in context.',
     'If selectedContext is present, the user explicitly included that selected text or image; treat it as the most local context for the next answer.',
     'If the body field is empty or truncated, use get_note to read the full note from disk before content-sensitive edits or summaries.',
     'When you mention or reference a note by name, always use [[Note Title]] wikilink syntax so the user can click to open it.',

@@ -25,6 +25,22 @@ describe('CommentUI', () => {
     expect(onToggleThread).toHaveBeenCalledWith('b0002')
   })
 
+  it('keeps an empty gutter affordance discoverable before hover', () => {
+    render(
+      <CommentGutter
+        anchorId="b0003"
+        count={0}
+        isOpen={false}
+        title="Add comment"
+        onToggleThread={vi.fn()}
+      />,
+    )
+
+    const button = screen.getByRole('button', { name: 'Add comment' })
+    expect(button).toHaveClass('opacity-50')
+    expect(button).not.toHaveClass('opacity-0')
+  })
+
   it('submits non-empty composer text and clears the field', () => {
     const onSubmit = vi.fn()
 
