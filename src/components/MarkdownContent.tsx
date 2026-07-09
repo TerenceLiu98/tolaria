@@ -1,4 +1,5 @@
 import { memo, useMemo, type MouseEvent, type ReactNode } from 'react'
+import { Plus } from '@phosphor-icons/react'
 import Markdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
@@ -19,6 +20,10 @@ import {
   dispatchBlockCitationNavigation,
   type BlockCitationNavigationRequest,
 } from '../paper/blockCitationNavigation'
+import { translate, type AppLocale } from '../lib/i18n'
+import { Button } from './ui/button'
+import { useProjectCanvasAdd } from './project-canvas/projectCanvasAddContext'
+import { projectCanvasRequestForBlockCitation } from './project-canvas/projectCanvasAddRequests'
 
 const MODERN_REGEX_AVAILABLE = supportsModernRegexFeatures()
 const REMARK_PLUGINS = MODERN_REGEX_AVAILABLE ? [remarkGfm] : []
@@ -69,15 +74,18 @@ function latexFromMathHref(href: string, scheme: string): string {
 
 interface MarkdownContentProps {
   content: string
+  locale?: AppLocale
   onBlockCitationClick?: (target: BlockCitationNavigationRequest) => void
   onWikilinkClick?: (target: string) => void
 }
 
 export const MarkdownContent = memo(function MarkdownContent({
   content,
+  locale = 'en',
   onBlockCitationClick,
   onWikilinkClick,
 }: MarkdownContentProps) {
+  const requestProjectCanvasAdd = useProjectCanvasAdd()
   const processedContent = useMemo(() => {
     const displayContent = stripTolariaHiddenMarkdown(content)
     const withMathTokens = preprocessMathLinks(displayContent)
@@ -104,7 +112,7 @@ export const MarkdownContent = memo(function MarkdownContent({
         if (href?.startsWith(BLOCK_CITATION_SCHEME)) {
           const target = blockCitationFromHref(href)
           if (!target) return <span className="block-citation block-citation--broken">{children}</span>
-          return (
+          const citationLink = (
             <a
               ref={(node) => {
                 node?.setAttribute('role', 'link')
@@ -130,6 +138,27 @@ export const MarkdownContent = memo(function MarkdownContent({
             >
               {children}
             </a>
+          )
+          if (!requestProjectCanvasAdd) return citationLink
+          return (
+            <span className="group/block-citation inline-flex items-baseline gap-0.5">
+              {citationLink}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="h-5 w-5 self-center p-0 text-muted-foreground opacity-0 transition-opacity group-hover/block-citation:opacity-100 group-focus-within/block-citation:opacity-100"
+                aria-label={translate(locale, 'projectCanvas.addCitation')}
+                title={translate(locale, 'projectCanvas.addCitation')}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  requestProjectCanvasAdd(projectCanvasRequestForBlockCitation(target))
+                }}
+              >
+                <Plus size={12} />
+              </Button>
+            </span>
           )
         }
         if (href?.startsWith(MALFORMED_BLOCK_CITATION_SCHEME)) {
@@ -171,7 +200,7 @@ export const MarkdownContent = memo(function MarkdownContent({
         return <a href={href} className="break-words">{children}</a>
       },
     }
-  }, [onBlockCitationClick, onWikilinkClick])
+  }, [locale, onBlockCitationClick, onWikilinkClick, requestProjectCanvasAdd])
 
   return (
     <div className="ai-markdown min-w-0 max-w-full overflow-hidden">

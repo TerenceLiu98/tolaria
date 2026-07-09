@@ -1231,5 +1231,12 @@
   "projectCanvas.workspace": "Workspace",
   "projectCanvas.summaryHint": "Select a node or edge to inspect it. Drop text, image paths, or @block citations onto the canvas to add them quickly.",
   "projectCanvas.undo": "Undo",
-  "projectCanvas.redo": "Redo"
+  "projectCanvas.redo": "Паўтарыць",
+  "projectCanvas.picker.title": "Дадаць у праект",
+  "projectCanvas.picker.description": "Выберыце праект для {item}.",
+  "projectCanvas.picker.search": "Пошук праектаў...",
+  "projectCanvas.picker.empty": "Праекты не знойдзены",
+  "projectCanvas.picker.adding": "Даданне ў праект...",
+  "projectCanvas.addCitation": "Дадаць цытату ў праект",
+  "projectCanvas.aiAnswerTitle": "Даследчы адказ ШІ"
 }

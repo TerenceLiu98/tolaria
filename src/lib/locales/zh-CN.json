@@ -1231,5 +1231,12 @@
   "projectCanvas.workspace": "工作区",
   "projectCanvas.summaryHint": "选择节点或连线查看详情。也可以把文本、图片路径或 @block 引用拖到画布上快速添加。",
   "projectCanvas.undo": "撤销",
-  "projectCanvas.redo": "重做"
+  "projectCanvas.redo": "重做",
+  "projectCanvas.picker.title": "添加到项目",
+  "projectCanvas.picker.description": "为 {item} 选择一个项目。",
+  "projectCanvas.picker.search": "搜索项目……",
+  "projectCanvas.picker.empty": "未找到项目",
+  "projectCanvas.picker.adding": "正在添加到项目……",
+  "projectCanvas.addCitation": "将引用添加到项目",
+  "projectCanvas.aiAnswerTitle": "AI 研究回答"
 }

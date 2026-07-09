@@ -1231,5 +1231,12 @@
   "projectCanvas.workspace": "Workspace",
   "projectCanvas.summaryHint": "Select a node or edge to inspect it. Drop text, image paths, or @block citations onto the canvas to add them quickly.",
   "projectCanvas.undo": "Undo",
-  "projectCanvas.redo": "Redo"
+  "projectCanvas.redo": "다시 실행",
+  "projectCanvas.picker.title": "프로젝트에 추가",
+  "projectCanvas.picker.description": "{item}을(를) 추가할 프로젝트를 선택하세요.",
+  "projectCanvas.picker.search": "프로젝트 검색...",
+  "projectCanvas.picker.empty": "프로젝트를 찾을 수 없습니다",
+  "projectCanvas.picker.adding": "프로젝트에 추가 중...",
+  "projectCanvas.addCitation": "인용을 프로젝트에 추가",
+  "projectCanvas.aiAnswerTitle": "AI 연구 답변"
 }

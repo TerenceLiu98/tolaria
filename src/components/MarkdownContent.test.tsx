@@ -14,6 +14,12 @@ import { MarkdownContent } from './MarkdownContent'
 import { preprocessWikilinks } from '../utils/chatWikilinks'
 import { BLOCK_CITATION_NAVIGATE_EVENT } from '../paper/blockCitationNavigation'
 
+const requestProjectCanvasAdd = vi.hoisted(() => vi.fn())
+
+vi.mock('./project-canvas/projectCanvasAddContext', () => ({
+  useProjectCanvasAdd: () => requestProjectCanvasAdd,
+}))
+
 const mockOpenExternalUrl = vi.mocked(openExternalUrl)
 
 describe('MarkdownContent', () => {
@@ -263,6 +269,23 @@ describe('MarkdownContent', () => {
   })
 
   describe('block citations', () => {
+    it('offers an explicit Add to Project action with exact block provenance', () => {
+      requestProjectCanvasAdd.mockReset()
+      render(<MarkdownContent content={'Claim @block[attention#b0023 "Core claim"]'} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add citation to Project' }))
+
+      expect(requestProjectCanvasAdd).toHaveBeenCalledWith({
+        source: 'block_citation',
+        label: 'Core claim',
+        node: {
+          type: 'paper_block',
+          ref: '@block[attention#b0023 "Core claim"]',
+          title: 'Core claim',
+        },
+      })
+    })
+
     it('renders @block citations as clickable tokens', () => {
       const onBlockCitationClick = vi.fn()
       const { container } = render(

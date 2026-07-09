@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { APP_COMMAND_IDS, getAppCommandShortcutDisplay } from '../hooks/appCommandCatalog'
 import { makeEntry, mockEntries, renderNoteList } from '../test-utils/noteListTestUtils'
 
+const requestProjectCanvasAdd = vi.hoisted(() => vi.fn())
+
+vi.mock('./project-canvas/projectCanvasAddContext', () => ({
+  useProjectCanvasAdd: () => requestProjectCanvasAdd,
+}))
+
 function setViewportSize(width: number, height: number) {
   Object.defineProperty(window, 'innerWidth', { value: width, configurable: true })
   Object.defineProperty(window, 'innerHeight', { value: height, configurable: true })
@@ -35,6 +41,22 @@ function clickBuildLaputaAction(label: string) {
 }
 
 describe('NoteList context menu', () => {
+  it('adds Note and Paper entries to a Project through the shared picker request', () => {
+    requestProjectCanvasAdd.mockReset()
+    renderNoteList({ entries: [mockEntries[1]] })
+
+    fireEvent.contextMenu(screen.getByText('Facebook Ads Strategy'))
+    fireEvent.click(screen.getByText('Add to Project'))
+
+    expect(requestProjectCanvasAdd).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'note_list',
+      node: expect.objectContaining({
+        type: 'note',
+        ref: mockEntries[1].path,
+      }),
+    }))
+  })
+
   it('opens note actions from a right-clicked note item', () => {
     const onOpenInNewWindow = vi.fn()
     const onEnterNeighborhood = vi.fn()

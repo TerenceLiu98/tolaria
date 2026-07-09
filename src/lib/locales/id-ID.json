@@ -1231,5 +1231,12 @@
   "projectCanvas.workspace": "Workspace",
   "projectCanvas.summaryHint": "Select a node or edge to inspect it. Drop text, image paths, or @block citations onto the canvas to add them quickly.",
   "projectCanvas.undo": "Undo",
-  "projectCanvas.redo": "Redo"
+  "projectCanvas.redo": "Ulangi",
+  "projectCanvas.picker.title": "Tambahkan ke proyek",
+  "projectCanvas.picker.description": "Pilih proyek untuk {item}.",
+  "projectCanvas.picker.search": "Cari proyek...",
+  "projectCanvas.picker.empty": "Proyek tidak ditemukan",
+  "projectCanvas.picker.adding": "Menambahkan ke proyek...",
+  "projectCanvas.addCitation": "Tambahkan sitasi ke proyek",
+  "projectCanvas.aiAnswerTitle": "Jawaban riset AI"
 }

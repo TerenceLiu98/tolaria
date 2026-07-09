@@ -33,6 +33,12 @@ import { boundedSnippet, findEntryForProjectCanvasRef, paperSubtitle, relativeVa
 import { PROJECT_CANVAS_DRAG_MIME, readProjectCanvasDragPayload } from './projectCanvasDragData'
 import { ProjectCanvasInspector } from './ProjectCanvasInspector'
 import {
+  consumeProjectCanvasOpen,
+  pendingProjectCanvasOpen,
+  PROJECT_CANVAS_OPEN_EVENT,
+  type ProjectCanvasOpenEvent,
+} from './projectCanvasNavigation'
+import {
   autoLayoutCanvas,
   canvasBounds,
   canvasWithFitToView,
@@ -230,6 +236,15 @@ export function ProjectCanvasSurface({
     void loadCanvas()
   }, [loadCanvas])
 
+  useEffect(() => {
+    const handleOpen = (event: Event) => {
+      const intent = (event as ProjectCanvasOpenEvent).detail
+      if (intent.projectPath === entry.path) void loadCanvas()
+    }
+    window.addEventListener(PROJECT_CANVAS_OPEN_EVENT, handleOpen)
+    return () => window.removeEventListener(PROJECT_CANVAS_OPEN_EVENT, handleOpen)
+  }, [entry.path, loadCanvas])
+
   useEffect(() => () => {
     if (zoomSaveTimerRef.current !== null) window.clearTimeout(zoomSaveTimerRef.current)
   }, [])
@@ -355,6 +370,21 @@ export function ProjectCanvasSurface({
     setSelectedNodeIds(nodeId ? [nodeId] : [])
     setSelectedEdgeId(null)
   }, [])
+
+  useEffect(() => {
+    const intent = pendingProjectCanvasOpen(entry.path)
+    if (!intent || !canvas) return
+    const node = canvas.nodes.find(candidate => candidate.id === intent.nodeId)
+    if (!node) return
+    consumeProjectCanvasOpen(entry.path)
+    const rect = viewportRef.current?.getBoundingClientRect()
+    const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
+    const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
+    const focused = canvasWithFocusedNode(canvas, node, viewportWidth, viewportHeight)
+    setCanvas(focused)
+    canvasRef.current = focused
+    selectSingleNode(node.id)
+  }, [canvas, entry.path, selectSingleNode])
 
   const toggleNodeSelection = useCallback((nodeId: string) => {
     setSelectedEdgeId(null)

@@ -2,6 +2,12 @@ import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { AiMessage } from './AiMessage'
 
+const requestProjectCanvasAdd = vi.hoisted(() => vi.fn())
+
+vi.mock('./project-canvas/projectCanvasAddContext', () => ({
+  useProjectCanvasAdd: () => requestProjectCanvasAdd,
+}))
+
 vi.mock('./MarkdownContent', () => ({
   MarkdownContent: ({ content }: { content: string }) => <div data-testid="markdown-content">{content}</div>,
 }))
@@ -50,6 +56,22 @@ describe('AiMessage', () => {
     expect(screen.getByRole('button', { name: 'Regenerate response' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Copy response' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Fork chat from here' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Add to Project' })).toBeTruthy()
+  })
+
+  it('adds a compact cited AI answer to a Project', () => {
+    requestProjectCanvasAdd.mockReset()
+    render(<AiMessage userMessage="Ask" actions={[]} response="Claim @block[attention#b0023]" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Project' }))
+
+    expect(requestProjectCanvasAdd).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'ai_answer',
+      node: expect.objectContaining({
+        type: 'text',
+        text: 'Claim @block[attention#b0023]',
+      }),
+    }))
   })
 
   it('localizes reasoning and tool use chrome', () => {

@@ -13,6 +13,7 @@ import { CommitDialog } from './components/CommitDialog'
 import { PulseView } from './components/PulseView'
 import { StatusBar } from './components/StatusBar'
 import { AppAiWorkspaceSurface } from './components/AppAiWorkspaceSurface'
+import { ProjectCanvasAddProvider } from './components/project-canvas/ProjectCanvasAddProvider'
 import { AiWorkspaceFloatingButton } from './components/AiWorkspaceFloatingButton'
 import { AiWorkspaceWindowApp } from './components/AiWorkspaceWindowApp'
 import { SettingsPanel } from './components/SettingsPanel'
@@ -1761,7 +1762,14 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   if (aiWorkspaceWindow) {
     return (
       <AppPreferencesProvider dateDisplayFormat={dateDisplayFormat}>
-        {aiWorkspaceSurface}
+        <ProjectCanvasAddProvider
+          entries={visibleEntries}
+          locale={appLocale}
+          onOpenProject={notes.handleSelectNote}
+          vaultPath={activeEditorVaultPath ?? ''}
+        >
+          {aiWorkspaceSurface}
+        </ProjectCanvasAddProvider>
       </AppPreferencesProvider>
     )
   }
@@ -1771,7 +1779,13 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
 
   return (
     <AppPreferencesProvider dateDisplayFormat={dateDisplayFormat}>
-      <div className="app-shell">
+      <ProjectCanvasAddProvider
+        entries={visibleEntries}
+        locale={appLocale}
+        onOpenProject={notes.handleSelectNote}
+        vaultPath={activeEditorVaultPath ?? ''}
+      >
+        <div className="app-shell">
         <div className="app">
           {sidebarVisible && (
             <>
@@ -1965,7 +1979,8 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
             onCancel={folderActions.cancelDeleteFolder}
           />
         )}
-      </div>
+        </div>
+      </ProjectCanvasAddProvider>
     </AppPreferencesProvider>
   )
 }

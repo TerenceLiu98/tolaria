@@ -1231,5 +1231,12 @@
   "projectCanvas.workspace": "Workspace",
   "projectCanvas.summaryHint": "Select a node or edge to inspect it. Drop text, image paths, or @block citations onto the canvas to add them quickly.",
   "projectCanvas.undo": "Undo",
-  "projectCanvas.redo": "Redo"
+  "projectCanvas.redo": "Refazer",
+  "projectCanvas.picker.title": "Adicionar ao projeto",
+  "projectCanvas.picker.description": "Escolha um projeto para {item}.",
+  "projectCanvas.picker.search": "Pesquisar projetos...",
+  "projectCanvas.picker.empty": "Nenhum projeto encontrado",
+  "projectCanvas.picker.adding": "Adicionando ao projeto...",
+  "projectCanvas.addCitation": "Adicionar citação ao projeto",
+  "projectCanvas.aiAnswerTitle": "Resposta de pesquisa da IA"
 }

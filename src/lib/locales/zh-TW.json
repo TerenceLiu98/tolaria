@@ -1231,5 +1231,12 @@
   "projectCanvas.workspace": "工作區",
   "projectCanvas.summaryHint": "選取節點或連線即可檢視詳細資料。也可以把文字、圖片路徑或 @block 引用拖到畫布上快速新增。",
   "projectCanvas.undo": "復原",
-  "projectCanvas.redo": "重做"
+  "projectCanvas.redo": "重做",
+  "projectCanvas.picker.title": "加入專案",
+  "projectCanvas.picker.description": "為 {item} 選擇一個專案。",
+  "projectCanvas.picker.search": "搜尋專案……",
+  "projectCanvas.picker.empty": "找不到專案",
+  "projectCanvas.picker.adding": "正在加入專案……",
+  "projectCanvas.addCitation": "將引用加入專案",
+  "projectCanvas.aiAnswerTitle": "AI 研究回答"
 }

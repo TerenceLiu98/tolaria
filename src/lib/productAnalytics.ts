@@ -27,6 +27,7 @@ type SheetFormulaFunctionName = string
 type ProjectCanvasOpenState = 'ready' | 'created'
 type ProjectCanvasNodeKind = 'note' | 'paper' | 'paper_block' | 'image' | 'text' | 'task' | 'group'
 type ProjectCanvasEdgeKind = 'related' | 'supports' | 'contradicts' | 'depends_on' | 'needs_reading'
+type ProjectCanvasAddSource = 'ai_answer' | 'block_citation' | 'note_list' | 'paper_catalog'
 
 const ALL_NOTES_VISIBILITY_CATEGORIES: ReadonlyArray<keyof AllNotesFileVisibility> = [
   'pdfs',
@@ -160,6 +161,20 @@ export function trackProjectCanvasNodeAdded(params: { linked: boolean; nodeType:
 
 export function trackProjectCanvasEdgeCreated(params: { kind: ProjectCanvasEdgeKind }): void {
   trackEvent('project_canvas_edge_created', { kind: params.kind })
+}
+
+export function trackProjectCanvasExternalNodeAdded(params: {
+  createdCanvas: AnalyticsBoolean
+  duplicate: AnalyticsBoolean
+  nodeType: ProjectCanvasNodeKind
+  source: ProjectCanvasAddSource
+}): void {
+  trackEvent('project_canvas_external_node_added', {
+    created_canvas: numericFlag(params.createdCanvas),
+    duplicate: numericFlag(params.duplicate),
+    node_type: params.nodeType,
+    source: params.source,
+  })
 }
 
 export function trackAllNotesVisibilityChanged(

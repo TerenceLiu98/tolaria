@@ -7,6 +7,7 @@ import {
   FilePdf,
   FolderOpen,
   GitBranch,
+  Graph,
   MapTrifold,
   PencilSimple,
   Star,
@@ -51,6 +52,7 @@ interface NoteListContextMenuNodeProps {
   onCopyFilePath?: (path: string) => void
   canCopyGitUrl?: (entry: VaultEntry) => boolean
   onCopyGitUrl?: (entry: VaultEntry) => void
+  onAddToProject?: (entry: VaultEntry) => void
   onClose: () => void
 }
 
@@ -69,6 +71,7 @@ type BuildContextMenuItemsParams = Pick<
   | 'onCopyFilePath'
   | 'canCopyGitUrl'
   | 'onCopyGitUrl'
+  | 'onAddToProject'
 >
 
 function openWindowItem(
@@ -218,6 +221,20 @@ function archiveItem(
   }]
 }
 
+function addToProjectItem(
+  entry: VaultEntry,
+  locale: AppLocale,
+  onAddToProject: ((entry: VaultEntry) => void) | undefined,
+  selectAction: SelectContextAction,
+) {
+  if (!onAddToProject || (entry.isA !== 'Note' && entry.isA !== 'Paper')) return []
+  return [{
+    icon: Graph,
+    label: translate(locale, 'projectCanvas.picker.title'),
+    onSelect: () => selectAction('add_to_project', () => onAddToProject(entry)),
+  }]
+}
+
 function deleteItem(
   entry: VaultEntry,
   locale: AppLocale,
@@ -248,6 +265,7 @@ function buildContextMenuItems(
     ...revealFileItem(entry, props.locale, props.onRevealFile, selectAction),
     ...copyFilePathItem(entry, props.locale, props.onCopyFilePath, selectAction),
     ...copyGitUrlItem(entry, props.locale, props.canCopyGitUrl, props.onCopyGitUrl, selectAction),
+    ...addToProjectItem(entry, props.locale, props.onAddToProject, selectAction),
     ...exportPdfItem(entry, props.locale, props.onExportPdf, selectAction),
     ...archiveItem(entry, props.locale, props.onArchivePaths, selectAction),
     ...deleteItem(entry, props.locale, props.onDeletePaths, selectAction),
@@ -287,6 +305,7 @@ export function NoteListContextMenuNode(props: NoteListContextMenuNodeProps) {
     onCopyFilePath,
     canCopyGitUrl,
     onCopyGitUrl,
+    onAddToProject,
     onClose,
   } = props
 
@@ -312,6 +331,7 @@ export function NoteListContextMenuNode(props: NoteListContextMenuNodeProps) {
     onCopyFilePath,
     canCopyGitUrl,
     onCopyGitUrl,
+    onAddToProject,
   }, entry, selectAction)
 
   return (

@@ -1231,5 +1231,12 @@
   "projectCanvas.workspace": "Workspace",
   "projectCanvas.summaryHint": "Select a node or edge to inspect it. Drop text, image paths, or @block citations onto the canvas to add them quickly.",
   "projectCanvas.undo": "Undo",
-  "projectCanvas.redo": "Redo"
+  "projectCanvas.redo": "Paŭtaryć",
+  "projectCanvas.picker.title": "Dadać u prajekt",
+  "projectCanvas.picker.description": "Abiarycie prajekt dla {item}.",
+  "projectCanvas.picker.search": "Pošuk prajektaŭ...",
+  "projectCanvas.picker.empty": "Prajekty nia znojdzieny",
+  "projectCanvas.picker.adding": "Dadannie ŭ prajekt...",
+  "projectCanvas.addCitation": "Dadać cytatu ŭ prajekt",
+  "projectCanvas.aiAnswerTitle": "Daśledčy adkaz ŠI"
 }

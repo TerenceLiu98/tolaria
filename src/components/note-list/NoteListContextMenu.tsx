@@ -9,6 +9,8 @@ import type { AppLocale } from '../../lib/i18n'
 import { trackEvent } from '../../lib/telemetry'
 import type { VaultEntry } from '../../types'
 import { isMarkdownEntry } from '../../utils/typeDefinitions'
+import { useProjectCanvasAdd } from '../project-canvas/projectCanvasAddContext'
+import { projectCanvasRequestForEntry } from '../project-canvas/projectCanvasAddRequests'
 import { NoteListContextMenuNode, NoteListRenameDialog } from './NoteListContextMenuView'
 
 export type NoteListContextMenuState = {
@@ -31,6 +33,7 @@ interface NoteListContextMenuParams {
   onCopyFilePath?: (path: string) => void
   canCopyGitUrl?: (entry: VaultEntry) => boolean
   onCopyGitUrl?: (entry: VaultEntry) => void
+  onAddToProject?: (entry: VaultEntry) => void
 }
 
 function hasNoteListContextActions({
@@ -47,6 +50,7 @@ function hasNoteListContextActions({
   onCopyFilePath,
   canCopyGitUrl,
   onCopyGitUrl,
+  onAddToProject,
 }: NoteListContextMenuParams & { entry: VaultEntry }) {
   return [
     onOpenInNewWindow,
@@ -60,6 +64,7 @@ function hasNoteListContextActions({
     onRevealFile,
     onCopyFilePath,
     onCopyGitUrl && canCopyGitUrl?.(entry),
+    onAddToProject && (entry.isA === 'Note' || entry.isA === 'Paper'),
   ].some(Boolean)
 }
 
@@ -78,6 +83,7 @@ export function useNoteListContextMenu({
   canCopyGitUrl,
   onCopyGitUrl,
 }: NoteListContextMenuParams) {
+  const requestProjectCanvasAdd = useProjectCanvasAdd()
   const [ctxMenu, setCtxMenu] = useState<NoteListContextMenuState | null>(null)
   const [renameEntry, setRenameEntry] = useState<VaultEntry | null>(null)
   const ctxMenuRef = useRef<HTMLDivElement>(null)
@@ -89,6 +95,10 @@ export function useNoteListContextMenu({
     onRenameFilename?.(renameEntry.path, newFilenameStem)
     setRenameEntry(null)
   }, [onRenameFilename, renameEntry])
+  const addToProject = useCallback((entry: VaultEntry) => {
+    const request = projectCanvasRequestForEntry(entry)
+    if (request) requestProjectCanvasAdd?.(request)
+  }, [requestProjectCanvasAdd])
 
   useEffect(() => {
     if (!ctxMenu) return
@@ -123,6 +133,7 @@ export function useNoteListContextMenu({
       onCopyFilePath,
       canCopyGitUrl,
       onCopyGitUrl,
+      onAddToProject: requestProjectCanvasAdd ? addToProject : undefined,
     })) return
     event.preventDefault()
     event.stopPropagation()
@@ -132,12 +143,14 @@ export function useNoteListContextMenu({
     onArchivePaths,
     onCopyFilePath,
     canCopyGitUrl,
+    addToProject,
     onDeletePaths,
     onEnterNeighborhood,
     onExportPdf,
     onRenameFilename,
     onOpenInNewWindow,
     onCopyGitUrl,
+    requestProjectCanvasAdd,
     onRevealFile,
     onToggleFavorite,
     onToggleOrganized,
@@ -161,6 +174,7 @@ export function useNoteListContextMenu({
         onCopyFilePath={onCopyFilePath}
         canCopyGitUrl={canCopyGitUrl}
         onCopyGitUrl={onCopyGitUrl}
+        onAddToProject={requestProjectCanvasAdd ? addToProject : undefined}
         onClose={closeContextMenu}
       />
       <NoteListRenameDialog

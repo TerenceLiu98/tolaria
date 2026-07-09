@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { useCreateBlockNote } from '@blocknote/react'
 import { translate, type AppLocale } from '../../lib/i18n'
 import type { AiSelectedTextContext } from '../../utils/ai-context'
@@ -6,6 +6,11 @@ import type { VaultEntry } from '../../types'
 import { NoteSurface } from '../NoteSurface'
 import { Button } from '../ui/button'
 import { ProjectCanvasSurface } from './ProjectCanvasSurface'
+import {
+  pendingProjectCanvasOpen,
+  PROJECT_CANVAS_OPEN_EVENT,
+  type ProjectCanvasOpenEvent,
+} from './projectCanvasNavigation'
 import './ProjectCanvasSurface.css'
 
 interface ProjectEditorSurfaceProps {
@@ -33,7 +38,18 @@ export function ProjectEditorSurface({
   editable,
   locale = 'en',
 }: ProjectEditorSurfaceProps) {
-  const [mode, setMode] = useState<'note' | 'canvas'>('note')
+  const [mode, setMode] = useState<'note' | 'canvas'>(() => (
+    pendingProjectCanvasOpen(sourceEntry.path) ? 'canvas' : 'note'
+  ))
+
+  useEffect(() => {
+    const handleOpen = (event: Event) => {
+      const intent = (event as ProjectCanvasOpenEvent).detail
+      if (intent.projectPath === sourceEntry.path) setMode('canvas')
+    }
+    window.addEventListener(PROJECT_CANVAS_OPEN_EVENT, handleOpen)
+    return () => window.removeEventListener(PROJECT_CANVAS_OPEN_EVENT, handleOpen)
+  }, [sourceEntry.path])
 
   return (
     <div className="project-editor-surface" data-testid="project-editor-surface">

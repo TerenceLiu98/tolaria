@@ -1231,5 +1231,12 @@
   "projectCanvas.workspace": "Workspace",
   "projectCanvas.summaryHint": "Select a node or edge to inspect it. Drop text, image paths, or @block citations onto the canvas to add them quickly.",
   "projectCanvas.undo": "Undo",
-  "projectCanvas.redo": "Redo"
+  "projectCanvas.redo": "Làm lại",
+  "projectCanvas.picker.title": "Thêm vào dự án",
+  "projectCanvas.picker.description": "Chọn một dự án cho {item}.",
+  "projectCanvas.picker.search": "Tìm dự án...",
+  "projectCanvas.picker.empty": "Không tìm thấy dự án",
+  "projectCanvas.picker.adding": "Đang thêm vào dự án...",
+  "projectCanvas.addCitation": "Thêm trích dẫn vào dự án",
+  "projectCanvas.aiAnswerTitle": "Câu trả lời nghiên cứu AI"
 }

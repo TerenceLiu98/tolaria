@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { CaretRight, CaretDown, Brain, ArrowsClockwise, Copy, GitBranch, Terminal } from '@phosphor-icons/react'
+import { CaretRight, CaretDown, Brain, ArrowsClockwise, Copy, GitBranch, Graph, Terminal } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { AiActionCard, type AiActionStatus } from './AiActionCard'
 import { MarkdownContent } from './MarkdownContent'
@@ -7,6 +7,8 @@ import { translate, type AppLocale } from '../lib/i18n'
 import type { NoteReference } from '../utils/ai-context'
 import { writeClipboardText } from '../utils/clipboardText'
 import { getTypeColor, getTypeLightColor } from '../utils/typeColors'
+import { useProjectCanvasAdd } from './project-canvas/projectCanvasAddContext'
+import { projectCanvasRequestForAiResponse } from './project-canvas/projectCanvasAddRequests'
 
 export interface AiAction {
   tool: string
@@ -236,12 +238,14 @@ function ToolUseBlock({
 function ResponseActions({
   locale,
   messageId,
+  onAddToProject,
   onCopy,
   onFork,
   onRegenerate,
 }: {
   locale: AppLocale
   messageId?: string
+  onAddToProject?: () => void
   onCopy: () => void
   onFork?: (messageId: string) => void
   onRegenerate?: (messageId: string) => void
@@ -279,6 +283,20 @@ function ResponseActions({
       >
         <Copy size={14} />
       </Button>
+      {onAddToProject && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="h-6 w-6 rounded-md p-0 text-muted-foreground hover:text-foreground"
+          aria-label={translate(locale, 'projectCanvas.picker.title')}
+          title={translate(locale, 'projectCanvas.picker.title')}
+          onClick={onAddToProject}
+          data-testid="ai-message-add-to-project"
+        >
+          <Graph size={14} />
+        </Button>
+      )}
       <Button
         type="button"
         variant="ghost"
@@ -311,11 +329,18 @@ function ResponseBlock({
   onRegenerate?: (messageId: string) => void
   text: string
 }) {
+  const requestProjectCanvasAdd = useProjectCanvasAdd()
   const handleCopy = useCallback(() => {
     void writeClipboardText(text).catch((error) => {
       console.warn('[ai] Failed to copy assistant message:', error)
     })
   }, [text])
+  const handleAddToProject = useCallback(() => {
+    requestProjectCanvasAdd?.(projectCanvasRequestForAiResponse(
+      text,
+      translate(locale, 'projectCanvas.aiAnswerTitle'),
+    ))
+  }, [locale, requestProjectCanvasAdd, text])
 
   return (
     <div
@@ -323,10 +348,11 @@ function ResponseBlock({
       style={{ marginBottom: 4 }}
       data-testid="ai-response-block"
     >
-      <MarkdownContent content={text} onWikilinkClick={onNavigateWikilink} />
+      <MarkdownContent content={text} locale={locale} onWikilinkClick={onNavigateWikilink} />
       <ResponseActions
         locale={locale}
         messageId={messageId}
+        onAddToProject={requestProjectCanvasAdd ? handleAddToProject : undefined}
         onCopy={handleCopy}
         onFork={onFork}
         onRegenerate={onRegenerate}

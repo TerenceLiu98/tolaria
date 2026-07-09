@@ -1231,5 +1231,12 @@
   "projectCanvas.workspace": "Workspace",
   "projectCanvas.summaryHint": "Select a node or edge to inspect it. Drop text, image paths, or @block citations onto the canvas to add them quickly.",
   "projectCanvas.undo": "Undo",
-  "projectCanvas.redo": "Redo"
+  "projectCanvas.redo": "Gör om",
+  "projectCanvas.picker.title": "Lägg till i projekt",
+  "projectCanvas.picker.description": "Välj ett projekt för {item}.",
+  "projectCanvas.picker.search": "Sök projekt...",
+  "projectCanvas.picker.empty": "Inga projekt hittades",
+  "projectCanvas.picker.adding": "Lägger till i projekt...",
+  "projectCanvas.addCitation": "Lägg till citering i projekt",
+  "projectCanvas.aiAnswerTitle": "AI-forskningssvar"
 }
