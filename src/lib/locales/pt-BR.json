@@ -1201,5 +1201,8 @@
   "projectCanvas.addPlaceholder.group": "Name this group...",
   "projectCanvas.addCard": "Add Card",
   "projectCanvas.selectSource": "Source",
-  "projectCanvas.selected": "Selected"
+  "projectCanvas.selected": "Selected",
+  "projectCanvas.toolbar": "Project canvas tools",
+  "projectCanvas.selectTool": "Select tool",
+  "projectCanvas.addToCanvas": "Add to Canvas"
 }

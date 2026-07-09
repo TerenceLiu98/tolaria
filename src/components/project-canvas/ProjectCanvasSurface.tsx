@@ -1,4 +1,5 @@
 import type React from 'react'
+import { CheckSquare, MagnifyingGlass, Minus, Plus, Square, TextT } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { translate, type AppLocale, type TranslationKey } from '../../lib/i18n'
 import {
@@ -17,6 +18,7 @@ import type { VaultEntry } from '../../types'
 import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
 import { Input } from '../ui/input'
+import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from '../ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Textarea } from '../ui/textarea'
 import { cn } from '../../lib/utils'
@@ -629,105 +631,7 @@ export function ProjectCanvasSurface({
             })}
           </div>
         </div>
-        <div className="project-canvas-toolbar__actions">
-          <Button type="button" size="xs" variant={addPanelOpen ? 'secondary' : 'outline'} onClick={() => setAddPanelOpen(current => !current)}>
-            {translate(locale, 'projectCanvas.add')}
-          </Button>
-          <Button type="button" size="xs" variant="outline" onClick={() => handleZoom(-ZOOM_STEP)} aria-label={translate(locale, 'projectCanvas.zoomOut')}>
-            -
-          </Button>
-          <Button type="button" size="xs" variant="ghost" onClick={handleResetView}>
-            {Math.round(canvas.viewport.zoom * 100)}%
-          </Button>
-          <Button type="button" size="xs" variant="outline" onClick={() => handleZoom(ZOOM_STEP)} aria-label={translate(locale, 'projectCanvas.zoomIn')}>
-            +
-          </Button>
-        </div>
       </header>
-      {addPanelOpen ? (
-        <div className="project-canvas-add-panel">
-          <div className="project-canvas-add-panel__modes" role="group" aria-label={translate(locale, 'projectCanvas.addMode')}>
-            {(['existing', 'text', 'task', 'group'] as const).map(mode => (
-              <Button
-                key={mode}
-                type="button"
-                size="xs"
-                variant={addMode === mode ? 'secondary' : 'ghost'}
-                onClick={() => setAddMode(mode)}
-              >
-                {translate(locale, `projectCanvas.addMode.${mode}`)}
-              </Button>
-            ))}
-          </div>
-          <div className="project-canvas-add-panel__relation">
-            <label className="project-canvas-add-panel__checkbox">
-              <Checkbox
-                checked={Boolean(selectedNodeId && linkFromSelected)}
-                disabled={!selectedNodeId}
-                onCheckedChange={checked => setLinkFromSelected(checked === true)}
-              />
-              <span>
-                {selectedNode
-                  ? translate(locale, 'projectCanvas.linkFromSelected', { title: selectedNode.title ?? selectedNode.ref ?? selectedNode.id })
-                  : translate(locale, 'projectCanvas.selectSourceHint')}
-              </span>
-            </label>
-            <Select value={edgeKind} onValueChange={value => setEdgeKind(value as ProjectCanvasEdgeKind)} disabled={!selectedNodeId || !linkFromSelected}>
-              <SelectTrigger size="sm" className="project-canvas-add-panel__edge-kind" aria-label={translate(locale, 'projectCanvas.edgeKind')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" align="end">
-                {EDGE_KINDS.map(kind => (
-                  <SelectItem key={kind} value={kind}>
-                    {translate(locale, edgeKindKey(kind))}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {addMode === 'existing' ? (
-            <div className="project-canvas-add-panel__existing">
-              <Input
-                value={candidateQuery}
-                onChange={event => setCandidateQuery(event.target.value)}
-                placeholder={translate(locale, 'projectCanvas.searchPlaceholder')}
-              />
-              <div className="project-canvas-add-panel__results">
-                {candidateEntries.length > 0 ? candidateEntries.map(candidate => {
-                  const type = candidateEntryType(candidate)
-                  return (
-                    <Button
-                      key={candidate.path}
-                      type="button"
-                      variant="ghost"
-                      className="project-canvas-add-panel__candidate"
-                      onClick={() => handleAddEntry(candidate)}
-                    >
-                      <span className="project-canvas-add-panel__candidate-kind">
-                        {type ? translate(locale, `projectCanvas.node.${type}`) : ''}
-                      </span>
-                      <span className="project-canvas-add-panel__candidate-title">{candidate.title}</span>
-                    </Button>
-                  )
-                }) : (
-                  <div className="project-canvas-add-panel__empty">{translate(locale, 'projectCanvas.noCandidates')}</div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="project-canvas-add-panel__embedded">
-              <Textarea
-                value={newCardText}
-                onChange={event => setNewCardText(event.target.value)}
-                placeholder={translate(locale, `projectCanvas.addPlaceholder.${addMode}`)}
-              />
-              <Button type="button" size="sm" onClick={handleAddEmbeddedNode}>
-                {translate(locale, 'projectCanvas.addCard')}
-              </Button>
-            </div>
-          )}
-        </div>
-      ) : null}
       <div
         className="project-canvas-viewport"
         data-testid="project-canvas-viewport"
@@ -781,6 +685,117 @@ export function ProjectCanvasSurface({
             />
           ))}
         </div>
+        <div className="project-canvas-floating-toolbar" aria-label={translate(locale, 'projectCanvas.toolbar')}>
+          <Button type="button" size="icon-sm" variant="secondary" aria-label={translate(locale, 'projectCanvas.selectTool')}>
+            <Square size={15} />
+          </Button>
+          <Popover open={addPanelOpen} onOpenChange={setAddPanelOpen}>
+            <PopoverTrigger asChild>
+              <Button type="button" size="sm" variant="default">
+                <Plus size={14} />
+                {translate(locale, 'projectCanvas.add')}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="project-canvas-add-popover" align="center" side="top" sideOffset={12}>
+              <PopoverHeader>
+                <PopoverTitle>{translate(locale, 'projectCanvas.addToCanvas')}</PopoverTitle>
+              </PopoverHeader>
+              <div className="project-canvas-add-popover__modes" role="group" aria-label={translate(locale, 'projectCanvas.addMode')}>
+                {(['existing', 'text', 'task', 'group'] as const).map(mode => (
+                  <Button
+                    key={mode}
+                    type="button"
+                    size="xs"
+                    variant={addMode === mode ? 'secondary' : 'ghost'}
+                    onClick={() => setAddMode(mode)}
+                  >
+                    {mode === 'existing' ? <MagnifyingGlass size={13} /> : null}
+                    {mode === 'text' ? <TextT size={13} /> : null}
+                    {mode === 'task' ? <CheckSquare size={13} /> : null}
+                    {mode === 'group' ? <Square size={13} /> : null}
+                    {translate(locale, `projectCanvas.addMode.${mode}`)}
+                  </Button>
+                ))}
+              </div>
+              <div className="project-canvas-add-popover__relation">
+                <label className="project-canvas-add-popover__checkbox">
+                  <Checkbox
+                    checked={Boolean(selectedNodeId && linkFromSelected)}
+                    disabled={!selectedNodeId}
+                    onCheckedChange={checked => setLinkFromSelected(checked === true)}
+                  />
+                  <span>
+                    {selectedNode
+                      ? translate(locale, 'projectCanvas.linkFromSelected', { title: selectedNode.title ?? selectedNode.ref ?? selectedNode.id })
+                      : translate(locale, 'projectCanvas.selectSourceHint')}
+                  </span>
+                </label>
+                <Select value={edgeKind} onValueChange={value => setEdgeKind(value as ProjectCanvasEdgeKind)} disabled={!selectedNodeId || !linkFromSelected}>
+                  <SelectTrigger size="sm" className="project-canvas-add-popover__edge-kind" aria-label={translate(locale, 'projectCanvas.edgeKind')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="popper" align="end">
+                    {EDGE_KINDS.map(kind => (
+                      <SelectItem key={kind} value={kind}>
+                        {translate(locale, edgeKindKey(kind))}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {addMode === 'existing' ? (
+                <div className="project-canvas-add-popover__existing">
+                  <Input
+                    value={candidateQuery}
+                    onChange={event => setCandidateQuery(event.target.value)}
+                    placeholder={translate(locale, 'projectCanvas.searchPlaceholder')}
+                  />
+                  <div className="project-canvas-add-popover__results">
+                    {candidateEntries.length > 0 ? candidateEntries.map(candidate => {
+                      const type = candidateEntryType(candidate)
+                      return (
+                        <Button
+                          key={candidate.path}
+                          type="button"
+                          variant="ghost"
+                          className="project-canvas-add-popover__candidate"
+                          onClick={() => handleAddEntry(candidate)}
+                        >
+                          <span className="project-canvas-add-popover__candidate-kind">
+                            {type ? translate(locale, `projectCanvas.node.${type}`) : ''}
+                          </span>
+                          <span className="project-canvas-add-popover__candidate-title">{candidate.title}</span>
+                        </Button>
+                      )
+                    }) : (
+                      <div className="project-canvas-add-popover__empty">{translate(locale, 'projectCanvas.noCandidates')}</div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="project-canvas-add-popover__embedded">
+                  <Textarea
+                    value={newCardText}
+                    onChange={event => setNewCardText(event.target.value)}
+                    placeholder={translate(locale, `projectCanvas.addPlaceholder.${addMode}`)}
+                  />
+                  <Button type="button" size="sm" onClick={handleAddEmbeddedNode}>
+                    {translate(locale, 'projectCanvas.addCard')}
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+          <Button type="button" size="icon-sm" variant="outline" onClick={() => handleZoom(-ZOOM_STEP)} aria-label={translate(locale, 'projectCanvas.zoomOut')}>
+            <Minus size={14} />
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={handleResetView}>
+            {Math.round(canvas.viewport.zoom * 100)}%
+          </Button>
+          <Button type="button" size="icon-sm" variant="outline" onClick={() => handleZoom(ZOOM_STEP)} aria-label={translate(locale, 'projectCanvas.zoomIn')}>
+            <Plus size={14} />
+          </Button>
+        </div>
       </div>
     </section>
   )
@@ -821,7 +836,12 @@ function ProjectCanvasNodeCard({
 
   return (
     <article
-      className={cn('project-canvas-node', isStale && 'project-canvas-node--stale', selected && 'project-canvas-node--selected')}
+      className={cn(
+        'project-canvas-node',
+        `project-canvas-node--type-${node.type}`,
+        isStale && 'project-canvas-node--stale',
+        selected && 'project-canvas-node--selected',
+      )}
       data-testid="project-canvas-node"
       data-node-id={node.id}
       style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
@@ -838,18 +858,18 @@ function ProjectCanvasNodeCard({
               size="xs"
               variant={selected ? 'secondary' : 'ghost'}
               className="project-canvas-node__select"
+              aria-label={selected ? translate(locale, 'projectCanvas.selected') : translate(locale, 'projectCanvas.selectSource')}
               onClick={(event) => {
                 event.stopPropagation()
                 onSelect()
               }}
             >
-              {selected ? translate(locale, 'projectCanvas.selected') : translate(locale, 'projectCanvas.selectSource')}
+              {translate(locale, 'projectCanvas.selectSource')}
             </Button>
           </span>
         </div>
         <div className="project-canvas-node__title">{title}</div>
         {subtitle ? <div className="project-canvas-node__subtitle">{subtitle}</div> : null}
-        {node.ref ? <div className="project-canvas-node__ref">{node.ref}</div> : null}
         {isEmbedded ? (
           <Textarea
             className="project-canvas-node__textarea"
@@ -862,6 +882,11 @@ function ProjectCanvasNodeCard({
           <div className="project-canvas-node__snippet">{snippet}</div>
         ) : null}
         {isStale && resolved?.message ? <div className="project-canvas-node__message">{resolved.message}</div> : null}
+        {!isEmbedded && node.ref ? (
+          <div className="project-canvas-node__footer">
+            <span>{node.ref}</span>
+          </div>
+        ) : null}
       </div>
       <div
         className="project-canvas-node__resize"
