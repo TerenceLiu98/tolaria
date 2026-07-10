@@ -1,5 +1,5 @@
 import type React from 'react'
-import { ArrowCounterClockwise, ArrowClockwise, CheckSquare, Clipboard, CornersOut, Graph, ImageSquare, LineSegment, MagnifyingGlass, Minus, Plus, Square, TextT } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowClockwise, CheckSquare, Clipboard, CornersIn, CornersOut, Graph, ImageSquare, LineSegment, MagnifyingGlass, Minus, Plus, Square, TextT } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { translate, type AppLocale } from '../../lib/i18n'
 import {
@@ -27,6 +27,7 @@ import { cn } from '../../lib/utils'
 import {
   trackProjectCanvasCreated,
   trackProjectCanvasEdgeCreated,
+  trackProjectCanvasFocusModeChanged,
   trackProjectCanvasLayoutSaved,
   trackProjectCanvasNodeAdded,
   trackProjectCanvasOpened,
@@ -185,6 +186,7 @@ export function ProjectCanvasSurface({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [editorHost, setEditorHost] = useState<HTMLElement | null>(null)
+  const [focusMode, setFocusMode] = useState(false)
   const [linkFromSelected, setLinkFromSelected] = useState(true)
   const [edgeKind, setEdgeKind] = useState<ProjectCanvasEdgeKind>('related')
   const [connectPreview, setConnectPreview] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null)
@@ -830,7 +832,16 @@ export function ProjectCanvasSurface({
     if (editingNodeId) onSave?.()
     setEditingNodeId(null)
     setEditorHost(null)
+    setFocusMode(false)
   }, [editingNodeId, onSave])
+
+  const changeFocusMode = useCallback((enabled: boolean) => {
+    const current = canvasRef.current?.nodes.find(node => node.id === editingNodeId)
+    if (!current || (current.type !== 'note' && current.type !== 'paper')) return
+    setEditorHost(null)
+    setFocusMode(enabled)
+    trackProjectCanvasFocusModeChanged({ enabled, nodeType: current.type })
+  }, [editingNodeId])
 
   const editDocumentNode = useCallback((node: ProjectCanvasNode) => {
     if (node.type !== 'note' && node.type !== 'paper') {
@@ -843,6 +854,7 @@ export function ProjectCanvasSurface({
       handleNodeClick(node)
       return
     }
+    if (editingNodeId === node.id) return
     if (editingNodeId && editingNodeId !== node.id) onSave?.()
     setEditorHost(null)
     selectSingleNode(node.id)
@@ -933,6 +945,7 @@ export function ProjectCanvasSurface({
       onSave?.()
       setEditingNodeId(null)
       setEditorHost(null)
+      setFocusMode(false)
     }
     const selectedIds = new Set(deletableIds)
     const nextCanvas = {
@@ -957,6 +970,12 @@ export function ProjectCanvasSurface({
   }, [commitContentCanvas, selectedEdgeId])
 
   const handleCanvasKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && editingNodeId) {
+      event.preventDefault()
+      event.stopPropagation()
+      changeFocusMode(!focusMode)
+      return
+    }
     const target = event.target as HTMLElement
     if (target.closest('input, textarea, [contenteditable="true"]')) return
     const meta = event.metaKey || event.ctrlKey
@@ -985,7 +1004,7 @@ export function ProjectCanvasSurface({
       if (selectedEdgeId) deleteSelectedEdge()
       else if (selectedNodeId) deleteSelectedNode()
     }
-  }, [copySelectedNode, deleteSelectedEdge, deleteSelectedNode, pasteCopiedNode, restoreCanvasFromHistory, selectedEdgeId, selectedNodeId])
+  }, [changeFocusMode, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editingNodeId, focusMode, pasteCopiedNode, restoreCanvasFromHistory, selectedEdgeId, selectedNodeId])
 
   if (state === 'loading') {
     return <div className="project-canvas-loading">{translate(locale, 'projectCanvas.loading')}</div>
@@ -1088,8 +1107,8 @@ export function ProjectCanvasSurface({
               <ProjectCanvasNodeCard
                 key={node.id}
                 node={node}
-                editing={editingNodeId === node.id}
-                editorHostRef={editingNodeId === node.id ? setEditorHost : undefined}
+                editing={editingNodeId === node.id && !focusMode}
+                editorHostRef={editingNodeId === node.id && !focusMode ? setEditorHost : undefined}
                 entry={nodeEntry}
                 locale={locale}
                 resolved={refsByNodeId.get(node.id)}
@@ -1110,6 +1129,27 @@ export function ProjectCanvasSurface({
             )
           })}
         </div>
+        {focusMode && editingEntry ? (
+          <section
+            className="project-canvas-focus-mode"
+            data-testid="project-canvas-focus-mode"
+            onPointerDown={event => event.stopPropagation()}
+          >
+            <header className="project-canvas-focus-mode__header">
+              <div className="project-canvas-focus-mode__title">{editingEntry.title}</div>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label={translate(locale, 'projectCanvas.exitFocusMode')}
+                onClick={() => changeFocusMode(false)}
+              >
+                <CornersIn size={15} />
+              </Button>
+            </header>
+            <div className="project-canvas-focus-mode__editor" ref={setEditorHost} />
+          </section>
+        ) : null}
         {editingEntry ? (
           <CanvasEditorPortal
             key={editingEntry.path}
@@ -1117,10 +1157,11 @@ export function ProjectCanvasSurface({
             entries={entries}
             entry={editingEntry}
             locale={locale}
-            onClose={closeCanvasEditor}
+            onClose={focusMode ? () => changeFocusMode(false) : closeCanvasEditor}
             onContentChange={onContentChange}
             onNavigateWikilink={onNavigateWikilink}
             onSelectedTextContextChange={onSelectedTextContextChange}
+            onToggleFocus={() => changeFocusMode(!focusMode)}
             target={editorHost}
             vaultPath={vaultPath}
           />
@@ -1148,6 +1189,17 @@ export function ProjectCanvasSurface({
           <Button type="button" size="icon-sm" variant="secondary" aria-label={translate(locale, 'projectCanvas.selectTool')}>
             <Square size={15} />
           </Button>
+          {editingNodeId && !focusMode ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              aria-label={translate(locale, 'projectCanvas.enterFocusMode')}
+              onClick={() => changeFocusMode(true)}
+            >
+              <CornersOut size={14} />
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="icon-sm"

@@ -1217,6 +1217,8 @@
   "projectCanvas.inspectorNote": "Note",
   "projectCanvas.edgeNotePlaceholder": "Add relationship context...",
   "projectCanvas.openNode": "Open",
+  "projectCanvas.enterFocusMode": "Activar modo de enfoque",
+  "projectCanvas.exitFocusMode": "Salir del modo de enfoque",
   "projectCanvas.deleteNode": "Delete node",
   "projectCanvas.deleteEdge": "Delete edge",
   "projectCanvas.node.image": "Image",

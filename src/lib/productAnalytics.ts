@@ -153,6 +153,16 @@ export function trackProjectCanvasLayoutSaved(): void {
   trackEvent('project_canvas_layout_saved')
 }
 
+export function trackProjectCanvasFocusModeChanged(params: {
+  enabled: boolean
+  nodeType: ProjectCanvasNodeKind
+}): void {
+  trackEvent('project_canvas_focus_mode_changed', {
+    enabled: numericFlag(params.enabled),
+    node_type: params.nodeType,
+  })
+}
+
 export function trackProjectCanvasNodeAdded(params: { linked: boolean; nodeType: ProjectCanvasNodeKind }): void {
   trackEvent('project_canvas_node_added', {
     linked: numericFlag(params.linked),

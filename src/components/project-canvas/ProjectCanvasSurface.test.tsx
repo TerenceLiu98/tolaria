@@ -14,6 +14,7 @@ import { PROJECT_CANVAS_DRAG_MIME } from './projectCanvasDragData'
 vi.mock('../../lib/productAnalytics', () => ({
   trackProjectCanvasCreated: vi.fn(),
   trackProjectCanvasEdgeCreated: vi.fn(),
+  trackProjectCanvasFocusModeChanged: vi.fn(),
   trackProjectCanvasLayoutSaved: vi.fn(),
   trackProjectCanvasNodeAdded: vi.fn(),
   trackProjectCanvasOpened: vi.fn(),
@@ -325,6 +326,42 @@ describe('ProjectCanvasSurface', () => {
     expect(sourceNode).toHaveAttribute('data-presentation', 'overview')
     expect(within(sourceNode).queryByTestId('project-document-preview')).not.toBeInTheDocument()
     expect(within(sourceNode).queryByText('A bounded source note preview.')).not.toBeInTheDocument()
+  })
+
+  it('moves the single editor into Focus Mode and restores it to the node', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[entry({
+          path: '/vault/notes/source.md',
+          filename: 'source.md',
+          title: 'Source Note',
+          isA: 'Note',
+        })]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const sourceNode = (await screen.findByText('Source Note')).closest('[data-node-id="note"]') as HTMLElement
+    fireEvent.doubleClick(within(sourceNode).getByText('Source Note'))
+    expect(await screen.findByTestId('canvas-editor-portal')).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByTestId('project-canvas-viewport'), { key: 'Enter', metaKey: true })
+
+    expect(screen.getByTestId('project-canvas-focus-mode')).toBeInTheDocument()
+    expect(screen.getAllByTestId('canvas-editor-portal')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Exit focus mode' }))
+
+    expect(screen.queryByTestId('project-canvas-focus-mode')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('canvas-editor-portal')).toHaveLength(1)
   })
 
   it('persists node geometry after drag', async () => {

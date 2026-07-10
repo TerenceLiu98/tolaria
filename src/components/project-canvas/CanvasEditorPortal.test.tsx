@@ -109,4 +109,29 @@ describe('CanvasEditorPortal', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
   })
+
+  it('toggles Focus Mode from inside the editor keyboard boundary', async () => {
+    const target = document.createElement('div')
+    document.body.append(target)
+    vi.mocked(loadContentForOpen).mockResolvedValue('# Evidence')
+    editor.tryParseMarkdownToBlocks.mockResolvedValue([])
+    const onToggleFocus = vi.fn()
+
+    render(
+      <CanvasEditorPortal
+        editable
+        entries={[note]}
+        entry={note}
+        onNavigateWikilink={vi.fn()}
+        onToggleFocus={onToggleFocus}
+        target={target}
+        vaultPath="/vault"
+      />,
+    )
+
+    const portal = await screen.findByTestId('canvas-editor-portal')
+    fireEvent.keyDown(portal, { key: 'Enter', metaKey: true })
+
+    expect(onToggleFocus).toHaveBeenCalledTimes(1)
+  })
 })

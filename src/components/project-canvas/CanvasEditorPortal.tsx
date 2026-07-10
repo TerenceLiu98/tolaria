@@ -22,6 +22,7 @@ interface CanvasEditorPortalProps {
   onContentChange?: (path: string, content: string) => void
   onNavigateWikilink: (target: string) => void
   onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
+  onToggleFocus?: () => void
   target: HTMLElement | null
   vaultPath?: string
 }
@@ -35,6 +36,7 @@ export function CanvasEditorPortal({
   onContentChange,
   onNavigateWikilink,
   onSelectedTextContextChange,
+  onToggleFocus,
   target,
   vaultPath,
 }: CanvasEditorPortalProps) {
@@ -92,6 +94,11 @@ export function CanvasEditorPortal({
       onDoubleClick={event => event.stopPropagation()}
       onKeyDown={(event) => {
         event.stopPropagation()
+        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+          event.preventDefault()
+          onToggleFocus?.()
+          return
+        }
         if (event.key === 'Escape') onClose?.()
       }}
       onPointerDown={event => event.stopPropagation()}

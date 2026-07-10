@@ -324,6 +324,46 @@
   transform-origin: 0 0;
 }
 
+.project-canvas-focus-mode {
+  position: absolute;
+  inset: 12px;
+  z-index: 30;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--background));
+  box-shadow: 0 24px 70px hsl(var(--foreground) / 0.2);
+}
+
+.project-canvas-focus-mode__header {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 5px 8px 5px 14px;
+}
+
+.project-canvas-focus-mode__title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-canvas-focus-mode__editor {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
 .project-canvas-edges {
   position: absolute;
   overflow: visible;
