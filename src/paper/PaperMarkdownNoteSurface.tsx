@@ -159,6 +159,7 @@ export function PaperMarkdownNoteSurface({
   blocksReadResult,
   commentsByAnchorId,
   editor,
+  editable,
   entries,
   health,
   locale,
@@ -187,6 +188,7 @@ export function PaperMarkdownNoteSurface({
   blocksReadResult: PaperBlocksReadResult | null
   commentsByAnchorId: Record<string, NoteComment[]>
   editor: ReturnType<typeof useCreateBlockNote>
+  editable: boolean
   entries: VaultEntry[]
   health: PaperSidecarHealth
   locale: AppLocale
@@ -320,7 +322,7 @@ export function PaperMarkdownNoteSurface({
             renderThread: renderCommentThread,
             selectedAnchorId: openCommentBlockId,
           }}
-          editable={true}
+          editable={editable}
           editor={editor}
           entries={entries}
           locale={locale}

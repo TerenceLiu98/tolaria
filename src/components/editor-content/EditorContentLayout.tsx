@@ -459,10 +459,15 @@ function EditorCanvas({
         <ProjectWorkspaceSurface
           editable={!isDeletedPreview}
           entries={entries}
+          onCopyFilePath={onCopyFilePath}
           onContentChange={onRawContentChange}
           onNavigateWikilink={onNavigateWikilink}
+          onOpenExternalFile={onOpenExternalFile}
+          onParsePaper={onParsePaper}
+          onRevealFile={onRevealFile}
           onSave={onSave}
           onSelectedTextContextChange={onSelectedTextContextChange}
+          paperParserProvider={paperParserProvider}
           sourceEntry={activeTab.entry}
           vaultPath={vaultPath}
           locale={locale}

@@ -32,7 +32,16 @@ vi.mock('../NoteSurface', () => ({
   ),
 }))
 
+vi.mock('../../paper/PaperReaderShell', () => ({
+  PaperReaderShell: ({ entry, onEditorChange }: { entry: { path: string }; onEditorChange?: () => void }) => (
+    <button type="button" data-testid="canvas-paper-surface" onClick={onEditorChange}>
+      {entry.path}
+    </button>
+  ),
+}))
+
 const note = makeEntry({ isA: 'Note', path: '/vault/notes/evidence.md', title: 'Evidence' })
+const paper = makeEntry({ isA: 'Paper', path: '/vault/papers/evidence/paper.md', title: 'Evidence Paper' })
 
 describe('CanvasEditorPortal', () => {
   beforeEach(() => {
@@ -133,5 +142,33 @@ describe('CanvasEditorPortal', () => {
     fireEvent.keyDown(portal, { key: 'Enter', metaKey: true })
 
     expect(onToggleFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes Paper documents through the existing Paper reader capabilities', async () => {
+    const target = document.createElement('div')
+    document.body.append(target)
+    const content = '---\ntype: Paper\npaper_id: evidence\n---\n\n# Evidence'
+    vi.mocked(loadContentForOpen).mockResolvedValue(content)
+    editor.tryParseMarkdownToBlocks.mockResolvedValue([])
+    vi.mocked(serializeRichEditorDocumentToMarkdown).mockReturnValue(content)
+    const onContentChange = vi.fn()
+
+    render(
+      <CanvasEditorPortal
+        editable
+        entries={[paper]}
+        entry={paper}
+        onContentChange={onContentChange}
+        onNavigateWikilink={vi.fn()}
+        target={target}
+        vaultPath="/vault"
+      />,
+    )
+
+    const paperSurface = await screen.findByTestId('canvas-paper-surface')
+    expect(screen.queryByTestId('canvas-note-surface')).not.toBeInTheDocument()
+    fireEvent.click(paperSurface)
+
+    expect(onContentChange).toHaveBeenCalledWith(paper.path, content)
   })
 })

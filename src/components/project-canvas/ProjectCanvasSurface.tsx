@@ -16,6 +16,7 @@ import {
 } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
 import type { AiSelectedTextContext } from '../../utils/ai-context'
+import type { PaperParserProvider } from '../../paper/parserSettings'
 import { publishProjectCanvasSelection } from '../../projectCanvasSelectionStore'
 import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
@@ -74,10 +75,15 @@ interface ProjectCanvasSurfaceProps {
   entries: VaultEntry[]
   vaultPath?: string
   locale?: AppLocale
+  onCopyFilePath?: (path: string) => void
   onContentChange?: (path: string, content: string) => void
   onNavigateWikilink: (target: string) => void
+  onOpenExternalFile?: (path: string) => void
+  onParsePaper?: (paperId: string, options?: { force?: boolean }) => void | Promise<void>
+  onRevealFile?: (path: string) => void
   onSave?: () => void
   onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
+  paperParserProvider?: PaperParserProvider
 }
 
 type CanvasOperation =
@@ -167,10 +173,15 @@ export function ProjectCanvasSurface({
   entries,
   vaultPath = '',
   locale = 'en',
+  onCopyFilePath,
   onContentChange,
   onNavigateWikilink,
+  onOpenExternalFile,
+  onParsePaper,
+  onRevealFile,
   onSave,
   onSelectedTextContextChange,
+  paperParserProvider = 'none',
 }: ProjectCanvasSurfaceProps) {
   const [canvas, setCanvas] = useState<ProjectCanvas | null>(null)
   const [refs, setRefs] = useState<ProjectCanvasResolvedRef[]>([])
@@ -1158,10 +1169,15 @@ export function ProjectCanvasSurface({
             entry={editingEntry}
             locale={locale}
             onClose={focusMode ? () => changeFocusMode(false) : closeCanvasEditor}
+            onCopyFilePath={onCopyFilePath}
             onContentChange={onContentChange}
             onNavigateWikilink={onNavigateWikilink}
+            onOpenExternalFile={onOpenExternalFile}
+            onParsePaper={onParsePaper}
+            onRevealFile={onRevealFile}
             onSelectedTextContextChange={onSelectedTextContextChange}
             onToggleFocus={() => changeFocusMode(!focusMode)}
+            paperParserProvider={paperParserProvider}
             target={editorHost}
             vaultPath={vaultPath}
           />

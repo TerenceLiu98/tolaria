@@ -7,11 +7,13 @@ import {
 } from '../../hooks/noteContentCache'
 import { extractEditorBody } from '../../hooks/editorTabContent'
 import type { AppLocale } from '../../lib/i18n'
+import type { PaperParserProvider } from '../../paper/parserSettings'
 import type { VaultEntry } from '../../types'
 import type { AiSelectedTextContext } from '../../utils/ai-context'
 import { serializeRichEditorDocumentToMarkdown } from '../../utils/richEditorMarkdown'
 import { NoteSurface } from '../NoteSurface'
 import { useSapientiaBlockNoteEditor } from '../useSapientiaBlockNoteEditor'
+import { PaperReaderShell } from '../../paper/PaperReaderShell'
 
 interface CanvasEditorPortalProps {
   editable: boolean
@@ -19,10 +21,15 @@ interface CanvasEditorPortalProps {
   entry: VaultEntry
   locale?: AppLocale
   onClose?: () => void
+  onCopyFilePath?: (path: string) => void
   onContentChange?: (path: string, content: string) => void
+  onOpenExternalFile?: (path: string) => void
   onNavigateWikilink: (target: string) => void
+  onParsePaper?: (paperId: string, options?: { force?: boolean }) => void | Promise<void>
+  onRevealFile?: (path: string) => void
   onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   onToggleFocus?: () => void
+  paperParserProvider?: PaperParserProvider
   target: HTMLElement | null
   vaultPath?: string
 }
@@ -33,10 +40,15 @@ export function CanvasEditorPortal({
   entry,
   locale = 'en',
   onClose,
+  onCopyFilePath,
   onContentChange,
+  onOpenExternalFile,
   onNavigateWikilink,
+  onParsePaper,
+  onRevealFile,
   onSelectedTextContextChange,
   onToggleFocus,
+  paperParserProvider = 'none',
   target,
   vaultPath,
 }: CanvasEditorPortalProps) {
@@ -104,19 +116,39 @@ export function CanvasEditorPortal({
       onPointerDown={event => event.stopPropagation()}
       onWheel={event => event.stopPropagation()}
     >
-      <NoteSurface
-        className="canvas-editor-portal__surface"
-        currentContent={sourceContent}
-        editable={editable}
-        editor={editor}
-        entries={entries}
-        locale={locale}
-        onChange={handleChange}
-        onNavigateWikilink={onNavigateWikilink}
-        onSelectedTextContextChange={onSelectedTextContextChange}
-        sourceEntry={entry}
-        vaultPath={vaultPath}
-      />
+      {entry.isA === 'Paper' ? (
+        <PaperReaderShell
+          content={sourceContent}
+          editable={editable}
+          editor={editor}
+          entries={entries}
+          entry={entry}
+          locale={locale}
+          onCopyFilePath={onCopyFilePath}
+          onEditorChange={handleChange}
+          onNavigateWikilink={onNavigateWikilink}
+          onOpenExternalFile={onOpenExternalFile}
+          onParsePaper={onParsePaper}
+          onRevealFile={onRevealFile}
+          onSelectedTextContextChange={onSelectedTextContextChange}
+          paperParserProvider={paperParserProvider}
+          vaultPath={vaultPath}
+        />
+      ) : (
+        <NoteSurface
+          className="canvas-editor-portal__surface"
+          currentContent={sourceContent}
+          editable={editable}
+          editor={editor}
+          entries={entries}
+          locale={locale}
+          onChange={handleChange}
+          onNavigateWikilink={onNavigateWikilink}
+          onSelectedTextContextChange={onSelectedTextContextChange}
+          sourceEntry={entry}
+          vaultPath={vaultPath}
+        />
+      )}
     </div>,
     target,
   )

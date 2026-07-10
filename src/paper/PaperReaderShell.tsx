@@ -50,6 +50,7 @@ import { PaperMarkdownNoteSurface } from './PaperMarkdownNoteSurface'
 import { usePaperReaderActions } from './paperReaderActions'
 
 interface PaperReaderShellProps {
+  editable?: boolean
   entry: VaultEntry
   content: string
   editor: ReturnType<typeof useCreateBlockNote>
@@ -182,6 +183,7 @@ function InvalidPaperMetadata({ entry, locale }: { entry: VaultEntry; locale: Ap
 }
 
 export function PaperReaderShell({
+  editable = true,
   entry,
   content,
   editor,
@@ -367,6 +369,7 @@ export function PaperReaderShell({
             blocksReadResult={blocksState.result}
             commentsByAnchorId={commentsByAnchorId}
             editor={editor}
+            editable={editable}
             entries={entries}
             health={sidecarHealth}
             locale={locale}
