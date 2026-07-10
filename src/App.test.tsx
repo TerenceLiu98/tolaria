@@ -593,6 +593,40 @@ describe('App', () => {
     mockCommandResults.list_vault = listVault
     mockCommandResults.reload_vault_entry = reloadVaultEntry
     mockCommandResults.get_note_content = getNoteContent
+    mockCommandResults.read_project_canvas = {
+      canvasPath: 'project/test.canvas.json',
+      projectPath: 'project/test.md',
+      state: 'ready',
+      canvas: {
+        edges: [],
+        nodes: [{
+          height: 280,
+          id: 'project_overview',
+          ref: 'project/test.md',
+          type: 'note',
+          width: 420,
+          x: 0,
+          y: 0,
+        }],
+        project: 'project/test.md',
+        sapientia: { schema: 'project-canvas/v1' },
+        version: 1,
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    }
+    mockCommandResults.resolve_project_canvas_refs = {
+      canvasPath: 'project/test.canvas.json',
+      diagnostics: [],
+      projectPath: 'project/test.md',
+      refs: [{
+        nodeId: 'project_overview',
+        nodeType: 'note',
+        ref: 'project/test.md',
+        state: 'resolved',
+        targetPath: 'project/test.md',
+        targetTitle: 'Test Project',
+      }],
+    }
     window.history.replaceState(
       {},
       '',
@@ -606,7 +640,9 @@ describe('App', () => {
     await waitFor(() => expect(getNoteContent).toHaveBeenCalled())
     expect(getNoteContent).toHaveBeenCalledWith({ path: '/vault/project/test.md', vaultPath: '/vault' })
     await waitFor(() => expect(window.__laputaTest?.activeTabPath).toBe('/vault/project/test.md'))
-    expect(screen.getByTestId('blocknote-view')).toHaveAttribute('data-editable', 'true')
+    expect(await screen.findByTestId('project-workspace-surface')).toBeInTheDocument()
+    expect(screen.getByTestId('project-canvas-surface')).toBeInTheDocument()
+    expect(screen.queryByTestId('blocknote-view')).not.toBeInTheDocument()
     expect(listVault).toHaveBeenCalled()
   })
 
