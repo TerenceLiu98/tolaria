@@ -59,7 +59,7 @@ describe('AiMessage', () => {
     expect(screen.getByRole('button', { name: 'Add to Project' })).toBeTruthy()
   })
 
-  it('adds a compact cited AI answer to a Project', () => {
+  it('requests a reviewable cited Note draft for a Project', () => {
     requestProjectCanvasAdd.mockReset()
     render(<AiMessage userMessage="Ask" actions={[]} response="Claim @block[attention#b0023]" />)
 
@@ -68,7 +68,7 @@ describe('AiMessage', () => {
     expect(requestProjectCanvasAdd).toHaveBeenCalledWith(expect.objectContaining({
       source: 'ai_answer',
       node: expect.objectContaining({
-        type: 'text',
+        type: 'note',
         text: 'Claim @block[attention#b0023]',
       }),
     }))
