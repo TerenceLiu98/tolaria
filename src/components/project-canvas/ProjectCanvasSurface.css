@@ -317,6 +317,84 @@
   cursor: grabbing;
 }
 
+.project-canvas-navigator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 18;
+  display: flex;
+  width: 208px;
+  min-height: 0;
+  flex-direction: column;
+  cursor: default;
+  border-right: 1px solid hsl(var(--border));
+  background: hsl(var(--background) / 0.96);
+  backdrop-filter: blur(12px);
+}
+
+.project-canvas-navigator__header {
+  display: flex;
+  min-height: 39px;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.project-canvas-navigator__sections {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 6px 72px;
+}
+
+.project-canvas-navigator__section + .project-canvas-navigator__section {
+  margin-top: 8px;
+}
+
+.project-canvas-navigator__section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 7px 4px;
+  color: hsl(var(--muted-foreground));
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.project-canvas-navigator__item {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 7px;
+  padding: 0 7px;
+  font-weight: 450;
+}
+
+.project-canvas-navigator__item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-canvas-navigator__item-label::before {
+  content: attr(data-label);
+}
+
+.project-canvas-navigator__item--active {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+@media (max-width: 760px) {
+  .project-canvas-navigator {
+    display: none;
+  }
+}
+
 .project-canvas-world {
   position: absolute;
   left: 0;

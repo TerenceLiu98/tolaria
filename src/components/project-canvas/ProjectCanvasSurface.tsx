@@ -30,6 +30,7 @@ import {
   trackProjectCanvasEdgeCreated,
   trackProjectCanvasFocusModeChanged,
   trackProjectCanvasLayoutSaved,
+  trackProjectCanvasNavigatorFocused,
   trackProjectCanvasNodeAdded,
   trackProjectCanvasOpened,
   trackProjectCanvasPeekOpened,
@@ -65,6 +66,7 @@ import {
 } from './projectCanvasDisplay'
 import { looksLikeBlockCitation, looksLikeImageRef, nodeIsEmbedded, titleFromPath } from './projectCanvasNodeModel'
 import { ProjectCanvasNodeCard } from './ProjectCanvasNodeCard'
+import { ProjectCanvasNavigator } from './ProjectCanvasNavigator'
 import './ProjectCanvasSurface.css'
 
 const MIN_NODE_WIDTH = 180
@@ -1160,6 +1162,15 @@ export function ProjectCanvasSurface({
         onKeyDown={handleCanvasKeyDown}
         onPointerDown={handleViewportPointerDown}
       >
+        <ProjectCanvasNavigator
+          locale={locale}
+          nodes={canvas.nodes}
+          selectedNodeId={selectedNodeId}
+          onFocusNode={node => {
+            focusNode(node, false)
+            trackProjectCanvasNavigatorFocused({ nodeType: node.type })
+          }}
+        />
         <div
           className="project-canvas-world"
           style={{

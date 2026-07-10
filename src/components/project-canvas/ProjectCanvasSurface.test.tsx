@@ -19,6 +19,7 @@ vi.mock('../../lib/productAnalytics', () => ({
   trackProjectCanvasPeekOpened: vi.fn(),
   trackProjectCanvasPeekPinned: vi.fn(),
   trackProjectCanvasLayoutSaved: vi.fn(),
+  trackProjectCanvasNavigatorFocused: vi.fn(),
   trackProjectCanvasNodeAdded: vi.fn(),
   trackProjectCanvasOpened: vi.fn(),
 }))
@@ -338,6 +339,28 @@ describe('ProjectCanvasSurface', () => {
     expect(sourceNode).toHaveAttribute('data-presentation', 'overview')
     expect(within(sourceNode).queryByTestId('project-document-preview')).not.toBeInTheDocument()
     expect(within(sourceNode).queryByText('A bounded source note preview.')).not.toBeInTheDocument()
+  })
+
+  it('focuses a Canvas node from the derived Project navigator', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await screen.findByText('Source Note')
+    fireEvent.click(screen.getByTestId('project-canvas-navigator-node-task'))
+
+    expect(screen.getByTestId('project-canvas-navigator-node-task')).toHaveAttribute('aria-current', 'true')
+    expect(projectCanvas.saveProjectCanvas).not.toHaveBeenCalled()
   })
 
   it('moves the single editor into Focus Mode and restores it to the node', async () => {
