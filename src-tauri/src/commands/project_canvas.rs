@@ -120,6 +120,15 @@ mod tests {
         .unwrap();
         assert_eq!(created.canvas_path, "projects/alpha/project.canvas.json");
 
+        let paths = project_canvas_paths(
+            dir.path().to_path_buf(),
+            "projects/alpha/project.md".to_string(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(paths.project_path, "projects/alpha/project.md");
+        assert_eq!(paths.canvas_path, "projects/alpha/project.canvas.json");
+
         let mut canvas = created.canvas.unwrap();
         canvas.nodes = vec![
             ProjectCanvasNode {
