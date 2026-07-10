@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as projectCanvas from '../../projectCanvas'
 import {
@@ -10,6 +10,7 @@ import {
 import type { VaultEntry } from '../../types'
 import { ProjectCanvasSurface } from './ProjectCanvasSurface'
 import { PROJECT_CANVAS_DRAG_MIME } from './projectCanvasDragData'
+import { requestProjectCanvasNavigate } from './projectCanvasNavigation'
 
 vi.mock('../../lib/productAnalytics', () => ({
   trackProjectCanvasCreated: vi.fn(),
@@ -452,6 +453,41 @@ describe('ProjectCanvasSurface', () => {
     const saved = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
     expect(saved?.nodes.some(node => node.ref === 'notes/linked.md')).toBe(true)
     expect(screen.queryByTestId('project-canvas-peek-node')).not.toBeInTheDocument()
+  })
+
+  it('opens an externally requested Paper target inside the Canvas as a Peek', async () => {
+    const canvas = sampleCanvas()
+    const paper = entry({
+      path: '/vault/papers/attention/paper.md',
+      filename: 'paper.md',
+      title: 'Attention Is All You Need',
+      isA: 'Paper',
+      properties: { paper_id: 'attention' },
+    })
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[paper]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await screen.findByText('Source Note')
+    act(() => {
+      requestProjectCanvasNavigate({
+        projectPath: '/vault/projects/alpha/project.md',
+        target: paper.path,
+      })
+    })
+
+    expect(await screen.findByText('Attention Is All You Need')).toBeInTheDocument()
+    expect(screen.getByText('Peek')).toBeInTheDocument()
+    expect(projectCanvas.saveProjectCanvas).not.toHaveBeenCalled()
   })
 
   it('persists node geometry after drag', async () => {

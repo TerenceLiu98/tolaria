@@ -4,17 +4,20 @@ import {
   BLOCK_CITATION_NAVIGATE_EVENT,
   findPaperEntryForBlockCitation,
   setPendingBlockFocus,
+  type BlockCitationNavigationRequest,
   type BlockCitationNavigationEvent,
 } from './blockCitationNavigation'
 
 interface UseBlockCitationNavigationConfig {
   entries: readonly VaultEntry[]
+  onNavigateResolvedPaper?: (entry: VaultEntry, request: BlockCitationNavigationRequest) => boolean
   onSelectPaper: (entry: VaultEntry) => void | Promise<void>
   onSelectPaperSection?: () => void
 }
 
 export function useBlockCitationNavigation({
   entries,
+  onNavigateResolvedPaper,
   onSelectPaper,
   onSelectPaperSection,
 }: UseBlockCitationNavigationConfig): void {
@@ -24,6 +27,7 @@ export function useBlockCitationNavigation({
       setPendingBlockFocus(request)
       const paperEntry = findPaperEntryForBlockCitation(entries, request.paperId)
       if (!paperEntry) return
+      if (onNavigateResolvedPaper?.(paperEntry, request)) return
 
       onSelectPaperSection?.()
       void onSelectPaper(paperEntry)
@@ -31,5 +35,5 @@ export function useBlockCitationNavigation({
 
     window.addEventListener(BLOCK_CITATION_NAVIGATE_EVENT, handleNavigate)
     return () => window.removeEventListener(BLOCK_CITATION_NAVIGATE_EVENT, handleNavigate)
-  }, [entries, onSelectPaper, onSelectPaperSection])
+  }, [entries, onNavigateResolvedPaper, onSelectPaper, onSelectPaperSection])
 }

@@ -40,9 +40,12 @@ import { PROJECT_CANVAS_DRAG_MIME, readProjectCanvasDragPayload } from './projec
 import { ProjectCanvasInspector } from './ProjectCanvasInspector'
 import { CanvasEditorPortal } from './CanvasEditorPortal'
 import {
+  consumeProjectCanvasNavigate,
   consumeProjectCanvasOpen,
   pendingProjectCanvasOpen,
+  PROJECT_CANVAS_NAVIGATE_EVENT,
   PROJECT_CANVAS_OPEN_EVENT,
+  type ProjectCanvasNavigateEvent,
   type ProjectCanvasOpenEvent,
 } from './projectCanvasNavigation'
 import {
@@ -956,6 +959,22 @@ export function ProjectCanvasSurface({
     setEditingNodeId(nextPeek.id)
     trackProjectCanvasPeekOpened({ nodeType })
   }, [canvasCenter, editDocumentNode, editingNodeId, entries, focusNode, onNavigateWikilink, onSave, peekNode, refsByNodeId, selectedNodeId, vaultPath])
+
+  useEffect(() => {
+    const navigate = (target: string) => {
+      consumeProjectCanvasNavigate(entry.path)
+      handleCanvasNavigate(target)
+    }
+    const pending = consumeProjectCanvasNavigate(entry.path)
+    if (pending) handleCanvasNavigate(pending.target)
+
+    const handleNavigate = (event: Event) => {
+      const intent = (event as ProjectCanvasNavigateEvent).detail
+      if (intent.projectPath === entry.path) navigate(intent.target)
+    }
+    window.addEventListener(PROJECT_CANVAS_NAVIGATE_EVENT, handleNavigate)
+    return () => window.removeEventListener(PROJECT_CANVAS_NAVIGATE_EVENT, handleNavigate)
+  }, [entry.path, handleCanvasNavigate])
 
   const handleSelectNode = useCallback((node: ProjectCanvasNode, event?: React.MouseEvent<HTMLElement>) => {
     if (event?.metaKey || event?.ctrlKey || event?.shiftKey) {

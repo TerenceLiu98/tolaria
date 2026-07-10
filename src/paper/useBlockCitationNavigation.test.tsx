@@ -47,14 +47,16 @@ function vaultEntry(overrides: Partial<VaultEntry>): VaultEntry {
 
 function HookHarness({
   entries,
+  onNavigateResolvedPaper,
   onSelectPaper,
   onSelectPaperSection,
 }: {
   entries: readonly VaultEntry[]
+  onNavigateResolvedPaper?: (entry: VaultEntry) => boolean
   onSelectPaper: (entry: VaultEntry) => void
   onSelectPaperSection: () => void
 }) {
-  useBlockCitationNavigation({ entries, onSelectPaper, onSelectPaperSection })
+  useBlockCitationNavigation({ entries, onNavigateResolvedPaper, onSelectPaper, onSelectPaperSection })
   return null
 }
 
@@ -126,5 +128,40 @@ describe('useBlockCitationNavigation', () => {
       paperId: 'missing-paper',
       blockId: 'b0001',
     })
+  })
+
+  it('lets the active Project Canvas handle a resolved Paper without opening it standalone', () => {
+    const paper = vaultEntry({
+      path: '/vault/papers/attention/paper.md',
+      filename: 'paper.md',
+      title: 'Attention Is All You Need',
+      isA: 'Paper',
+      properties: { paper_id: 'attention' },
+    })
+    const onNavigateResolvedPaper = vi.fn(() => true)
+    const onSelectPaper = vi.fn()
+    const onSelectPaperSection = vi.fn()
+    render(
+      <HookHarness
+        entries={[paper]}
+        onNavigateResolvedPaper={onNavigateResolvedPaper}
+        onSelectPaper={onSelectPaper}
+        onSelectPaperSection={onSelectPaperSection}
+      />,
+    )
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(BLOCK_CITATION_NAVIGATE_EVENT, {
+        detail: { paperId: 'attention', blockId: 'b0042' },
+      }))
+    })
+
+    expect(onNavigateResolvedPaper).toHaveBeenCalledWith(
+      paper,
+      { paperId: 'attention', blockId: 'b0042' },
+    )
+    expect(onSelectPaperSection).not.toHaveBeenCalled()
+    expect(onSelectPaper).not.toHaveBeenCalled()
+    expect(getPendingBlockFocus()).toEqual({ paperId: 'attention', blockId: 'b0042' })
   })
 })

@@ -14,6 +14,7 @@ import { PulseView } from './components/PulseView'
 import { StatusBar } from './components/StatusBar'
 import { AppAiWorkspaceSurface } from './components/AppAiWorkspaceSurface'
 import { ProjectCanvasAddProvider } from './components/project-canvas/ProjectCanvasAddProvider'
+import { requestProjectCanvasNavigate } from './components/project-canvas/projectCanvasNavigation'
 import { AiWorkspaceFloatingButton } from './components/AiWorkspaceFloatingButton'
 import { AiWorkspaceWindowApp } from './components/AiWorkspaceWindowApp'
 import { SettingsPanel } from './components/SettingsPanel'
@@ -619,8 +620,20 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   const selectPaperSectionForCitation = useCallback(() => {
     handleSetSelection({ kind: 'sectionGroup', type: 'Paper' })
   }, [handleSetSelection])
+  const navigateBlockCitationInsideProject = useCallback((paperEntry: VaultEntry) => {
+    const activeProject = notes.tabs.find(tab => (
+      tab.entry.path === notes.activeTabPath && tab.entry.isA === 'Project'
+    ))
+    if (!activeProject) return false
+    requestProjectCanvasNavigate({
+      projectPath: activeProject.entry.path,
+      target: paperEntry.path,
+    })
+    return true
+  }, [notes.activeTabPath, notes.tabs])
   useBlockCitationNavigation({
     entries: visibleEntries,
+    onNavigateResolvedPaper: navigateBlockCitationInsideProject,
     onSelectPaper: handleSelectNote,
     onSelectPaperSection: selectPaperSectionForCitation,
   })
