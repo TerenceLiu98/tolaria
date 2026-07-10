@@ -20,8 +20,8 @@ test.describe('responsive note deletion', () => {
 
   test('keyboard delete keeps the app responsive while deletion is in flight @smoke', async ({ page }) => {
     await openFixtureVaultDesktopHarness(page, tempVaultDir)
-    await page.getByText('Alpha Project', { exact: true }).first().click()
-    await expect(page.getByRole('heading', { name: 'Alpha Project', level: 1 })).toBeVisible({ timeout: 5_000 })
+    await page.getByText('Note B', { exact: true }).first().click()
+    await expect(page.getByRole('heading', { name: 'Note B', level: 1 })).toBeVisible({ timeout: 5_000 })
 
     await page.evaluate(() => {
       const handlers = window.__mockHandlers
@@ -47,10 +47,10 @@ test.describe('responsive note deletion', () => {
     await triggerShortcutCommand(page, APP_COMMAND_IDS.fileQuickOpen)
     const quickOpenInput = page.locator('input[placeholder="Search notes..."]')
     await expect(quickOpenInput).toBeVisible({ timeout: 5_000 })
-    await quickOpenInput.fill('Note B')
+    await quickOpenInput.fill('Note C')
     await page.keyboard.press('Enter')
 
-    await expect(page.getByRole('heading', { name: 'Note B', level: 1 })).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByRole('heading', { name: 'Note C', level: 1 })).toBeVisible({ timeout: 5_000 })
     await expect(progressNotice).toBeVisible()
     await page.evaluate(() => {
       const { __resolveDelete: resolveDelete } = window as typeof window & { __resolveDelete?: () => void }
@@ -63,8 +63,8 @@ test.describe('responsive note deletion', () => {
 
   test('breadcrumb delete menu responds to a single pointer click @smoke', async ({ page }) => {
     await openFixtureVaultDesktopHarness(page, tempVaultDir)
-    await page.getByText('Alpha Project', { exact: true }).first().click()
-    await expect(page.getByRole('heading', { name: 'Alpha Project', level: 1 })).toBeVisible({ timeout: 5_000 })
+    await page.getByText('Note B', { exact: true }).first().click()
+    await expect(page.getByRole('heading', { name: 'Note B', level: 1 })).toBeVisible({ timeout: 5_000 })
 
     await page.getByRole('button', { name: 'More note actions' }).click()
     const menu = page.getByRole('menu')

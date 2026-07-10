@@ -89,6 +89,16 @@ async function expectUntitledNoteWithoutCrash(
   expect(errors).toEqual([])
 }
 
+async function expectUntitledProjectWithoutCrash(page: Page, createProject: () => Promise<void>): Promise<void> {
+  const errors = capturePageErrors(page)
+
+  await createProject()
+  await expect(untitledRow(page, 'project')).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByTestId('project-workspace-surface')).toBeVisible({ timeout: 5_000 })
+
+  expect(errors).toEqual([])
+}
+
 test.describe('Create note crash fix', () => {
   test.beforeEach(() => {
     tempVaultDir = createFixtureVaultCopy()
@@ -101,7 +111,7 @@ test.describe('Create note crash fix', () => {
   test('clicking + next to a type section creates a note without crashing @smoke', async ({ page }) => {
     await openTestVault(page)
     await selectSection(page, 'Projects')
-    await expectUntitledNoteWithoutCrash(page, 'project', async () => {
+    await expectUntitledProjectWithoutCrash(page, async () => {
       await createNoteFromListHeader(page)
     })
   })

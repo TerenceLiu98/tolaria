@@ -80,14 +80,14 @@ async function openNoteFromList(noteList: Locator, title: string): Promise<void>
   await noteList.getByText(title, { exact: true }).click()
 }
 
-async function expectAlphaProjectHeading(page: Page): Promise<void> {
-  await expect(page.getByRole('heading', { name: 'Alpha Project', level: 1 })).toBeVisible({ timeout: 5_000 })
+async function expectAlphaProjectWorkspace(page: Page): Promise<void> {
+  await expect(page.getByTestId('project-workspace-surface')).toBeVisible({ timeout: 5_000 })
 }
 
 async function switchFromNoteBBackToAlpha(page: Page, noteList: Locator): Promise<void> {
   await openNoteFromList(noteList, 'Note B')
   await openNoteFromList(noteList, 'alpha-project')
-  await expectAlphaProjectHeading(page)
+  await expectAlphaProjectWorkspace(page)
 }
 
 test.beforeEach(async ({ page }, testInfo) => {
@@ -124,7 +124,7 @@ test('@smoke note open tolerates missing string metadata from the vault scan', a
   const noteList = page.getByTestId('note-list-container')
 
   await openNoteFromList(noteList, 'alpha-project')
-  await expectAlphaProjectHeading(page)
+  await expectAlphaProjectWorkspace(page)
   await switchFromNoteBBackToAlpha(page, noteList)
 
   expect(errors).toHaveLength(0)
