@@ -464,6 +464,10 @@
   line-height: 1.28;
 }
 
+.project-canvas-node--overview .project-canvas-node__title {
+  -webkit-line-clamp: 1;
+}
+
 .project-canvas-node__subtitle,
 .project-canvas-node__snippet,
 .project-canvas-node__message {
@@ -484,6 +488,26 @@
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+}
+
+.project-document-preview {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  border-top: 1px solid hsl(var(--border) / 0.65);
+  padding-top: 8px;
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  line-height: 1.55;
+  overscroll-behavior: contain;
+}
+
+.project-document-preview > :first-child {
+  margin-top: 0;
+}
+
+.project-document-preview > :last-child {
+  margin-bottom: 0;
 }
 
 .project-canvas-node__message {

@@ -33,6 +33,7 @@ import {
 import { boundedSnippet, findEntryForProjectCanvasRef, paperSubtitle, relativeVaultPath } from './projectCanvasEntryPreview'
 import { PROJECT_CANVAS_DRAG_MIME, readProjectCanvasDragPayload } from './projectCanvasDragData'
 import { ProjectCanvasInspector } from './ProjectCanvasInspector'
+import { ProjectDocumentPreview } from './ProjectDocumentPreview'
 import {
   consumeProjectCanvasOpen,
   pendingProjectCanvasOpen,
@@ -50,6 +51,8 @@ import {
   EDGE_KINDS,
   edgeKindKey,
   nodeKindKey,
+  nodePresentation,
+  type ProjectCanvasNodePresentation,
   ZOOM_MAX,
   ZOOM_MIN,
   ZOOM_STEP,
@@ -809,7 +812,7 @@ export function ProjectCanvasSurface({
     onNavigateWikilink(target)
   }, [onNavigateWikilink, refsByNodeId])
 
-  const handleSelectNode = useCallback((node: ProjectCanvasNode, event?: React.MouseEvent<HTMLButtonElement>) => {
+  const handleSelectNode = useCallback((node: ProjectCanvasNode, event?: React.MouseEvent<HTMLElement>) => {
     if (event?.metaKey || event?.ctrlKey || event?.shiftKey) {
       toggleNodeSelection(node.id)
       return
@@ -1027,8 +1030,11 @@ export function ProjectCanvasSurface({
               locale={locale}
               resolved={refsByNodeId.get(node.id)}
               selected={selectedNodeIds.includes(node.id)}
+              presentation={nodePresentation(canvas.viewport.zoom, selectedNodeIds.includes(node.id))}
               vaultPath={vaultPath}
-              onClick={() => handleNodeClick(node)}
+              onClick={(event) => handleSelectNode(node, event)}
+              onDoubleClick={() => handleNodeClick(node)}
+              onNavigateWikilink={onNavigateWikilink}
               onPointerDown={(event) => handleNodePointerDown(event, node)}
               onConnectPointerDown={(event) => handleConnectPointerDown(event, node)}
               onResizePointerDown={(event) => handleResizePointerDown(event, node)}
@@ -1210,8 +1216,11 @@ function ProjectCanvasNodeCard({
   locale,
   resolved,
   selected,
+  presentation,
   vaultPath,
   onClick,
+  onDoubleClick,
+  onNavigateWikilink,
   onConnectPointerDown,
   onPointerDown,
   onResizePointerDown,
@@ -1225,8 +1234,11 @@ function ProjectCanvasNodeCard({
   locale: AppLocale
   resolved?: ProjectCanvasResolvedRef
   selected: boolean
+  presentation: ProjectCanvasNodePresentation
   vaultPath: string
-  onClick: () => void
+  onClick: (event: React.MouseEvent<HTMLElement>) => void
+  onDoubleClick: () => void
+  onNavigateWikilink: (target: string) => void
   onConnectPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
   onResizePointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
@@ -1251,11 +1263,14 @@ function ProjectCanvasNodeCard({
         `project-canvas-node--type-${node.type}`,
         isStale && 'project-canvas-node--stale',
         selected && 'project-canvas-node--selected',
+        `project-canvas-node--${presentation}`,
       )}
+      data-presentation={presentation}
       data-testid="project-canvas-node"
       data-node-id={node.id}
       style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onPointerDown={onPointerDown}
     >
       <div className="project-canvas-node__body">
@@ -1279,7 +1294,15 @@ function ProjectCanvasNodeCard({
           </span>
         </div>
         <div className="project-canvas-node__title">{title}</div>
-        {subtitle ? <div className="project-canvas-node__subtitle">{subtitle}</div> : null}
+        {subtitle && presentation !== 'overview' ? <div className="project-canvas-node__subtitle">{subtitle}</div> : null}
+        {entry && (node.type === 'note' || node.type === 'paper') ? (
+          <ProjectDocumentPreview
+            active={presentation === 'preview'}
+            entry={entry}
+            locale={locale}
+            onNavigateWikilink={onNavigateWikilink}
+          />
+        ) : null}
         {node.type === 'task' ? (
           <label className="project-canvas-node__task">
             <Checkbox checked={node.completed === true} onCheckedChange={onToggleTask} />
@@ -1307,11 +1330,11 @@ function ProjectCanvasNodeCard({
             onBlur={onTextBlur}
             placeholder={translate(locale, 'projectCanvas.textPlaceholder')}
           />
-        ) : snippet ? (
+        ) : snippet && presentation === 'card' ? (
           <div className="project-canvas-node__snippet">{snippet}</div>
         ) : null}
         {isStale && resolved?.message ? <div className="project-canvas-node__message">{resolved.message}</div> : null}
-        {!isEmbedded && node.ref ? (
+        {!isEmbedded && node.ref && presentation !== 'overview' ? (
           <div className="project-canvas-node__footer">
             <span>{node.ref}</span>
           </div>

@@ -228,7 +228,7 @@ describe('ProjectCanvasSurface', () => {
     expect(screen.queryByRole('button', { name: 'Delete node' })).not.toBeInTheDocument()
   })
 
-  it('renders compact nodes, stale state, and opens referenced nodes', async () => {
+  it('selects document nodes in place and keeps standalone open explicit', async () => {
     const canvas = sampleCanvas()
     const onNavigateWikilink = vi.fn()
     vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
@@ -264,9 +264,45 @@ describe('ProjectCanvasSurface', () => {
     expect(screen.getByText('Source evidence snippet')).toBeInTheDocument()
     expect(screen.getByText('Stale')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Source Note'))
+    const sourceNode = document.querySelector('[data-node-id="note"]') as HTMLElement
+    fireEvent.click(within(sourceNode).getByText('Source Note'))
+
+    expect(onNavigateWikilink).not.toHaveBeenCalled()
+    expect(screen.getByDisplayValue('Source Note')).toBeInTheDocument()
+
+    fireEvent.doubleClick(within(sourceNode).getByText('Source Note'))
 
     expect(onNavigateWikilink).toHaveBeenCalledWith('notes/source.md')
+  })
+
+  it('keeps document nodes in lightweight overview state at low zoom', async () => {
+    const canvas = { ...sampleCanvas(), viewport: { x: 0, y: 0, zoom: 0.4 } }
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[entry({
+          path: '/vault/notes/source.md',
+          filename: 'source.md',
+          title: 'Source Note',
+          isA: 'Note',
+          snippet: 'A bounded source note preview.',
+        })]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(document.querySelector('[data-node-id="note"]')).not.toBeNull())
+    const sourceNode = document.querySelector('[data-node-id="note"]') as HTMLElement
+    fireEvent.click(within(sourceNode).getByText('Source Note'))
+
+    expect(sourceNode).toHaveAttribute('data-presentation', 'overview')
+    expect(within(sourceNode).queryByTestId('project-document-preview')).not.toBeInTheDocument()
+    expect(within(sourceNode).queryByText('A bounded source note preview.')).not.toBeInTheDocument()
   })
 
   it('persists node geometry after drag', async () => {

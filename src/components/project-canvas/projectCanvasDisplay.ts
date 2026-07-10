@@ -12,7 +12,15 @@ export const DEFAULT_EMBEDDED_NODE_HEIGHT = 160
 export const ZOOM_MIN = 0.35
 export const ZOOM_MAX = 2
 export const ZOOM_STEP = 0.1
+export const PROJECT_CANVAS_OVERVIEW_ZOOM = 0.65
 export const EDGE_KINDS: ProjectCanvasEdgeKind[] = ['related', 'supports', 'contradicts', 'depends_on', 'needs_reading']
+
+export type ProjectCanvasNodePresentation = 'overview' | 'card' | 'preview'
+
+export function nodePresentation(zoom: number, selected: boolean): ProjectCanvasNodePresentation {
+  if (zoom < PROJECT_CANVAS_OVERVIEW_ZOOM) return 'overview'
+  return selected ? 'preview' : 'card'
+}
 
 export function nodeKindKey(node: ProjectCanvasNode): TranslationKey {
   switch (node.type) {
