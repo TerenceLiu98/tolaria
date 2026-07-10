@@ -588,23 +588,9 @@
   content: "";
 }
 
-.project-editor-surface {
+.project-workspace-surface {
   display: flex;
   min-height: 0;
   flex: 1;
   flex-direction: column;
-}
-
-.project-editor-surface__tabs {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border-bottom: 1px solid hsl(var(--border));
-  padding: 8px 12px;
-}
-
-.project-editor-surface__body {
-  display: flex;
-  min-height: 0;
-  flex: 1;
 }

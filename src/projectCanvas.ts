@@ -2,6 +2,10 @@ import { invoke } from '@tauri-apps/api/core'
 import { isTauri, mockInvoke } from './mock-tauri'
 
 export const PROJECT_CANVAS_SCHEMA = 'project-canvas/v1'
+export const PROJECT_OVERVIEW_NODE_ID = 'project_overview'
+
+const PROJECT_OVERVIEW_WIDTH = 420
+const PROJECT_OVERVIEW_HEIGHT = 280
 
 export type ProjectCanvasNodeType = 'note' | 'paper' | 'paper_block' | 'image' | 'text' | 'task' | 'group'
 export type ProjectCanvasEdgeKind = 'related' | 'supports' | 'contradicts' | 'depends_on' | 'needs_reading'
@@ -84,12 +88,39 @@ export interface ProjectCanvasResolveResult {
   diagnostics: ProjectCanvasRefDiagnostic[]
 }
 
+export function projectOverviewNode(projectPath: string): ProjectCanvasNode {
+  return {
+    height: PROJECT_OVERVIEW_HEIGHT,
+    id: PROJECT_OVERVIEW_NODE_ID,
+    ref: projectPath,
+    type: 'note',
+    width: PROJECT_OVERVIEW_WIDTH,
+    x: 0,
+    y: 0,
+  }
+}
+
+function projectNodesWithOverview(nodes: ProjectCanvasNode[], projectPath: string): ProjectCanvasNode[] {
+  const overviewIndex = nodes.findIndex(node => node.id === PROJECT_OVERVIEW_NODE_ID)
+  if (overviewIndex < 0) return [...nodes, projectOverviewNode(projectPath)]
+
+  return nodes.map((node, index) => index === overviewIndex
+    ? {
+        ...node,
+        completed: undefined,
+        ref: projectPath,
+        text: undefined,
+        type: 'note',
+      }
+    : node)
+}
+
 export function defaultProjectCanvas(projectPath: string): ProjectCanvas {
   return {
     version: 1,
     project: projectPath,
     viewport: { x: 0, y: 0, zoom: 1 },
-    nodes: [],
+    nodes: [projectOverviewNode(projectPath)],
     edges: [],
     sapientia: { schema: PROJECT_CANVAS_SCHEMA },
   }
@@ -108,7 +139,8 @@ export function normalizeProjectCanvas(canvas: ProjectCanvas, projectPath: strin
       y: finiteOrDefault(canvas.viewport.y, 0),
       zoom: canvas.viewport.zoom > 0 && Number.isFinite(canvas.viewport.zoom) ? canvas.viewport.zoom : 1,
     },
-    nodes: [...canvas.nodes].sort((left, right) => left.id.localeCompare(right.id)),
+    nodes: projectNodesWithOverview(canvas.nodes, projectPath)
+      .sort((left, right) => left.id.localeCompare(right.id)),
     edges: [...canvas.edges].sort((left, right) => left.id.localeCompare(right.id)),
     sapientia: { schema: PROJECT_CANVAS_SCHEMA },
   }

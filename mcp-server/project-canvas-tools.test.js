@@ -10,6 +10,7 @@ import {
   readProjectContext,
   searchProjectCanvas,
 } from './project-canvas-tools.js'
+import { PROJECT_OVERVIEW_NODE_ID } from './project-canvas-model.js'
 
 let vaultPath
 
@@ -75,7 +76,8 @@ describe('Project Canvas MCP tools', () => {
       query: 'evaluation',
     })
 
-    assert.equal(read.canvas.nodes.length, 4)
+    assert.equal(read.canvas.nodes.length, 5)
+    assert.equal(read.canvas.nodes.some(node => node.id === PROJECT_OVERVIEW_NODE_ID), true)
     assert.equal(read.canvas.edges.length, 3)
     assert.deepEqual(search.results.map(result => result.nodeId), ['claim', 'note'])
     assert.equal(search.results[0].projectId, 'agent-research')
@@ -117,7 +119,8 @@ describe('Project Canvas MCP tools', () => {
     assert.equal(first.duplicate, false)
     assert.equal(duplicate.createdCanvas, false)
     assert.equal(duplicate.duplicate, true)
-    assert.equal(saved.nodes.length, 1)
+    assert.equal(saved.nodes.length, 2)
+    assert.equal(saved.nodes.some(node => node.id === PROJECT_OVERVIEW_NODE_ID), true)
     assert.deepEqual(saved.viewport, { x: 0, y: 0, zoom: 1 })
   })
 

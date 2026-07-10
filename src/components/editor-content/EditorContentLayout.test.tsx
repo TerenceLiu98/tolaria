@@ -250,7 +250,7 @@ describe('EditorContentLayout', () => {
     expect(screen.getByTestId('paper-reader-shell').closest('.editor-content-wrapper')).toBeNull()
   })
 
-  it('routes Project entries through the Project editor surface', () => {
+  it('routes Project entries through the unified Project workspace', () => {
     render(<EditorContentLayout {...createModel({
       activeTab: {
         entry: {
@@ -264,8 +264,8 @@ describe('EditorContentLayout', () => {
       },
     })} />)
 
-    expect(screen.getByTestId('project-editor-surface')).toBeInTheDocument()
-    expect(screen.getByTestId('note-surface')).toBeInTheDocument()
+    expect(screen.getByTestId('project-workspace-surface')).toBeInTheDocument()
+    expect(screen.queryByTestId('note-surface')).not.toBeInTheDocument()
     expect(screen.queryByTestId('paper-reader-shell')).not.toBeInTheDocument()
   })
 })

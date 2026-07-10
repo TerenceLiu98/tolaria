@@ -1,5 +1,6 @@
 import {
   PROJECT_CANVAS_SCHEMA,
+  PROJECT_OVERVIEW_NODE_ID,
   defaultProjectCanvas,
   normalizeProjectCanvas,
   validateProjectCanvas,
@@ -14,7 +15,15 @@ describe('projectCanvas', () => {
       version: 1,
       project: 'projects/alpha/project.md',
       viewport: { x: 0, y: 0, zoom: 1 },
-      nodes: [],
+      nodes: [{
+        height: 280,
+        id: PROJECT_OVERVIEW_NODE_ID,
+        ref: 'projects/alpha/project.md',
+        type: 'note',
+        width: 420,
+        x: 0,
+        y: 0,
+      }],
       edges: [],
       sapientia: { schema: PROJECT_CANVAS_SCHEMA },
     })
@@ -43,9 +52,28 @@ describe('projectCanvas', () => {
       sapientia: { schema: PROJECT_CANVAS_SCHEMA },
     })
     expect(normalizeProjectCanvas(canvas, 'projects/alpha/project.md').nodes.map(item => item.id))
-      .toEqual(['a_node', 'z_node'])
+      .toEqual(['a_node', PROJECT_OVERVIEW_NODE_ID, 'z_node'])
     expect(normalizeProjectCanvas(canvas, 'projects/alpha/project.md').edges.map(item => item.id))
       .toEqual(['a_edge', 'z_edge'])
+  })
+
+  it('repairs an existing overview node without changing its layout', () => {
+    const canvas: ProjectCanvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [{
+        ...node(PROJECT_OVERVIEW_NODE_ID, 'paper', { ref: 'old.md' }),
+        height: 360,
+        width: 600,
+        x: 120,
+        y: 80,
+      }],
+    }
+
+    expect(normalizeProjectCanvas(canvas, 'projects/alpha/project.md').nodes).toEqual([{
+      ...canvas.nodes[0],
+      ref: 'projects/alpha/project.md',
+      type: 'note',
+    }])
   })
 
   it('covers every Project Canvas node and edge kind', () => {

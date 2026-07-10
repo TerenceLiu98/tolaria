@@ -180,7 +180,7 @@ describe('ProjectCanvasSurface', () => {
     vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockReset()
   })
 
-  it('creates a missing canvas through the command boundary', async () => {
+  it('automatically creates a missing canvas through the command boundary', async () => {
     const created = defaultProjectCanvas('projects/alpha/project.md')
     vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue({
       projectPath: 'projects/alpha/project.md',
@@ -201,11 +201,31 @@ describe('ProjectCanvasSurface', () => {
       />,
     )
 
-    expect(await screen.findByText('No Project Canvas yet')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Create Canvas' }))
-
     await waitFor(() => expect(projectCanvas.createProjectCanvas).toHaveBeenCalledWith('/vault', '/vault/projects/alpha/project.md'))
     expect(await screen.findByTestId('project-canvas-surface')).toBeInTheDocument()
+    expect(screen.queryByText('No Project Canvas yet')).not.toBeInTheDocument()
+  })
+
+  it('keeps the Project Overview root node non-deletable', async () => {
+    const canvas = defaultProjectCanvas('projects/alpha/project.md')
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+
+    const view = render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[entry({})]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(view.container.querySelector('[data-node-id="project_overview"]')).not.toBeNull())
+    const overview = view.container.querySelector('[data-node-id="project_overview"]')
+    fireEvent.click(within(overview as HTMLElement).getByRole('button', { name: 'Source' }))
+
+    expect(screen.queryByRole('button', { name: 'Delete node' })).not.toBeInTheDocument()
   })
 
   it('renders compact nodes, stale state, and opens referenced nodes', async () => {

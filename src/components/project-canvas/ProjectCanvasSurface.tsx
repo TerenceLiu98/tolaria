@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { translate, type AppLocale } from '../../lib/i18n'
 import {
   createProjectCanvas,
-  defaultProjectCanvas,
+  PROJECT_OVERVIEW_NODE_ID,
   readProjectCanvas,
   resolveProjectCanvasRefs,
   saveProjectCanvas,
@@ -158,7 +158,7 @@ export function ProjectCanvasSurface({
 }: ProjectCanvasSurfaceProps) {
   const [canvas, setCanvas] = useState<ProjectCanvas | null>(null)
   const [refs, setRefs] = useState<ProjectCanvasResolvedRef[]>([])
-  const [state, setState] = useState<'loading' | 'missing' | 'ready' | 'error'>('loading')
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [addPanelOpen, setAddPanelOpen] = useState(false)
@@ -208,15 +208,13 @@ export function ProjectCanvasSurface({
     setState('loading')
     setError(null)
     try {
-      const result = await readProjectCanvas(vaultPath, entry.path)
-      if (result.state === 'missing' || !result.canvas) {
-        setCanvas(null)
-        setRefs([])
-        setState('missing')
-        setUndoStack([])
-        setRedoStack([])
-        return
+      let result = await readProjectCanvas(vaultPath, entry.path)
+      const created = result.state === 'missing' || !result.canvas
+      if (created) {
+        result = await createProjectCanvas(vaultPath, entry.path)
+        trackProjectCanvasCreated()
       }
+      if (!result.canvas) throw new Error(translate(locale, 'projectCanvas.errorDescription'))
       setCanvas(result.canvas)
       setState('ready')
       setUndoStack([])
@@ -224,7 +222,7 @@ export function ProjectCanvasSurface({
       void resolveCanvas(result.canvas)
       if (!openedTrackedRef.current) {
         openedTrackedRef.current = true
-        trackProjectCanvasOpened({ state: 'ready' })
+        trackProjectCanvasOpened({ state: created ? 'created' : 'ready' })
       }
     } catch (loadError) {
       setState('error')
@@ -264,29 +262,6 @@ export function ProjectCanvasSurface({
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError))
       setState('error')
-    } finally {
-      setSaving(false)
-    }
-  }, [entry.path, resolveCanvas, vaultPath])
-
-  const handleCreate = useCallback(async () => {
-    if (!vaultPath) return
-    setSaving(true)
-    setError(null)
-    try {
-      const result = await createProjectCanvas(vaultPath, entry.path)
-      const created = result.canvas ?? defaultProjectCanvas(result.projectPath)
-      setCanvas(created)
-      canvasRef.current = created
-      setState('ready')
-      setUndoStack([])
-      setRedoStack([])
-      void resolveCanvas(created)
-      trackProjectCanvasCreated()
-      trackProjectCanvasOpened({ state: 'created' })
-    } catch (createError) {
-      setState('error')
-      setError(createError instanceof Error ? createError.message : String(createError))
     } finally {
       setSaving(false)
     }
@@ -898,8 +873,9 @@ export function ProjectCanvasSurface({
   const deleteSelectedNode = useCallback(() => {
     const current = canvasRef.current
     const ids = selectedNodeIds.length > 0 ? selectedNodeIds : selectedNodeId ? [selectedNodeId] : []
-    if (!current || ids.length === 0) return
-    const selectedIds = new Set(ids)
+    const deletableIds = ids.filter(id => id !== PROJECT_OVERVIEW_NODE_ID)
+    if (!current || deletableIds.length === 0) return
+    const selectedIds = new Set(deletableIds)
     const nextCanvas = {
       ...current,
       nodes: current.nodes.filter(node => !selectedIds.has(node.id)),
@@ -954,18 +930,6 @@ export function ProjectCanvasSurface({
 
   if (state === 'loading') {
     return <div className="project-canvas-loading">{translate(locale, 'projectCanvas.loading')}</div>
-  }
-
-  if (state === 'missing') {
-    return (
-      <div className="project-canvas-empty">
-        <div className="project-canvas-empty__title">{translate(locale, 'projectCanvas.missingTitle')}</div>
-        <div className="project-canvas-empty__description">{translate(locale, 'projectCanvas.missingDescription')}</div>
-        <Button type="button" size="sm" onClick={handleCreate} disabled={saving}>
-          {translate(locale, 'projectCanvas.create')}
-        </Button>
-      </div>
-    )
   }
 
   if (state === 'error' || !canvas) {

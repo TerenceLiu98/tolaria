@@ -1,4 +1,7 @@
 const PROJECT_CANVAS_SCHEMA = 'project-canvas/v1'
+export const PROJECT_OVERVIEW_NODE_ID = 'project_overview'
+const PROJECT_OVERVIEW_WIDTH = 420
+const PROJECT_OVERVIEW_HEIGHT = 280
 const NODE_TYPES = new Set(['note', 'paper', 'paper_block', 'image', 'text', 'task', 'group'])
 
 export function defaultCanvas(projectPath) {
@@ -6,7 +9,7 @@ export function defaultCanvas(projectPath) {
     version: 1,
     project: projectPath,
     viewport: { x: 0, y: 0, zoom: 1 },
-    nodes: [],
+    nodes: [projectOverviewNode(projectPath)],
     edges: [],
     sapientia: { schema: PROJECT_CANVAS_SCHEMA },
   }
@@ -17,10 +20,37 @@ export function normalizeCanvas(canvas, projectPath) {
     version: 1,
     project: projectPath,
     viewport: normalizedViewport(canvas.viewport),
-    nodes: [...canvas.nodes].sort((left, right) => left.id.localeCompare(right.id)),
+    nodes: nodesWithProjectOverview(canvas.nodes, projectPath)
+      .sort((left, right) => left.id.localeCompare(right.id)),
     edges: [...canvas.edges].sort((left, right) => left.id.localeCompare(right.id)),
     sapientia: { schema: PROJECT_CANVAS_SCHEMA },
   }
+}
+
+function projectOverviewNode(projectPath) {
+  return {
+    id: PROJECT_OVERVIEW_NODE_ID,
+    type: 'note',
+    ref: projectPath,
+    x: 0,
+    y: 0,
+    width: PROJECT_OVERVIEW_WIDTH,
+    height: PROJECT_OVERVIEW_HEIGHT,
+  }
+}
+
+function nodesWithProjectOverview(nodes, projectPath) {
+  const overviewIndex = nodes.findIndex(node => node.id === PROJECT_OVERVIEW_NODE_ID)
+  if (overviewIndex < 0) return [...nodes, projectOverviewNode(projectPath)]
+  return nodes.map((node, index) => index === overviewIndex
+    ? {
+        ...node,
+        type: 'note',
+        ref: projectPath,
+        text: undefined,
+        completed: undefined,
+      }
+    : node)
 }
 
 export function validateCanvas(canvas) {

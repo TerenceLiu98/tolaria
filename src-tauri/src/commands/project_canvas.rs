@@ -170,7 +170,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(read.canvas.unwrap().nodes.len(), 2);
+        assert_eq!(read.canvas.unwrap().nodes.len(), 3);
 
         let resolved = resolve_project_canvas_refs(
             dir.path().to_path_buf(),

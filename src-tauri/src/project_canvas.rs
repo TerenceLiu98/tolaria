@@ -9,6 +9,9 @@ use std::path::{Path, PathBuf};
 pub const PROJECT_CANVAS_FILENAME: &str = "project.canvas.json";
 pub const PROJECT_CANVAS_EXTENSION: &str = "canvas.json";
 pub const PROJECT_CANVAS_SCHEMA: &str = "project-canvas/v1";
+pub const PROJECT_OVERVIEW_NODE_ID: &str = "project_overview";
+const PROJECT_OVERVIEW_WIDTH: f64 = 420.0;
+const PROJECT_OVERVIEW_HEIGHT: f64 = 280.0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -177,7 +180,7 @@ pub fn default_project_canvas(project_path: &str) -> ProjectCanvas {
         version: 1,
         project: project_path.to_string(),
         viewport: ProjectCanvasViewport::default(),
-        nodes: vec![],
+        nodes: vec![project_overview_node(project_path)],
         edges: vec![],
         sapientia: ProjectCanvasSapientiaMetadata::default(),
     }
@@ -196,9 +199,39 @@ pub fn normalize_project_canvas(mut canvas: ProjectCanvas, project_path: &str) -
         canvas.viewport.y = 0.0;
     }
     canvas.sapientia.schema = PROJECT_CANVAS_SCHEMA.to_string();
+    ensure_project_overview_node(&mut canvas.nodes, project_path);
     canvas.nodes.sort_by(|left, right| left.id.cmp(&right.id));
     canvas.edges.sort_by(|left, right| left.id.cmp(&right.id));
     canvas
+}
+
+fn project_overview_node(project_path: &str) -> ProjectCanvasNode {
+    ProjectCanvasNode {
+        id: PROJECT_OVERVIEW_NODE_ID.to_string(),
+        node_type: ProjectCanvasNodeType::Note,
+        ref_target: Some(project_path.to_string()),
+        x: 0.0,
+        y: 0.0,
+        width: PROJECT_OVERVIEW_WIDTH,
+        height: PROJECT_OVERVIEW_HEIGHT,
+        title: None,
+        text: None,
+        completed: None,
+    }
+}
+
+fn ensure_project_overview_node(nodes: &mut Vec<ProjectCanvasNode>, project_path: &str) {
+    if let Some(node) = nodes
+        .iter_mut()
+        .find(|node| node.id == PROJECT_OVERVIEW_NODE_ID)
+    {
+        node.node_type = ProjectCanvasNodeType::Note;
+        node.ref_target = Some(project_path.to_string());
+        node.text = None;
+        node.completed = None;
+        return;
+    }
+    nodes.push(project_overview_node(project_path));
 }
 
 pub fn project_canvas_paths(
@@ -756,6 +789,24 @@ mod tests {
     }
 
     #[test]
+    fn creates_and_migrates_the_required_project_overview_node() {
+        let project_path = "projects/alpha/project.md";
+        let canvas = default_project_canvas(project_path);
+        assert_eq!(canvas.nodes.len(), 1);
+        assert_eq!(canvas.nodes[0].id, PROJECT_OVERVIEW_NODE_ID);
+        assert_eq!(canvas.nodes[0].node_type, ProjectCanvasNodeType::Note);
+        assert_eq!(canvas.nodes[0].ref_target.as_deref(), Some(project_path));
+
+        let legacy = ProjectCanvas {
+            nodes: vec![],
+            ..default_project_canvas(project_path)
+        };
+        let migrated = normalize_project_canvas(legacy, project_path);
+        assert_eq!(migrated.nodes.len(), 1);
+        assert_eq!(migrated.nodes[0].id, PROJECT_OVERVIEW_NODE_ID);
+    }
+
+    #[test]
     fn creates_reads_and_stably_writes_canvas() {
         let dir = TempDir::new().unwrap();
         write_project(&dir, "projects/alpha/project.md");
@@ -770,7 +821,7 @@ mod tests {
         assert!(first.contains("\"project\": \"projects/alpha/project.md\""));
 
         let read = read_project_canvas_file(dir.path(), project_path).unwrap();
-        assert_eq!(read.canvas.unwrap().nodes.len(), 2);
+        assert_eq!(read.canvas.unwrap().nodes.len(), 3);
 
         let second = fs::read_to_string(dir.path().join(&saved.canvas_path)).unwrap();
         assert_eq!(first, second);
@@ -845,7 +896,7 @@ mod tests {
             .unwrap()
             .canvas
             .unwrap();
-        assert_eq!(read.nodes.len(), 7);
+        assert_eq!(read.nodes.len(), 8);
         assert_eq!(read.edges.len(), 4);
         assert!(read
             .nodes
@@ -917,7 +968,7 @@ mod tests {
         let resolved =
             resolve_project_canvas_refs_file(dir.path(), "projects/alpha/project.md", &canvas)
                 .unwrap();
-        assert_eq!(resolved.refs.len(), 3);
+        assert_eq!(resolved.refs.len(), 4);
         assert_eq!(resolved.diagnostics.len(), 1);
         assert!(resolved
             .refs

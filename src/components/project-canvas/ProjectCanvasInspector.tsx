@@ -1,6 +1,11 @@
 import { Minus, Trash } from '@phosphor-icons/react'
 import { translate, type AppLocale } from '../../lib/i18n'
-import type { ProjectCanvas, ProjectCanvasEdgeKind, ProjectCanvasNode } from '../../projectCanvas'
+import {
+  PROJECT_OVERVIEW_NODE_ID,
+  type ProjectCanvas,
+  type ProjectCanvasEdgeKind,
+  type ProjectCanvasNode,
+} from '../../projectCanvas'
 import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
 import { Input } from '../ui/input'
@@ -170,10 +175,12 @@ function ProjectCanvasNodeInspector({
             {translate(locale, 'projectCanvas.openNode')}
           </Button>
         ) : null}
-        <Button type="button" size="sm" variant="destructive" onClick={onDelete}>
-          <Trash size={14} />
-          {translate(locale, 'projectCanvas.deleteNode')}
-        </Button>
+        {node.id !== PROJECT_OVERVIEW_NODE_ID ? (
+          <Button type="button" size="sm" variant="destructive" onClick={onDelete}>
+            <Trash size={14} />
+            {translate(locale, 'projectCanvas.deleteNode')}
+          </Button>
+        ) : null}
       </div>
     </div>
   )
