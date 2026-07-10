@@ -16,6 +16,7 @@ import {
 } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
 import type { AiSelectedTextContext } from '../../utils/ai-context'
+import type { CreateProjectCanvasDraftNote } from '../../projectCanvasDrafts'
 import type { PaperParserProvider } from '../../paper/parserSettings'
 import { publishProjectCanvasSelection } from '../../projectCanvasSelectionStore'
 import { Button } from '../ui/button'
@@ -68,6 +69,7 @@ import { looksLikeBlockCitation, looksLikeImageRef, nodeIsEmbedded, titleFromPat
 import { ProjectCanvasNodeCard } from './ProjectCanvasNodeCard'
 import { ProjectCanvasNavigator } from './ProjectCanvasNavigator'
 import { useProjectCanvasViewportSize, visibleProjectCanvasNodes } from './projectCanvasViewport'
+import { useProjectCanvasAiDraft } from './useProjectCanvasAiDraft'
 import './ProjectCanvasSurface.css'
 
 const MIN_NODE_WIDTH = 180
@@ -83,6 +85,7 @@ interface ProjectCanvasSurfaceProps {
   locale?: AppLocale
   onCopyFilePath?: (path: string) => void
   onContentChange?: (path: string, content: string) => void
+  onCreateProjectDraftNote?: CreateProjectCanvasDraftNote
   onNavigateWikilink: (target: string) => void
   onOpenExternalFile?: (path: string) => void
   onParsePaper?: (paperId: string, options?: { force?: boolean }) => void | Promise<void>
@@ -181,6 +184,7 @@ export function ProjectCanvasSurface({
   locale = 'en',
   onCopyFilePath,
   onContentChange,
+  onCreateProjectDraftNote,
   onNavigateWikilink,
   onOpenExternalFile,
   onParsePaper,
@@ -448,6 +452,26 @@ export function ProjectCanvasSurface({
     selectSingleNode(node.id)
     if (persist) void persistCanvas(nextCanvas, 'layout')
   }, [persistCanvas, selectSingleNode])
+
+  const {
+    discard: closeAiDraft,
+    error: aiDraftError,
+    node: aiDraftNode,
+    pin: pinAiDraft,
+    saving: aiDraftSaving,
+  } = useProjectCanvasAiDraft({
+    canvas,
+    canvasCenter,
+    canvasRef,
+    commitCanvas: commitContentCanvas,
+    createNote: onCreateProjectDraftNote,
+    focusNode,
+    locale,
+    projectPath: entry.path,
+    selectedNodeId,
+    selectNode: selectSingleNode,
+    vaultPath,
+  })
 
   const withSelectedEdge = useCallback((current: ProjectCanvas, newNode: ProjectCanvasNode): ProjectCanvas => {
     if (!selectedNodeId || !linkFromSelected || selectedNodeId === newNode.id) return current
@@ -1108,9 +1132,10 @@ export function ProjectCanvasSurface({
       event.preventDefault()
       if (selectedEdgeId) deleteSelectedEdge()
       else if (selectedNodeId === peekNode?.id) closePeekNode()
+      else if (selectedNodeId === aiDraftNode?.id) closeAiDraft()
       else if (selectedNodeId) deleteSelectedNode()
     }
-  }, [changeFocusMode, closePeekNode, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editingNodeId, focusMode, pasteCopiedNode, peekNode?.id, restoreCanvasFromHistory, selectedEdgeId, selectedNodeId])
+  }, [aiDraftNode?.id, changeFocusMode, closeAiDraft, closePeekNode, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editingNodeId, focusMode, pasteCopiedNode, peekNode?.id, restoreCanvasFromHistory, selectedEdgeId, selectedNodeId])
 
   if (state === 'loading') {
     return <div className="project-canvas-loading">{translate(locale, 'projectCanvas.loading')}</div>
@@ -1272,6 +1297,33 @@ export function ProjectCanvasSurface({
               onConnectPointerDown={event => event.stopPropagation()}
               onResizePointerDown={event => event.stopPropagation()}
               onSelect={(event) => handleSelectNode(peekNode, event)}
+              onToggleTask={() => {}}
+              onTextBlur={() => {}}
+              onTextChange={() => {}}
+            />
+          ) : null}
+          {aiDraftNode ? (
+            <ProjectCanvasNodeCard
+              node={aiDraftNode}
+              editing={false}
+              entry={null}
+              locale={locale}
+              selected={selectedNodeId === aiDraftNode.id}
+              presentation="preview"
+              temporary
+              temporaryError={aiDraftError}
+              temporaryKind="ai_draft"
+              temporarySaving={aiDraftSaving}
+              vaultPath={vaultPath}
+              onClick={(event) => handleSelectNode(aiDraftNode, event)}
+              onCloseTemporary={closeAiDraft}
+              onDoubleClick={() => {}}
+              onNavigateWikilink={handleCanvasNavigate}
+              onPinTemporary={() => { void pinAiDraft() }}
+              onPointerDown={event => event.stopPropagation()}
+              onConnectPointerDown={event => event.stopPropagation()}
+              onResizePointerDown={event => event.stopPropagation()}
+              onSelect={(event) => handleSelectNode(aiDraftNode, event)}
               onToggleTask={() => {}}
               onTextBlur={() => {}}
               onTextChange={() => {}}

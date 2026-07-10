@@ -367,6 +367,7 @@ function EditorCanvas({
   paperParserProvider,
   onRevealFile,
   onRawContentChange,
+  onCreateProjectDraftNote,
   onSave,
   sheetFlushRef,
   isDeletedPreview,
@@ -385,6 +386,7 @@ function EditorCanvas({
   | 'onEditorChange'
   | 'onSelectedTextContextChange'
   | 'onRawContentChange'
+  | 'onCreateProjectDraftNote'
   | 'onSave'
   | 'sheetFlushRef'
   | 'isDeletedPreview'
@@ -461,6 +463,7 @@ function EditorCanvas({
           entries={entries}
           onCopyFilePath={onCopyFilePath}
           onContentChange={onRawContentChange}
+          onCreateProjectDraftNote={onCreateProjectDraftNote}
           onNavigateWikilink={onNavigateWikilink}
           onOpenExternalFile={onOpenExternalFile}
           onParsePaper={onParsePaper}
@@ -544,6 +547,7 @@ export function EditorContentLayout(model: EditorContentModel) {
     onToggleDiff,
     effectiveRawMode,
     onRawContentChange,
+    onCreateProjectDraftNote,
     onSave,
     showEditor,
     isArchived,
@@ -635,6 +639,7 @@ export function EditorContentLayout(model: EditorContentModel) {
             onOpenExternalFile={onOpenExternalFile}
             onRevealFile={onRevealFile}
             onRawContentChange={onRawContentChange}
+            onCreateProjectDraftNote={onCreateProjectDraftNote}
             onSave={onSave}
             sheetFlushRef={sheetFlushRef}
             isDeletedPreview={isDeletedPreview}

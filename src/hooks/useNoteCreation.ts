@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, type MutableRefObject } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri, addMockEntry, mockInvoke } from '../mock-tauri'
 import type { VaultEntry } from '../types'
+import type { ProjectCanvasDraftNoteInput } from '../projectCanvasDrafts'
 import { slugifyNoteStem as slugify } from '../utils/noteSlug'
 import { resolveEntry } from '../utils/wikilink'
 import { trackEvent } from '../lib/telemetry'
@@ -579,6 +580,33 @@ async function createNamedNote({
   }
 }
 
+function projectDraftCreationPlan(
+  entries: VaultEntry[],
+  input: ProjectCanvasDraftNoteInput,
+  vaults: readonly VaultOption[],
+): NoteCreationPlan {
+  const baseTitle = input.title.trim()
+  const defaults = resolveTypeInstanceDefaults({ entries, typeName: 'Note' })
+  for (let suffix = 1; suffix <= entries.length + 2; suffix += 1) {
+    const title = suffix === 1 ? baseTitle : `${baseTitle} ${suffix}`
+    const plan = planNewNoteCreation({
+      entries,
+      title,
+      type: 'Note',
+      vaultPath: input.vaultPath,
+      defaultWorkspacePath: input.vaultPath,
+      vaults,
+      template: input.content.trim(),
+      defaults,
+    })
+    if (plan.status === 'create') return plan
+  }
+  return {
+    status: 'blocked',
+    message: buildCreationCollisionMessage({ noun: 'note', title: baseTitle, path: input.vaultPath }),
+  }
+}
+
 interface TypeCreationRequest extends CreationDeps {
   typeName: string
 }
@@ -981,6 +1009,24 @@ export function useNoteCreation(config: NoteCreationConfig, tabDeps: CreationTab
     createNamedNote({ entries, vaultPath, defaultWorkspacePath, vaults, setToastMessage, persistResolvedEntry, title, type: 'Note' }),
   [entries, vaultPath, defaultWorkspacePath, vaults, setToastMessage, persistResolvedEntry])
 
+  const createProjectDraftNote = useCallback(async (
+    input: ProjectCanvasDraftNoteInput,
+  ): Promise<VaultEntry | null> => {
+    const plan = projectDraftCreationPlan(entries, input, vaults ?? [])
+    if (plan.status === 'blocked') {
+      setToastMessage(plan.message)
+      return null
+    }
+    try {
+      await persistResolvedEntry(plan.resolved, { openTab: false })
+      trackEvent('note_created', { has_type: 0, creation_path: 'project_ai_draft' })
+      return plan.resolved.entry
+    } catch (error) {
+      setToastMessage(createPersistFailureMessage(plan.resolved.entry, error))
+      return null
+    }
+  }, [entries, persistResolvedEntry, setToastMessage, vaults])
+
   const handleCreateNoteImmediate = useImmediateCreateQueue({
     entries,
     vaultPath,
@@ -996,6 +1042,7 @@ export function useNoteCreation(config: NoteCreationConfig, tabDeps: CreationTab
   useCreateNoteInFolderRequests(handleCreateNoteImmediate)
 
   return {
+    createProjectDraftNote,
     handleCreateNote,
     handleCreateNoteImmediate,
     handleCreateNoteForRelationship,

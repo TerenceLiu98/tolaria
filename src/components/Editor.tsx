@@ -6,6 +6,7 @@ import 'katex/dist/katex.min.css'
 import { DEFAULT_AI_AGENT, type AiAgentId, type AiAgentReadiness } from '../lib/aiAgents'
 import type { AiTarget } from '../lib/aiTargets'
 import { translate, type AppLocale } from '../lib/i18n'
+import type { CreateProjectCanvasDraftNote } from '../projectCanvasDrafts'
 import type { VaultEntry, GitCommit, NoteWidthMode, NoteStatus, WorkspaceIdentity } from '../types'
 import type { PaperParserProvider } from '../paper/parserSettings'
 import { stripPaperBlockAnchors } from '../paper/paperMarkdown'
@@ -98,6 +99,7 @@ interface EditorProps {
   onArchiveNote?: (path: string) => void
   onUnarchiveNote?: (path: string) => void
   onContentChange?: (path: string, content: string) => void
+  onCreateProjectDraftNote?: CreateProjectCanvasDraftNote
   onSave?: () => void
   /** Called when the user explicitly renames the filename from the breadcrumb. */
   onRenameFilename?: (path: string, newFilenameStem: string) => void
@@ -360,6 +362,7 @@ function EditorLayout({
   rawMode,
   handleToggleRawExclusive,
   onContentChange,
+  onCreateProjectDraftNote,
   onSave,
   activeStatus,
   showDiffToggle,
@@ -440,6 +443,7 @@ function EditorLayout({
   rawMode: boolean
   handleToggleRawExclusive: () => void
   onContentChange?: (path: string, content: string) => void
+  onCreateProjectDraftNote?: CreateProjectCanvasDraftNote
   onSave?: () => void
   activeStatus: NoteStatus
   showDiffToggle: boolean
@@ -540,6 +544,7 @@ function EditorLayout({
               rawMode={rawMode}
               onToggleRaw={handleToggleRawExclusive}
               onRawContentChange={onContentChange}
+              onCreateProjectDraftNote={onCreateProjectDraftNote}
               onSave={onSave}
               activeStatus={activeStatus}
               showDiffToggle={showDiffToggle}

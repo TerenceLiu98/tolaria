@@ -11,6 +11,9 @@ import { boundedSnippet, paperSubtitle } from './projectCanvasEntryPreview'
 import { nodeKindKey, type ProjectCanvasNodePresentation } from './projectCanvasDisplay'
 import { imageSourceForNode, nodeIsEmbedded } from './projectCanvasNodeModel'
 import { ProjectDocumentPreview } from './ProjectDocumentPreview'
+import { MarkdownContent } from '../MarkdownContent'
+
+export type ProjectCanvasTemporaryNodeKind = 'peek' | 'ai_draft'
 
 interface ProjectCanvasNodeCardProps {
   editing: boolean
@@ -34,6 +37,9 @@ interface ProjectCanvasNodeCardProps {
   resolved?: ProjectCanvasResolvedRef
   selected: boolean
   temporary?: boolean
+  temporaryError?: string | null
+  temporaryKind?: ProjectCanvasTemporaryNodeKind
+  temporarySaving?: boolean
   vaultPath: string
 }
 
@@ -59,6 +65,9 @@ export function ProjectCanvasNodeCard({
   resolved,
   selected,
   temporary = false,
+  temporaryError,
+  temporaryKind = 'peek',
+  temporarySaving = false,
   vaultPath,
 }: ProjectCanvasNodeCardProps) {
   const isEmbedded = nodeIsEmbedded(node)
@@ -82,7 +91,9 @@ export function ProjectCanvasNodeCard({
         `project-canvas-node--${presentation}`,
       )}
       data-presentation={presentation}
-      data-testid={temporary ? 'project-canvas-peek-node' : 'project-canvas-node'}
+      data-testid={temporary
+        ? temporaryKind === 'ai_draft' ? 'project-canvas-ai-draft-node' : 'project-canvas-peek-node'
+        : 'project-canvas-node'}
       data-node-id={node.id}
       style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
       onClick={onClick}
@@ -93,10 +104,14 @@ export function ProjectCanvasNodeCard({
         <div className="project-canvas-node__header">
           <span className="project-canvas-node__kind">{translate(locale, nodeKindKey(node))}</span>
           <span className="project-canvas-node__header-actions">
-            {temporary ? <span className="project-canvas-node__state project-canvas-node__state--peek">{translate(locale, 'projectCanvas.peekLabel')}</span> : null}
+            {temporary ? (
+              <span className="project-canvas-node__state project-canvas-node__state--peek">
+                {translate(locale, temporaryKind === 'ai_draft' ? 'projectCanvas.aiDraftLabel' : 'projectCanvas.peekLabel')}
+              </span>
+            ) : null}
             {isStale ? <span className="project-canvas-node__state">{translate(locale, 'projectCanvas.stale')}</span> : null}
             {temporary && onPinTemporary ? (
-              <Button type="button" size="icon-xs" variant="ghost" aria-label={translate(locale, 'projectCanvas.pinPeek')} onClick={(event) => {
+              <Button type="button" size="icon-xs" variant="ghost" disabled={temporarySaving} aria-label={translate(locale, temporaryKind === 'ai_draft' ? 'projectCanvas.pinAiDraft' : 'projectCanvas.pinPeek')} onClick={(event) => {
                 event.stopPropagation()
                 onPinTemporary()
               }}>
@@ -104,7 +119,7 @@ export function ProjectCanvasNodeCard({
               </Button>
             ) : null}
             {temporary && onCloseTemporary ? (
-              <Button type="button" size="icon-xs" variant="ghost" aria-label={translate(locale, 'projectCanvas.closePeek')} onClick={(event) => {
+              <Button type="button" size="icon-xs" variant="ghost" disabled={temporarySaving} aria-label={translate(locale, temporaryKind === 'ai_draft' ? 'projectCanvas.discardAiDraft' : 'projectCanvas.closePeek')} onClick={(event) => {
                 event.stopPropagation()
                 onCloseTemporary()
               }}>
@@ -128,7 +143,11 @@ export function ProjectCanvasNodeCard({
         </div>
         <div className="project-canvas-node__title">{title}</div>
         {subtitle && presentation !== 'overview' ? <div className="project-canvas-node__subtitle">{subtitle}</div> : null}
-        {editing ? (
+        {temporaryKind === 'ai_draft' && node.text ? (
+          <div className="project-canvas-node__draft-preview">
+            <MarkdownContent content={node.text} locale={locale} onWikilinkClick={onNavigateWikilink} />
+          </div>
+        ) : editing ? (
           <div className="project-canvas-node__editor-host" ref={editorHostRef} />
         ) : entry && (node.type === 'note' || node.type === 'paper') ? (
           <ProjectDocumentPreview active={presentation === 'preview'} entry={entry} locale={locale} onNavigateWikilink={onNavigateWikilink} />
@@ -164,6 +183,7 @@ export function ProjectCanvasNodeCard({
           <div className="project-canvas-node__snippet">{snippet}</div>
         ) : null}
         {isStale && resolved?.message ? <div className="project-canvas-node__message">{resolved.message}</div> : null}
+        {temporaryError ? <div className="project-canvas-node__message project-canvas-node__message--error">{temporaryError}</div> : null}
         {!isEmbedded && node.ref && presentation !== 'overview' ? (
           <div className="project-canvas-node__footer"><span>{node.ref}</span></div>
         ) : null}

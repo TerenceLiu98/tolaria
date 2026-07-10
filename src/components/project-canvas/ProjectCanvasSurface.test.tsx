@@ -10,9 +10,12 @@ import {
 import type { VaultEntry } from '../../types'
 import { ProjectCanvasSurface } from './ProjectCanvasSurface'
 import { PROJECT_CANVAS_DRAG_MIME } from './projectCanvasDragData'
-import { requestProjectCanvasNavigate } from './projectCanvasNavigation'
+import { requestProjectCanvasDraft, requestProjectCanvasNavigate } from './projectCanvasNavigation'
 
 vi.mock('../../lib/productAnalytics', () => ({
+  trackProjectCanvasAiDraftDiscarded: vi.fn(),
+  trackProjectCanvasAiDraftOpened: vi.fn(),
+  trackProjectCanvasAiDraftPinned: vi.fn(),
   trackProjectCanvasCreated: vi.fn(),
   trackProjectCanvasEdgeCreated: vi.fn(),
   trackProjectCanvasFocusModeChanged: vi.fn(),
@@ -510,6 +513,94 @@ describe('ProjectCanvasSurface', () => {
 
     expect(await screen.findByText('Attention Is All You Need')).toBeInTheDocument()
     expect(screen.getByText('Peek')).toBeInTheDocument()
+    expect(projectCanvas.saveProjectCanvas).not.toHaveBeenCalled()
+  })
+
+  it('keeps an AI draft temporary until the user saves it as a Note', async () => {
+    const canvas = sampleCanvas()
+    const createdNote = entry({
+      path: '/vault/notes/ai-research-answer.md',
+      filename: 'ai-research-answer.md',
+      title: 'AI research answer',
+      isA: 'Note',
+    })
+    const onCreateProjectDraftNote = vi.fn(async () => createdNote)
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onCreateProjectDraftNote={onCreateProjectDraftNote}
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await screen.findByText('Source Note')
+    act(() => {
+      requestProjectCanvasDraft({
+        projectPath: '/vault/projects/alpha/project.md',
+        title: 'AI research answer',
+        content: 'Draft with @block[attention#b0023]',
+      })
+    })
+
+    expect(await screen.findByTestId('project-canvas-ai-draft-node')).toBeInTheDocument()
+    expect(screen.getByText('Draft with')).toBeInTheDocument()
+    expect(projectCanvas.saveProjectCanvas).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Note' }))
+
+    await waitFor(() => expect(onCreateProjectDraftNote).toHaveBeenCalledWith({
+      content: 'Draft with @block[attention#b0023]',
+      title: 'AI research answer',
+      vaultPath: '/vault',
+    }))
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes).toContainEqual(expect.objectContaining({
+      type: 'note',
+      ref: 'notes/ai-research-answer.md',
+      text: undefined,
+    }))
+    expect(screen.queryByTestId('project-canvas-ai-draft-node')).not.toBeInTheDocument()
+  })
+
+  it('discards an AI draft without creating a Note or changing Canvas membership', async () => {
+    const canvas = sampleCanvas()
+    const onCreateProjectDraftNote = vi.fn()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onCreateProjectDraftNote={onCreateProjectDraftNote}
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await screen.findByText('Source Note')
+    act(() => {
+      requestProjectCanvasDraft({
+        projectPath: '/vault/projects/alpha/project.md',
+        title: 'AI research answer',
+        content: 'Unreviewed draft',
+      })
+    })
+    expect(await screen.findByTestId('project-canvas-ai-draft-node')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
+
+    expect(screen.queryByTestId('project-canvas-ai-draft-node')).not.toBeInTheDocument()
+    expect(onCreateProjectDraftNote).not.toHaveBeenCalled()
     expect(projectCanvas.saveProjectCanvas).not.toHaveBeenCalled()
   })
 

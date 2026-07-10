@@ -1834,6 +1834,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
               onPendingCommitDiffHandled={handlePendingDiffHandled}
               getNoteStatus={vault.getNoteStatus}
               onCreateNote={notes.handleCreateNoteImmediate}
+              onCreateProjectDraftNote={notes.createProjectDraftNote}
               inspectorCollapsed={layout.inspectorCollapsed}
               onToggleInspector={handleToggleInspector}
               inspectorWidth={layout.inspectorWidth}

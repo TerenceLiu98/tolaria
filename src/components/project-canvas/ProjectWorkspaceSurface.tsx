@@ -2,6 +2,7 @@ import type { AppLocale } from '../../lib/i18n'
 import type { VaultEntry } from '../../types'
 import type { AiSelectedTextContext } from '../../utils/ai-context'
 import type { PaperParserProvider } from '../../paper/parserSettings'
+import type { CreateProjectCanvasDraftNote } from '../../projectCanvasDrafts'
 import { ProjectCanvasSurface } from './ProjectCanvasSurface'
 import './ProjectCanvasSurface.css'
 
@@ -11,6 +12,7 @@ interface ProjectWorkspaceSurfaceProps {
   locale?: AppLocale
   onCopyFilePath?: (path: string) => void
   onContentChange?: (path: string, content: string) => void
+  onCreateProjectDraftNote?: CreateProjectCanvasDraftNote
   onNavigateWikilink: (target: string) => void
   onOpenExternalFile?: (path: string) => void
   onParsePaper?: (paperId: string, options?: { force?: boolean }) => void | Promise<void>
@@ -28,6 +30,7 @@ export function ProjectWorkspaceSurface({
   locale = 'en',
   onCopyFilePath,
   onContentChange,
+  onCreateProjectDraftNote,
   onNavigateWikilink,
   onOpenExternalFile,
   onParsePaper,
@@ -46,6 +49,7 @@ export function ProjectWorkspaceSurface({
         entries={entries}
         onCopyFilePath={onCopyFilePath}
         onContentChange={onContentChange}
+        onCreateProjectDraftNote={onCreateProjectDraftNote}
         onOpenExternalFile={onOpenExternalFile}
         onParsePaper={onParsePaper}
         onRevealFile={onRevealFile}

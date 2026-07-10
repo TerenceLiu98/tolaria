@@ -5,6 +5,7 @@ import type { AppLocale } from '../../lib/i18n'
 import type { AiSelectedTextContext } from '../../utils/ai-context'
 import type { NoteWidthMode, NoteStatus, VaultEntry } from '../../types'
 import type { PaperParserProvider } from '../../paper/parserSettings'
+import type { CreateProjectCanvasDraftNote } from '../../projectCanvasDrafts'
 import { useEditorTheme } from '../../hooks/useTheme'
 import { deriveEditorContentState } from './editorContentState'
 import type { RawEditorFindRequest } from '../RawEditorFindBar'
@@ -29,6 +30,7 @@ export interface EditorContentProps {
   rawMode: boolean
   onToggleRaw: () => void
   onRawContentChange?: (path: string, content: string) => void
+  onCreateProjectDraftNote?: CreateProjectCanvasDraftNote
   onSave?: () => void
   activeStatus: NoteStatus
   showDiffToggle: boolean

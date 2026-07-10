@@ -45,7 +45,7 @@ describe('Project Canvas add requests', () => {
     const request = projectCanvasRequestForAiResponse(response, 'AI research answer')
 
     expect(request.source).toBe('ai_answer')
-    expect(request.node.type).toBe('text')
+    expect(request.node.type).toBe('note')
     expect(request.node.title).toBe('AI research answer')
     expect(request.node.text?.length).toBeLessThanOrEqual(1400)
     expect(request.node.text).toContain('@block[attention#b0023]')

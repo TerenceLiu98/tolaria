@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { invoke } from '@tauri-apps/api/core'
-import { isTauri } from '../mock-tauri'
+import { isTauri, mockInvoke } from '../mock-tauri'
 import type { VaultEntry } from '../types'
 import {
   slugify,
@@ -346,6 +346,35 @@ describe('useNoteCreation hook', () => {
     expect(createdEntry.isA).toBe('Note')
     expect(createdEntry.status).toBeNull()
     expect(openTabWithContent.mock.calls[0][1]).toBe('---\ntitle: Test Note\ntype: Note\n---\n')
+  })
+
+  it('creates a Project AI draft as a Note without opening a standalone tab', async () => {
+    const existing = makeEntry({
+      path: '/test/vault/ai-research-answer.md',
+      title: 'AI research answer',
+    })
+    const { result } = renderHook(() => useNoteCreation(makeConfig([existing]), tabDeps))
+    let created: VaultEntry | null = null
+
+    await act(async () => {
+      created = await result.current.createProjectDraftNote({
+        content: 'Draft with @block[attention#b0023]',
+        title: 'AI research answer',
+        vaultPath: '/test/vault',
+      })
+    })
+
+    expect(created).toMatchObject({
+      path: '/test/vault/ai-research-answer-2.md',
+      title: 'AI research answer 2',
+      isA: 'Note',
+    })
+    expect(openTabWithContent).not.toHaveBeenCalled()
+    expect(mockInvoke).toHaveBeenCalledWith('save_note_content', {
+      path: '/test/vault/ai-research-answer-2.md',
+      content: '---\ntitle: AI research answer 2\ntype: Note\n---\n\nDraft with @block[attention#b0023]',
+      vaultPath: '/test/vault',
+    })
   })
 
   it('handleCreateNoteImmediate generates timestamp-based title', async () => {

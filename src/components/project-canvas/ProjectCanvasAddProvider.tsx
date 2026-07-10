@@ -18,7 +18,7 @@ import {
 import { Input } from '../ui/input'
 import type { ProjectCanvasAddRequest } from './projectCanvasAddRequests'
 import { ProjectCanvasAddContext } from './projectCanvasAddContext'
-import { requestProjectCanvasOpen } from './projectCanvasNavigation'
+import { requestProjectCanvasDraft, requestProjectCanvasOpen } from './projectCanvasNavigation'
 
 type AddNodeAction = typeof addNodeToProjectCanvas
 interface ProjectCanvasAddProviderProps {
@@ -71,6 +71,16 @@ export function ProjectCanvasAddProvider({
     setBusyProjectPath(project.path)
     setError(null)
     try {
+      if (request.source === 'ai_answer') {
+        requestProjectCanvasDraft({
+          projectPath: project.path,
+          title: request.node.title ?? request.label,
+          content: request.node.text ?? '',
+        })
+        onOpenProject(project)
+        close()
+        return
+      }
       const result: AddNodeToProjectCanvasResult = await addNode({
         vaultPath: projectVaultPath(project, vaultPath),
         projectPath: project.path,

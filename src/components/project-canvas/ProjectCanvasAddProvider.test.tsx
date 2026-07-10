@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { defaultProjectCanvas, type ProjectCanvasNode } from '../../projectCanvas'
 import { makeEntry } from '../../test-utils/noteListTestUtils'
 import {
+  PROJECT_CANVAS_DRAFT_EVENT,
   PROJECT_CANVAS_OPEN_EVENT,
+  type ProjectCanvasDraftIntent,
   type ProjectCanvasOpenIntent,
 } from './projectCanvasNavigation'
 import {
@@ -19,6 +21,19 @@ function RequestButton() {
       node: { type: 'note', ref: '/vault/notes/context.md', title: 'Context Note' },
     })}>
       Request add
+    </button>
+  )
+}
+
+function AiDraftRequestButton() {
+  const requestAdd = useProjectCanvasAdd()
+  return (
+    <button type="button" onClick={() => requestAdd?.({
+      source: 'ai_answer',
+      label: 'AI research answer',
+      node: { type: 'note', title: 'AI research answer', text: 'Draft with @block[attention#b0023]' },
+    })}>
+      Request AI draft
     </button>
   )
 }
@@ -95,5 +110,36 @@ describe('ProjectCanvasAddProvider', () => {
 
     expect(screen.queryByText('Agent Research')).not.toBeInTheDocument()
     expect(screen.getByText('Vision Research')).toBeInTheDocument()
+  })
+
+  it('opens an AI response as an unpersisted Project draft', async () => {
+    const project = makeEntry({ isA: 'Project', path: '/vault/projects/agents.md', title: 'Agent Research' })
+    const addNode = vi.fn()
+    const onOpenProject = vi.fn()
+    const draftListener = vi.fn()
+    window.addEventListener(PROJECT_CANVAS_DRAFT_EVENT, draftListener)
+
+    render(
+      <ProjectCanvasAddProvider
+        entries={[project]}
+        vaultPath="/vault"
+        addNode={addNode}
+        onOpenProject={onOpenProject}
+      >
+        <AiDraftRequestButton />
+      </ProjectCanvasAddProvider>,
+    )
+
+    fireEvent.click(screen.getByText('Request AI draft'))
+    fireEvent.click(screen.getByText('Agent Research'))
+
+    await waitFor(() => expect(onOpenProject).toHaveBeenCalledWith(project))
+    expect(addNode).not.toHaveBeenCalled()
+    expect((draftListener.mock.calls[0][0] as CustomEvent<ProjectCanvasDraftIntent>).detail).toEqual({
+      projectPath: project.path,
+      title: 'AI research answer',
+      content: 'Draft with @block[attention#b0023]',
+    })
+    window.removeEventListener(PROJECT_CANVAS_DRAFT_EVENT, draftListener)
   })
 })

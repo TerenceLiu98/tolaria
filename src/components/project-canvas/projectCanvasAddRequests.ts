@@ -65,7 +65,7 @@ export function projectCanvasRequestForAiResponse(
     source: 'ai_answer',
     label: title,
     node: {
-      type: 'text',
+      type: 'note',
       title,
       text: compactAiAnswer(response),
     },

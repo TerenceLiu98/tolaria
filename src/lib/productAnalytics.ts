@@ -175,6 +175,18 @@ export function trackProjectCanvasNavigatorFocused(params: { nodeType: ProjectCa
   trackEvent('project_canvas_navigator_focused', { node_type: params.nodeType })
 }
 
+export function trackProjectCanvasAiDraftOpened(): void {
+  trackEvent('project_canvas_ai_draft_opened')
+}
+
+export function trackProjectCanvasAiDraftPinned(): void {
+  trackEvent('project_canvas_ai_draft_pinned')
+}
+
+export function trackProjectCanvasAiDraftDiscarded(): void {
+  trackEvent('project_canvas_ai_draft_discarded')
+}
+
 export function trackProjectCanvasNodeAdded(params: { linked: boolean; nodeType: ProjectCanvasNodeKind }): void {
   trackEvent('project_canvas_node_added', {
     linked: numericFlag(params.linked),

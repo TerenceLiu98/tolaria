@@ -1,8 +1,11 @@
 import {
+  consumeProjectCanvasDraft,
   consumeProjectCanvasNavigate,
   consumeProjectCanvasOpen,
+  pendingProjectCanvasDraft,
   pendingProjectCanvasNavigate,
   pendingProjectCanvasOpen,
+  requestProjectCanvasDraft,
   requestProjectCanvasNavigate,
   requestProjectCanvasOpen,
 } from './projectCanvasNavigation'
@@ -35,5 +38,21 @@ describe('Project Canvas navigation intent', () => {
       target: 'papers/attention/paper.md',
     })
     expect(pendingProjectCanvasNavigate('projects/agents.md')).toBeNull()
+  })
+
+  it('keeps an AI draft until the matching Project Canvas consumes it', () => {
+    requestProjectCanvasDraft({
+      projectPath: 'projects/agents.md',
+      title: 'AI research answer',
+      content: 'A cited draft. @block[attention#b0023]',
+    })
+
+    expect(pendingProjectCanvasDraft('projects/other.md')).toBeNull()
+    expect(consumeProjectCanvasDraft('projects/agents.md')).toEqual({
+      projectPath: 'projects/agents.md',
+      title: 'AI research answer',
+      content: 'A cited draft. @block[attention#b0023]',
+    })
+    expect(pendingProjectCanvasDraft('projects/agents.md')).toBeNull()
   })
 })

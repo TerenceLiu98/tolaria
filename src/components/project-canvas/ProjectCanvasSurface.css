@@ -629,6 +629,19 @@
   -webkit-line-clamp: 3;
 }
 
+.project-canvas-node__draft-preview {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.project-canvas-node__message--error {
+  color: hsl(var(--destructive));
+}
+
 .project-document-preview {
   min-height: 0;
   flex: 1;
