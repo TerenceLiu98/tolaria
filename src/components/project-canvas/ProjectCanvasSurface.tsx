@@ -67,6 +67,7 @@ import {
 import { looksLikeBlockCitation, looksLikeImageRef, nodeIsEmbedded, titleFromPath } from './projectCanvasNodeModel'
 import { ProjectCanvasNodeCard } from './ProjectCanvasNodeCard'
 import { ProjectCanvasNavigator } from './ProjectCanvasNavigator'
+import { useProjectCanvasViewportSize, visibleProjectCanvasNodes } from './projectCanvasViewport'
 import './ProjectCanvasSurface.css'
 
 const MIN_NODE_WIDTH = 180
@@ -218,6 +219,7 @@ export function ProjectCanvasSurface({
   const suppressClickUntilRef = useRef(0)
   const openedTrackedRef = useRef(false)
   const zoomSaveTimerRef = useRef<number | null>(null)
+  const viewportSize = useProjectCanvasViewportSize(viewportRef)
 
   useEffect(() => {
     canvasRef.current = canvas
@@ -1137,6 +1139,14 @@ export function ProjectCanvasSurface({
   const editingEntry = editingNode
     ? findEntryForProjectCanvasRef(entries, editingNode.ref, refsByNodeId.get(editingNode.id)?.targetPath, vaultPath)
     : null
+  const retainedNodeIds = new Set(selectedNodeIds)
+  if (editingNodeId) retainedNodeIds.add(editingNodeId)
+  const visibleNodes = visibleProjectCanvasNodes(
+    canvas.nodes,
+    canvas.viewport,
+    viewportSize,
+    retainedNodeIds,
+  )
 
   return (
     <section className="project-canvas-surface" data-testid="project-canvas-surface">
@@ -1215,7 +1225,7 @@ export function ProjectCanvasSurface({
               />
             ) : null}
           </svg>
-          {canvas.nodes.map((node) => {
+          {visibleNodes.map((node) => {
             const nodeEntry = findEntryForProjectCanvasRef(entries, node.ref, refsByNodeId.get(node.id)?.targetPath, vaultPath)
             return (
               <ProjectCanvasNodeCard
