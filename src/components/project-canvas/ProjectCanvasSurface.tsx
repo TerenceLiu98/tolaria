@@ -222,6 +222,7 @@ export function ProjectCanvasSurface({
   const resolveRequestRef = useRef(0)
   const suppressClickUntilRef = useRef(0)
   const openedTrackedRef = useRef(false)
+  const spacePressedRef = useRef(false)
   const zoomSaveTimerRef = useRef<number | null>(null)
   const viewportSize = useProjectCanvasViewportSize(viewportRef)
 
@@ -726,7 +727,20 @@ export function ProjectCanvasSurface({
   }, [])
 
   const handleNodePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, node: ProjectCanvasNode) => {
-    if (event.button !== 0 || (event.target as HTMLElement).closest('button, input, textarea, select, [role="checkbox"]')) return
+    if (event.button !== 0) return
+    if (spacePressedRef.current && canvasRef.current) {
+      event.preventDefault()
+      event.stopPropagation()
+      operationRef.current = {
+        kind: 'pan',
+        clientX: event.clientX,
+        clientY: event.clientY,
+        startViewport: canvasRef.current.viewport,
+        moved: false,
+      }
+      return
+    }
+    if ((event.target as HTMLElement).closest('button, input, textarea, select, [role="checkbox"]')) return
     event.stopPropagation()
     operationRef.current = {
       kind: 'drag',
@@ -1107,6 +1121,32 @@ export function ProjectCanvasSurface({
     }
     const target = event.target as HTMLElement
     if (target.closest('input, textarea, [contenteditable="true"]')) return
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault()
+      event.stopPropagation()
+      setAddPanelOpen(true)
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      if (addPanelOpen) {
+        setAddPanelOpen(false)
+        return
+      }
+      if (editingNodeId) {
+        closeCanvasEditor()
+        return
+      }
+      selectSingleNode(null)
+      setSelectedEdgeId(null)
+      return
+    }
+    if (event.key === ' ') {
+      event.preventDefault()
+      spacePressedRef.current = true
+      return
+    }
     if (event.key === 'Enter' && selectedNode) {
       event.preventDefault()
       event.stopPropagation()
@@ -1141,7 +1181,11 @@ export function ProjectCanvasSurface({
       else if (selectedNodeId === aiDraftNode?.id) closeAiDraft()
       else if (selectedNodeId) deleteSelectedNode()
     }
-  }, [aiDraftNode?.id, changeFocusMode, closeAiDraft, closePeekNode, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editDocumentNode, editingNodeId, focusMode, pasteCopiedNode, peekNode?.id, restoreCanvasFromHistory, selectedEdgeId, selectedNode, selectedNodeId])
+  }, [addPanelOpen, aiDraftNode?.id, changeFocusMode, closeAiDraft, closeCanvasEditor, closePeekNode, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editDocumentNode, editingNodeId, focusMode, pasteCopiedNode, peekNode?.id, restoreCanvasFromHistory, selectSingleNode, selectedEdgeId, selectedNode, selectedNodeId])
+
+  const handleCanvasKeyUp = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === ' ') spacePressedRef.current = false
+  }, [])
 
   if (state === 'loading') {
     return <div className="project-canvas-loading">{translate(locale, 'projectCanvas.loading')}</div>
@@ -1201,6 +1245,8 @@ export function ProjectCanvasSurface({
         onDragOver={handleCanvasDragOver}
         onDrop={handleCanvasDrop}
         onKeyDown={handleCanvasKeyDown}
+        onKeyUp={handleCanvasKeyUp}
+        onBlur={() => { spacePressedRef.current = false }}
         onPointerDown={handleViewportPointerDown}
       >
         <ProjectCanvasNavigator

@@ -664,6 +664,76 @@ describe('ProjectCanvasSurface', () => {
     expect(savedNode?.y).toBe(60)
   })
 
+  it('pans the Canvas instead of moving a node while Space is held', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const viewport = await screen.findByTestId('project-canvas-viewport')
+    const card = (await screen.findByText('Source Note')).closest('[data-testid="project-canvas-node"]')
+    expect(card).not.toBeNull()
+
+    fireEvent.keyDown(viewport, { key: ' ' })
+    fireEvent.pointerDown(card!, { button: 0, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(window, { clientX: 150, clientY: 140 })
+    fireEvent.pointerUp(window)
+    fireEvent.keyUp(viewport, { key: ' ' })
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.viewport).toMatchObject({ x: 70, y: 70 })
+    expect(savedCanvas?.nodes.find(node => node.id === 'note')).toMatchObject({ x: 10, y: 20 })
+  })
+
+  it('opens Add from Cmd+K and exits editing before clearing selection with Escape', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[entry({
+          path: '/vault/notes/source.md',
+          filename: 'source.md',
+          title: 'Source Note',
+          isA: 'Note',
+        })]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const viewport = await screen.findByTestId('project-canvas-viewport')
+    fireEvent.keyDown(viewport, { key: 'k', metaKey: true })
+    expect(screen.getByPlaceholderText('Search Notes and Papers...')).toBeInTheDocument()
+
+    fireEvent.keyDown(viewport, { key: 'Escape' })
+    const sourceNode = (await screen.findByText('Source Note')).closest('[data-node-id="note"]') as HTMLElement
+    fireEvent.doubleClick(within(sourceNode).getByText('Source Note'))
+    await waitFor(() => expect(screen.getAllByTestId('canvas-editor-portal')).toHaveLength(1))
+
+    fireEvent.keyDown(viewport, { key: 'Escape' })
+    expect(screen.queryByTestId('canvas-editor-portal')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-node-id="note"]')).toHaveClass('project-canvas-node--selected')
+
+    fireEvent.keyDown(viewport, { key: 'Escape' })
+    expect(document.querySelector('[data-node-id="note"]')).not.toHaveClass('project-canvas-node--selected')
+  })
+
   it('adds an existing note to the canvas and links it from the selected source node', async () => {
     const canvas = {
       ...defaultProjectCanvas('projects/alpha/project.md'),
