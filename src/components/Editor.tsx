@@ -1,13 +1,11 @@
 import { useRef, useEffect, useCallback, memo, useMemo, useState, type ReactNode } from 'react'
 import { useEditorTabSwap } from '../hooks/useEditorTabSwap'
-import { useCreateBlockNote } from '@blocknote/react'
+import type { useCreateBlockNote } from '@blocknote/react'
 import '@blocknote/mantine/style.css'
 import 'katex/dist/katex.min.css'
-import { uploadImageFile } from '../hooks/useImageDrop'
 import { DEFAULT_AI_AGENT, type AiAgentId, type AiAgentReadiness } from '../lib/aiAgents'
 import type { AiTarget } from '../lib/aiTargets'
 import { translate, type AppLocale } from '../lib/i18n'
-import { RUNTIME_STYLE_NONCE } from '../lib/runtimeStyleNonce'
 import type { VaultEntry, GitCommit, NoteWidthMode, NoteStatus, WorkspaceIdentity } from '../types'
 import type { PaperParserProvider } from '../paper/parserSettings'
 import { stripPaperBlockAnchors } from '../paper/paperMarkdown'
@@ -24,7 +22,6 @@ import { EditorRightPanel } from './EditorRightPanel'
 import { EditorContent } from './EditorContent'
 import { EditorMemoryProbe } from './EditorMemoryProbe'
 import { FilePreview } from './FilePreview'
-import { schema } from './editorSchema'
 import { useRightPanelExclusion } from './useRightPanelExclusion'
 import type { RawEditorFindRequest } from './RawEditorFindBar'
 import {
@@ -33,34 +30,15 @@ import {
 } from './editorRawModeSync'
 import { useRegisterEditorContentFlushes } from './editorContentFlushRegistration'
 import { useRawModeWithFlush } from './useRawModeWithFlush'
-import { createImeCompositionKeyGuardExtension } from './imeCompositionKeyGuardExtension'
-import { createMarkdownHighlightShortcutExtension } from './markdownHighlightShortcutExtension'
-import { handleRichEditorPaste } from './richEditorPaste'
-import { createRichEditorMarkdownInputTransformExtension } from './richEditorInputTransformExtension'
-import { createRichEditorTextDirectionExtension } from './richEditorTextDirection'
-import { createRichEditorTransformErrorRecoveryExtension } from './richEditorTransformErrorRecoveryExtension'
-import { createRichEditorBlockSelectionExtension } from './richEditorBlockSelectionExtension'
-import { createRichEditorCodeBlockTabExtension } from './richEditorCodeBlockTabExtension'
-import { useFilenameAutolinkGuard } from './useFilenameAutolinkGuard'
 import { useEditorPdfExport } from './useEditorPdfExport'
 import type { NotePdfExportSource } from '../utils/notePdfExport'
 import {
   useRichEditorContentReadiness,
   useRichEditorSheetSwapState,
 } from './useRichEditorSheetTransition'
-import {
-  installBlockNoteDirectMarkdown,
-  type DirectMarkdownCapableSerializer,
-} from '../utils/blockNoteDirectMarkdown'
-import { installRichEditorDispatchPerformanceProbe } from './richEditorDispatchPerformance'
-import { RICH_EDITOR_BLOCKNOTE_PERFORMANCE_OPTIONS } from './richEditorBlockNoteOptions'
+import { useSapientiaBlockNoteEditor } from './useSapientiaBlockNoteEditor'
 import './Editor.css'
 import './EditorTheme.css'
-
-const RICH_EDITOR_BIDI_DOM_ATTRIBUTES = {
-  blockContent: { dir: 'auto' },
-  inlineContent: { dir: 'auto' },
-}
 
 interface Tab {
   entry: VaultEntry
@@ -228,46 +206,14 @@ interface EditorSetupParams {
   diffToggleRef?: React.MutableRefObject<() => void>
 }
 
-function installDirectMarkdownForRealEditor(editor: ReturnType<typeof useCreateBlockNote>) {
-  if (!('pmSchema' in editor) || !('_tiptapEditor' in editor)) return
-  installBlockNoteDirectMarkdown(editor as DirectMarkdownCapableSerializer)
-}
-
 function useEditorSetup({
   tabs, activeTabPath, vaultPath, onContentChange,
   onLoadDiff, onLoadDiffAtCommit, pendingCommitDiffRequest, onPendingCommitDiffHandled, getNoteStatus,
   rawToggleRef, diffToggleRef,
 }: EditorSetupParams) {
-  const vaultPathRef = useRef(vaultPath)
-  const activeTabPathRef = useRef(activeTabPath)
   const flushPendingEditorChangeRef = useRef<(() => boolean) | null>(null)
   const sheetFlushRef = useRef<((path: string) => void) | null>(null)
-  useEffect(() => { vaultPathRef.current = vaultPath }, [vaultPath])
-  useEffect(() => { activeTabPathRef.current = activeTabPath }, [activeTabPath])
-
-  const editor = useCreateBlockNote({
-    ...RICH_EDITOR_BLOCKNOTE_PERFORMANCE_OPTIONS,
-    schema,
-    domAttributes: RICH_EDITOR_BIDI_DOM_ATTRIBUTES,
-    uploadFile: (file: File) => uploadImageFile(file, vaultPathRef.current),
-    pasteHandler: handleRichEditorPaste,
-    tabBehavior: 'prefer-indent',
-    _tiptapOptions: { injectNonce: RUNTIME_STYLE_NONCE },
-    extensions: [
-      createRichEditorTransformErrorRecoveryExtension(),
-      createImeCompositionKeyGuardExtension(),
-      createRichEditorCodeBlockTabExtension(),
-      createMarkdownHighlightShortcutExtension(),
-      createRichEditorMarkdownInputTransformExtension(),
-      createRichEditorTextDirectionExtension(),
-      createRichEditorBlockSelectionExtension(),
-    ],
-  })
-  installDirectMarkdownForRealEditor(editor)
-  useEffect(() => {
-    installRichEditorDispatchPerformanceProbe(editor, () => activeTabPathRef.current)
-  }, [editor])
-  useFilenameAutolinkGuard(editor)
+  const editor = useSapientiaBlockNoteEditor({ activePath: activeTabPath, vaultPath })
   const activeTab = tabs.find((t) => t.entry.path === activeTabPath) ?? null
   const {
     rawMode,

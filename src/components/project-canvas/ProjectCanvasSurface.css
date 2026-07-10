@@ -411,6 +411,16 @@
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.16), 0 10px 24px hsl(var(--foreground) / 0.08);
 }
 
+.project-canvas-node--editing {
+  z-index: 8;
+}
+
+.project-canvas-node--editing .project-canvas-node__body {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 12px;
+}
+
 .project-canvas-node__body {
   min-height: 0;
   flex: 1;
@@ -499,6 +509,32 @@
   color: hsl(var(--foreground));
   font-size: 12px;
   line-height: 1.55;
+  overscroll-behavior: contain;
+}
+
+.project-canvas-node__editor-host {
+  display: flex;
+  min-height: 0;
+  height: calc(100% - 58px);
+  flex: 1;
+  overflow: hidden;
+  border-top: 1px solid hsl(var(--border) / 0.65);
+  margin-top: 8px;
+}
+
+.canvas-editor-portal {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  flex: 1;
+  overflow: hidden;
+  background: hsl(var(--background));
+}
+
+.canvas-editor-portal__surface {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
   overscroll-behavior: contain;
 }
 

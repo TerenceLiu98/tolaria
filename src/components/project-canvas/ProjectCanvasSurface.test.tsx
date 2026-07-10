@@ -30,6 +30,12 @@ vi.mock('../../projectCanvas', async () => {
   }
 })
 
+vi.mock('./CanvasEditorPortal', () => ({
+  CanvasEditorPortal: ({ entry, target }: { entry: VaultEntry; target: HTMLElement | null }) => (
+    target ? <div data-testid="canvas-editor-portal">{entry.path}</div> : null
+  ),
+}))
+
 function entry(overrides: Partial<VaultEntry>): VaultEntry {
   return {
     path: '/vault/projects/alpha/project.md',
@@ -210,6 +216,7 @@ describe('ProjectCanvasSurface', () => {
     const canvas = defaultProjectCanvas('projects/alpha/project.md')
     vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
     vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
 
     const view = render(
       <ProjectCanvasSurface
@@ -231,8 +238,10 @@ describe('ProjectCanvasSurface', () => {
   it('selects document nodes in place and keeps standalone open explicit', async () => {
     const canvas = sampleCanvas()
     const onNavigateWikilink = vi.fn()
+    const onSave = vi.fn()
     vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
     vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
 
     render(
       <ProjectCanvasSurface
@@ -256,6 +265,7 @@ describe('ProjectCanvasSurface', () => {
         vaultPath="/vault"
         locale="en"
         onNavigateWikilink={onNavigateWikilink}
+        onSave={onSave}
       />,
     )
 
@@ -272,7 +282,19 @@ describe('ProjectCanvasSurface', () => {
 
     fireEvent.doubleClick(within(sourceNode).getByText('Source Note'))
 
+    expect(await screen.findByTestId('canvas-editor-portal')).toHaveTextContent('/vault/notes/source.md')
+    expect(onNavigateWikilink).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+
     expect(onNavigateWikilink).toHaveBeenCalledWith('notes/source.md')
+
+    const paperNode = document.querySelector('[data-node-id="paper"]') as HTMLElement
+    fireEvent.doubleClick(within(paperNode).getByText('Example Paper'))
+
+    expect(screen.getAllByTestId('canvas-editor-portal')).toHaveLength(1)
+    expect(screen.getByTestId('canvas-editor-portal')).toHaveTextContent('/vault/papers/example/paper.md')
+    expect(onSave).toHaveBeenCalledTimes(1)
   })
 
   it('keeps document nodes in lightweight overview state at low zoom', async () => {

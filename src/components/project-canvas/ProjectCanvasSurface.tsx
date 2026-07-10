@@ -15,6 +15,7 @@ import {
   type ProjectCanvasResolvedRef,
 } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
+import type { AiSelectedTextContext } from '../../utils/ai-context'
 import { publishProjectCanvasSelection } from '../../projectCanvasSelectionStore'
 import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
@@ -33,6 +34,7 @@ import {
 import { boundedSnippet, findEntryForProjectCanvasRef, paperSubtitle, relativeVaultPath } from './projectCanvasEntryPreview'
 import { PROJECT_CANVAS_DRAG_MIME, readProjectCanvasDragPayload } from './projectCanvasDragData'
 import { ProjectCanvasInspector } from './ProjectCanvasInspector'
+import { CanvasEditorPortal } from './CanvasEditorPortal'
 import { ProjectDocumentPreview } from './ProjectDocumentPreview'
 import {
   consumeProjectCanvasOpen,
@@ -62,13 +64,19 @@ import './ProjectCanvasSurface.css'
 
 const MIN_NODE_WIDTH = 180
 const MIN_NODE_HEIGHT = 110
+const EDITOR_MIN_WIDTH = 560
+const EDITOR_MIN_HEIGHT = 420
 
 interface ProjectCanvasSurfaceProps {
+  editable?: boolean
   entry: VaultEntry
   entries: VaultEntry[]
   vaultPath?: string
   locale?: AppLocale
+  onContentChange?: (path: string, content: string) => void
   onNavigateWikilink: (target: string) => void
+  onSave?: () => void
+  onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
 }
 
 type CanvasOperation =
@@ -153,11 +161,15 @@ function canvasWithFocusedNode(
 
 
 export function ProjectCanvasSurface({
+  editable = true,
   entry,
   entries,
   vaultPath = '',
   locale = 'en',
+  onContentChange,
   onNavigateWikilink,
+  onSave,
+  onSelectedTextContextChange,
 }: ProjectCanvasSurfaceProps) {
   const [canvas, setCanvas] = useState<ProjectCanvas | null>(null)
   const [refs, setRefs] = useState<ProjectCanvasResolvedRef[]>([])
@@ -171,6 +183,8 @@ export function ProjectCanvasSurface({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
+  const [editorHost, setEditorHost] = useState<HTMLElement | null>(null)
   const [linkFromSelected, setLinkFromSelected] = useState(true)
   const [edgeKind, setEdgeKind] = useState<ProjectCanvasEdgeKind>('related')
   const [connectPreview, setConnectPreview] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null)
@@ -812,6 +826,43 @@ export function ProjectCanvasSurface({
     onNavigateWikilink(target)
   }, [onNavigateWikilink, refsByNodeId])
 
+  const closeCanvasEditor = useCallback(() => {
+    if (editingNodeId) onSave?.()
+    setEditingNodeId(null)
+    setEditorHost(null)
+  }, [editingNodeId, onSave])
+
+  const editDocumentNode = useCallback((node: ProjectCanvasNode) => {
+    if (node.type !== 'note' && node.type !== 'paper') {
+      handleNodeClick(node)
+      return
+    }
+    const resolved = refsByNodeId.get(node.id)
+    const targetEntry = findEntryForProjectCanvasRef(entries, node.ref, resolved?.targetPath, vaultPath)
+    if (!targetEntry) {
+      handleNodeClick(node)
+      return
+    }
+    if (editingNodeId && editingNodeId !== node.id) onSave?.()
+    setEditorHost(null)
+    selectSingleNode(node.id)
+    const current = canvasRef.current
+    if (current && (node.width < EDITOR_MIN_WIDTH || node.height < EDITOR_MIN_HEIGHT)) {
+      const nextCanvas = {
+        ...current,
+        nodes: current.nodes.map(candidate => candidate.id === node.id
+          ? {
+              ...candidate,
+              width: Math.max(candidate.width, EDITOR_MIN_WIDTH),
+              height: Math.max(candidate.height, EDITOR_MIN_HEIGHT),
+            }
+          : candidate),
+      }
+      commitContentCanvas(nextCanvas, current)
+    }
+    setEditingNodeId(node.id)
+  }, [commitContentCanvas, editingNodeId, entries, handleNodeClick, onSave, refsByNodeId, selectSingleNode, vaultPath])
+
   const handleSelectNode = useCallback((node: ProjectCanvasNode, event?: React.MouseEvent<HTMLElement>) => {
     if (event?.metaKey || event?.ctrlKey || event?.shiftKey) {
       toggleNodeSelection(node.id)
@@ -878,6 +929,11 @@ export function ProjectCanvasSurface({
     const ids = selectedNodeIds.length > 0 ? selectedNodeIds : selectedNodeId ? [selectedNodeId] : []
     const deletableIds = ids.filter(id => id !== PROJECT_OVERVIEW_NODE_ID)
     if (!current || deletableIds.length === 0) return
+    if (editingNodeId && deletableIds.includes(editingNodeId)) {
+      onSave?.()
+      setEditingNodeId(null)
+      setEditorHost(null)
+    }
     const selectedIds = new Set(deletableIds)
     const nextCanvas = {
       ...current,
@@ -887,7 +943,7 @@ export function ProjectCanvasSurface({
     setSelectedNodeId(null)
     setSelectedNodeIds([])
     commitContentCanvas(nextCanvas, current)
-  }, [commitContentCanvas, selectedNodeId, selectedNodeIds])
+  }, [commitContentCanvas, editingNodeId, onSave, selectedNodeId, selectedNodeIds])
 
   const deleteSelectedEdge = useCallback(() => {
     const current = canvasRef.current
@@ -953,6 +1009,10 @@ export function ProjectCanvasSurface({
   const svgMinY = edgeBounds.minY - padding
   const svgWidth = Math.max(1200, edgeBounds.maxX - edgeBounds.minX + padding * 2)
   const svgHeight = Math.max(900, edgeBounds.maxY - edgeBounds.minY + padding * 2)
+  const editingNode = canvas.nodes.find(node => node.id === editingNodeId) ?? null
+  const editingEntry = editingNode
+    ? findEntryForProjectCanvasRef(entries, editingNode.ref, refsByNodeId.get(editingNode.id)?.targetPath, vaultPath)
+    : null
 
   return (
     <section className="project-canvas-surface" data-testid="project-canvas-surface">
@@ -1022,29 +1082,49 @@ export function ProjectCanvasSurface({
               />
             ) : null}
           </svg>
-          {canvas.nodes.map(node => (
-            <ProjectCanvasNodeCard
-              key={node.id}
-              node={node}
-              entry={findEntryForProjectCanvasRef(entries, node.ref, refsByNodeId.get(node.id)?.targetPath, vaultPath)}
-              locale={locale}
-              resolved={refsByNodeId.get(node.id)}
-              selected={selectedNodeIds.includes(node.id)}
-              presentation={nodePresentation(canvas.viewport.zoom, selectedNodeIds.includes(node.id))}
-              vaultPath={vaultPath}
-              onClick={(event) => handleSelectNode(node, event)}
-              onDoubleClick={() => handleNodeClick(node)}
-              onNavigateWikilink={onNavigateWikilink}
-              onPointerDown={(event) => handleNodePointerDown(event, node)}
-              onConnectPointerDown={(event) => handleConnectPointerDown(event, node)}
-              onResizePointerDown={(event) => handleResizePointerDown(event, node)}
-              onSelect={(event) => handleSelectNode(node, event)}
-              onToggleTask={() => toggleTaskNode(node.id)}
-              onTextBlur={handleNodeTextBlur}
-              onTextChange={(text) => handleNodeTextChange(node.id, text)}
-            />
-          ))}
+          {canvas.nodes.map((node) => {
+            const nodeEntry = findEntryForProjectCanvasRef(entries, node.ref, refsByNodeId.get(node.id)?.targetPath, vaultPath)
+            return (
+              <ProjectCanvasNodeCard
+                key={node.id}
+                node={node}
+                editing={editingNodeId === node.id}
+                editorHostRef={editingNodeId === node.id ? setEditorHost : undefined}
+                entry={nodeEntry}
+                locale={locale}
+                resolved={refsByNodeId.get(node.id)}
+                selected={selectedNodeIds.includes(node.id)}
+                presentation={nodePresentation(canvas.viewport.zoom, selectedNodeIds.includes(node.id))}
+                vaultPath={vaultPath}
+                onClick={(event) => handleSelectNode(node, event)}
+                onDoubleClick={() => editDocumentNode(node)}
+                onNavigateWikilink={onNavigateWikilink}
+                onPointerDown={(event) => handleNodePointerDown(event, node)}
+                onConnectPointerDown={(event) => handleConnectPointerDown(event, node)}
+                onResizePointerDown={(event) => handleResizePointerDown(event, node)}
+                onSelect={(event) => handleSelectNode(node, event)}
+                onToggleTask={() => toggleTaskNode(node.id)}
+                onTextBlur={handleNodeTextBlur}
+                onTextChange={(text) => handleNodeTextChange(node.id, text)}
+              />
+            )
+          })}
         </div>
+        {editingEntry ? (
+          <CanvasEditorPortal
+            key={editingEntry.path}
+            editable={editable}
+            entries={entries}
+            entry={editingEntry}
+            locale={locale}
+            onClose={closeCanvasEditor}
+            onContentChange={onContentChange}
+            onNavigateWikilink={onNavigateWikilink}
+            onSelectedTextContextChange={onSelectedTextContextChange}
+            target={editorHost}
+            vaultPath={vaultPath}
+          />
+        ) : null}
         <ProjectCanvasInspector
           canvas={canvas}
           edge={selectedEdge}
@@ -1212,6 +1292,8 @@ export function ProjectCanvasSurface({
 
 function ProjectCanvasNodeCard({
   node,
+  editing,
+  editorHostRef,
   entry,
   locale,
   resolved,
@@ -1230,6 +1312,8 @@ function ProjectCanvasNodeCard({
   onTextBlur,
 }: {
   node: ProjectCanvasNode
+  editing: boolean
+  editorHostRef?: (element: HTMLDivElement | null) => void
   entry: VaultEntry | null
   locale: AppLocale
   resolved?: ProjectCanvasResolvedRef
@@ -1263,6 +1347,7 @@ function ProjectCanvasNodeCard({
         `project-canvas-node--type-${node.type}`,
         isStale && 'project-canvas-node--stale',
         selected && 'project-canvas-node--selected',
+        editing && 'project-canvas-node--editing',
         `project-canvas-node--${presentation}`,
       )}
       data-presentation={presentation}
@@ -1295,7 +1380,9 @@ function ProjectCanvasNodeCard({
         </div>
         <div className="project-canvas-node__title">{title}</div>
         {subtitle && presentation !== 'overview' ? <div className="project-canvas-node__subtitle">{subtitle}</div> : null}
-        {entry && (node.type === 'note' || node.type === 'paper') ? (
+        {editing ? (
+          <div className="project-canvas-node__editor-host" ref={editorHostRef} />
+        ) : entry && (node.type === 'note' || node.type === 'paper') ? (
           <ProjectDocumentPreview
             active={presentation === 'preview'}
             entry={entry}

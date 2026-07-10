@@ -367,6 +367,7 @@ function EditorCanvas({
   paperParserProvider,
   onRevealFile,
   onRawContentChange,
+  onSave,
   sheetFlushRef,
   isDeletedPreview,
   vaultPath,
@@ -384,6 +385,7 @@ function EditorCanvas({
   | 'onEditorChange'
   | 'onSelectedTextContextChange'
   | 'onRawContentChange'
+  | 'onSave'
   | 'sheetFlushRef'
   | 'isDeletedPreview'
   | 'vaultPath'
@@ -455,8 +457,12 @@ function EditorCanvas({
         style={cssVars as React.CSSProperties}
       >
         <ProjectWorkspaceSurface
+          editable={!isDeletedPreview}
           entries={entries}
+          onContentChange={onRawContentChange}
           onNavigateWikilink={onNavigateWikilink}
+          onSave={onSave}
+          onSelectedTextContextChange={onSelectedTextContextChange}
           sourceEntry={activeTab.entry}
           vaultPath={vaultPath}
           locale={locale}
@@ -624,6 +630,7 @@ export function EditorContentLayout(model: EditorContentModel) {
             onOpenExternalFile={onOpenExternalFile}
             onRevealFile={onRevealFile}
             onRawContentChange={onRawContentChange}
+            onSave={onSave}
             sheetFlushRef={sheetFlushRef}
             isDeletedPreview={isDeletedPreview}
             isSheet={isSheet}

@@ -191,7 +191,7 @@ const mockEntry: VaultEntry = {
   path: '/vault/project/test.md',
   filename: 'test.md',
   title: 'Test Project',
-  isA: 'Project',
+  isA: 'Note',
   aliases: [],
   belongsTo: [],
   relatedTo: [],
