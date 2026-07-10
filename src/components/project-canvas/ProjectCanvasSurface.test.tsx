@@ -402,6 +402,35 @@ describe('ProjectCanvasSurface', () => {
     expect(screen.getAllByTestId('canvas-editor-portal')).toHaveLength(1)
   })
 
+  it('edits the selected document node when Enter is pressed on the Canvas', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[entry({
+          path: '/vault/notes/source.md',
+          filename: 'source.md',
+          title: 'Source Note',
+          isA: 'Note',
+        })]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const sourceNode = (await screen.findByText('Source Note')).closest('[data-node-id="note"]') as HTMLElement
+    fireEvent.click(within(sourceNode).getByRole('button', { name: 'Source' }))
+    fireEvent.keyDown(screen.getByTestId('project-canvas-viewport'), { key: 'Enter' })
+
+    expect(await screen.findByTestId('canvas-editor-portal')).toBeInTheDocument()
+    expect(screen.getAllByTestId('canvas-editor-portal')).toHaveLength(1)
+  })
+
   it('keeps wikilink navigation inside the Canvas when the target node already exists', async () => {
     const canvas = {
       ...sampleCanvas(),

@@ -1107,6 +1107,12 @@ export function ProjectCanvasSurface({
     }
     const target = event.target as HTMLElement
     if (target.closest('input, textarea, [contenteditable="true"]')) return
+    if (event.key === 'Enter' && selectedNode) {
+      event.preventDefault()
+      event.stopPropagation()
+      editDocumentNode(selectedNode)
+      return
+    }
     const meta = event.metaKey || event.ctrlKey
     if (meta && event.key.toLowerCase() === 'z') {
       event.preventDefault()
@@ -1135,7 +1141,7 @@ export function ProjectCanvasSurface({
       else if (selectedNodeId === aiDraftNode?.id) closeAiDraft()
       else if (selectedNodeId) deleteSelectedNode()
     }
-  }, [aiDraftNode?.id, changeFocusMode, closeAiDraft, closePeekNode, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editingNodeId, focusMode, pasteCopiedNode, peekNode?.id, restoreCanvasFromHistory, selectedEdgeId, selectedNodeId])
+  }, [aiDraftNode?.id, changeFocusMode, closeAiDraft, closePeekNode, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editDocumentNode, editingNodeId, focusMode, pasteCopiedNode, peekNode?.id, restoreCanvasFromHistory, selectedEdgeId, selectedNode, selectedNodeId])
 
   if (state === 'loading') {
     return <div className="project-canvas-loading">{translate(locale, 'projectCanvas.loading')}</div>
