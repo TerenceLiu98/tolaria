@@ -15,6 +15,8 @@ vi.mock('../../lib/productAnalytics', () => ({
   trackProjectCanvasCreated: vi.fn(),
   trackProjectCanvasEdgeCreated: vi.fn(),
   trackProjectCanvasFocusModeChanged: vi.fn(),
+  trackProjectCanvasPeekOpened: vi.fn(),
+  trackProjectCanvasPeekPinned: vi.fn(),
   trackProjectCanvasLayoutSaved: vi.fn(),
   trackProjectCanvasNodeAdded: vi.fn(),
   trackProjectCanvasOpened: vi.fn(),
@@ -32,8 +34,17 @@ vi.mock('../../projectCanvas', async () => {
 })
 
 vi.mock('./CanvasEditorPortal', () => ({
-  CanvasEditorPortal: ({ entry, target }: { entry: VaultEntry; target: HTMLElement | null }) => (
-    target ? <div data-testid="canvas-editor-portal">{entry.path}</div> : null
+  CanvasEditorPortal: ({ entry, onNavigateWikilink, target }: {
+    entry: VaultEntry
+    onNavigateWikilink: (target: string) => void
+    target: HTMLElement | null
+  }) => (
+    target ? (
+      <div data-testid="canvas-editor-portal">
+        <span>{entry.path}</span>
+        <button type="button" onClick={() => onNavigateWikilink('Linked Note')}>Follow linked note</button>
+      </div>
+    ) : null
   ),
 }))
 
@@ -362,6 +373,85 @@ describe('ProjectCanvasSurface', () => {
 
     expect(screen.queryByTestId('project-canvas-focus-mode')).not.toBeInTheDocument()
     expect(screen.getAllByTestId('canvas-editor-portal')).toHaveLength(1)
+  })
+
+  it('keeps wikilink navigation inside the Canvas when the target node already exists', async () => {
+    const canvas = {
+      ...sampleCanvas(),
+      nodes: [
+        ...sampleCanvas().nodes,
+        {
+          id: 'linked',
+          type: 'note' as const,
+          ref: 'notes/linked.md',
+          x: 620,
+          y: 220,
+          width: 220,
+          height: 130,
+          title: 'Linked Note',
+        },
+      ],
+    }
+    const onNavigateWikilink = vi.fn()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[
+          entry({ path: '/vault/notes/source.md', filename: 'source.md', title: 'Source Note', isA: 'Note' }),
+          entry({ path: '/vault/notes/linked.md', filename: 'linked.md', title: 'Linked Note', isA: 'Note' }),
+        ]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={onNavigateWikilink}
+      />,
+    )
+
+    const sourceNode = (await screen.findByText('Source Note')).closest('[data-node-id="note"]') as HTMLElement
+    fireEvent.doubleClick(within(sourceNode).getByText('Source Note'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Follow linked note' }))
+
+    expect(screen.getByTestId('canvas-editor-portal')).toHaveTextContent('/vault/notes/linked.md')
+    expect(onNavigateWikilink).not.toHaveBeenCalled()
+  })
+
+  it('opens an unplaced wikilink as a temporary Peek and persists it only when pinned', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[
+          entry({ path: '/vault/notes/source.md', filename: 'source.md', title: 'Source Note', isA: 'Note' }),
+          entry({ path: '/vault/notes/linked.md', filename: 'linked.md', title: 'Linked Note', isA: 'Note' }),
+        ]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const sourceNode = (await screen.findByText('Source Note')).closest('[data-node-id="note"]') as HTMLElement
+    fireEvent.doubleClick(within(sourceNode).getByText('Source Note'))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockClear()
+    fireEvent.click(await screen.findByRole('button', { name: 'Follow linked note' }))
+
+    expect(await screen.findByTestId('project-canvas-peek-node')).toBeInTheDocument()
+    expect(screen.getByTestId('canvas-editor-portal')).toHaveTextContent('/vault/notes/linked.md')
+    expect(projectCanvas.saveProjectCanvas).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pin to Project' }))
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
+    const saved = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(saved?.nodes.some(node => node.ref === 'notes/linked.md')).toBe(true)
+    expect(screen.queryByTestId('project-canvas-peek-node')).not.toBeInTheDocument()
   })
 
   it('persists node geometry after drag', async () => {

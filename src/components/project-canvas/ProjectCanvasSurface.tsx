@@ -1,5 +1,5 @@
 import type React from 'react'
-import { ArrowCounterClockwise, ArrowClockwise, CheckSquare, Clipboard, CornersIn, CornersOut, Graph, ImageSquare, LineSegment, MagnifyingGlass, Minus, Plus, Square, TextT } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowClockwise, CheckSquare, Clipboard, CornersIn, CornersOut, Graph, ImageSquare, MagnifyingGlass, Minus, Plus, Square, TextT } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { translate, type AppLocale } from '../../lib/i18n'
 import {
@@ -32,12 +32,13 @@ import {
   trackProjectCanvasLayoutSaved,
   trackProjectCanvasNodeAdded,
   trackProjectCanvasOpened,
+  trackProjectCanvasPeekOpened,
+  trackProjectCanvasPeekPinned,
 } from '../../lib/productAnalytics'
-import { boundedSnippet, findEntryForProjectCanvasRef, paperSubtitle, relativeVaultPath } from './projectCanvasEntryPreview'
+import { findEntryForProjectCanvasRef, relativeVaultPath } from './projectCanvasEntryPreview'
 import { PROJECT_CANVAS_DRAG_MIME, readProjectCanvasDragPayload } from './projectCanvasDragData'
 import { ProjectCanvasInspector } from './ProjectCanvasInspector'
 import { CanvasEditorPortal } from './CanvasEditorPortal'
-import { ProjectDocumentPreview } from './ProjectDocumentPreview'
 import {
   consumeProjectCanvasOpen,
   pendingProjectCanvasOpen,
@@ -54,14 +55,13 @@ import {
   DEFAULT_NODE_WIDTH,
   EDGE_KINDS,
   edgeKindKey,
-  nodeKindKey,
   nodePresentation,
-  type ProjectCanvasNodePresentation,
   ZOOM_MAX,
   ZOOM_MIN,
   ZOOM_STEP,
 } from './projectCanvasDisplay'
-import { imageSourceForNode, looksLikeBlockCitation, looksLikeImageRef, nodeIsEmbedded, titleFromPath } from './projectCanvasNodeModel'
+import { looksLikeBlockCitation, looksLikeImageRef, nodeIsEmbedded, titleFromPath } from './projectCanvasNodeModel'
+import { ProjectCanvasNodeCard } from './ProjectCanvasNodeCard'
 import './ProjectCanvasSurface.css'
 
 const MIN_NODE_WIDTH = 180
@@ -198,6 +198,7 @@ export function ProjectCanvasSurface({
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [editorHost, setEditorHost] = useState<HTMLElement | null>(null)
   const [focusMode, setFocusMode] = useState(false)
+  const [peekNode, setPeekNode] = useState<ProjectCanvasNode | null>(null)
   const [linkFromSelected, setLinkFromSelected] = useState(true)
   const [edgeKind, setEdgeKind] = useState<ProjectCanvasEdgeKind>('related')
   const [connectPreview, setConnectPreview] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null)
@@ -848,11 +849,12 @@ export function ProjectCanvasSurface({
 
   const changeFocusMode = useCallback((enabled: boolean) => {
     const current = canvasRef.current?.nodes.find(node => node.id === editingNodeId)
+      ?? (peekNode?.id === editingNodeId ? peekNode : null)
     if (!current || (current.type !== 'note' && current.type !== 'paper')) return
     setEditorHost(null)
     setFocusMode(enabled)
     trackProjectCanvasFocusModeChanged({ enabled, nodeType: current.type })
-  }, [editingNodeId])
+  }, [editingNodeId, peekNode])
 
   const editDocumentNode = useCallback((node: ProjectCanvasNode) => {
     if (node.type !== 'note' && node.type !== 'paper') {
@@ -885,6 +887,75 @@ export function ProjectCanvasSurface({
     }
     setEditingNodeId(node.id)
   }, [commitContentCanvas, editingNodeId, entries, handleNodeClick, onSave, refsByNodeId, selectSingleNode, vaultPath])
+
+  const closePeekNode = useCallback(() => {
+    if (!peekNode) return
+    if (editingNodeId === peekNode.id) onSave?.()
+    setPeekNode(null)
+    setEditorHost(null)
+    setEditingNodeId(null)
+    setFocusMode(false)
+    selectSingleNode(null)
+  }, [editingNodeId, onSave, peekNode, selectSingleNode])
+
+  const pinPeekNode = useCallback(() => {
+    const current = canvasRef.current
+    if (!current || !peekNode) return
+    const nextCanvas = { ...current, nodes: [...current.nodes, peekNode] }
+    setPeekNode(null)
+    commitContentCanvas(nextCanvas, current)
+    trackProjectCanvasPeekPinned({ nodeType: peekNode.type })
+  }, [commitContentCanvas, peekNode])
+
+  const handleCanvasNavigate = useCallback((target: string) => {
+    const current = canvasRef.current
+    const targetEntry = findEntryForProjectCanvasRef(entries, target, undefined, vaultPath)
+    if (!current || !targetEntry) {
+      onNavigateWikilink(target)
+      return
+    }
+    const existingNode = current.nodes.find((node) => {
+      const resolved = refsByNodeId.get(node.id)
+      return findEntryForProjectCanvasRef(entries, node.ref, resolved?.targetPath, vaultPath)?.path === targetEntry.path
+    })
+    if (existingNode) {
+      if (peekNode && editingNodeId === peekNode.id) onSave?.()
+      setPeekNode(null)
+      setFocusMode(false)
+      focusNode(existingNode, false)
+      editDocumentNode(existingNode)
+      return
+    }
+    if (peekNode?.ref === relativeVaultPath(targetEntry.path, vaultPath)) {
+      focusNode(peekNode, false)
+      editDocumentNode(peekNode)
+      return
+    }
+    if (editingNodeId) onSave?.()
+    const sourceNode = current.nodes.find(node => node.id === selectedNodeId)
+      ?? current.nodes.find(node => node.id === editingNodeId)
+    const nodeType = candidateEntryType(targetEntry)
+    if (!nodeType) {
+      onNavigateWikilink(target)
+      return
+    }
+    const nextPeek: ProjectCanvasNode = {
+      id: nextCanvasId('peek', current.nodes.map(node => node.id)),
+      type: nodeType,
+      ref: relativeVaultPath(targetEntry.path, vaultPath),
+      x: sourceNode ? sourceNode.x + sourceNode.width + 80 : canvasCenter(EDITOR_MIN_WIDTH, EDITOR_MIN_HEIGHT).x,
+      y: sourceNode ? sourceNode.y : canvasCenter(EDITOR_MIN_WIDTH, EDITOR_MIN_HEIGHT).y,
+      width: EDITOR_MIN_WIDTH,
+      height: EDITOR_MIN_HEIGHT,
+      title: targetEntry.title,
+    }
+    setEditorHost(null)
+    setFocusMode(false)
+    setPeekNode(nextPeek)
+    focusNode(nextPeek, false)
+    setEditingNodeId(nextPeek.id)
+    trackProjectCanvasPeekOpened({ nodeType })
+  }, [canvasCenter, editDocumentNode, editingNodeId, entries, focusNode, onNavigateWikilink, onSave, peekNode, refsByNodeId, selectedNodeId, vaultPath])
 
   const handleSelectNode = useCallback((node: ProjectCanvasNode, event?: React.MouseEvent<HTMLElement>) => {
     if (event?.metaKey || event?.ctrlKey || event?.shiftKey) {
@@ -1013,9 +1084,10 @@ export function ProjectCanvasSurface({
     if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault()
       if (selectedEdgeId) deleteSelectedEdge()
+      else if (selectedNodeId === peekNode?.id) closePeekNode()
       else if (selectedNodeId) deleteSelectedNode()
     }
-  }, [changeFocusMode, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editingNodeId, focusMode, pasteCopiedNode, restoreCanvasFromHistory, selectedEdgeId, selectedNodeId])
+  }, [changeFocusMode, closePeekNode, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editingNodeId, focusMode, pasteCopiedNode, peekNode?.id, restoreCanvasFromHistory, selectedEdgeId, selectedNodeId])
 
   if (state === 'loading') {
     return <div className="project-canvas-loading">{translate(locale, 'projectCanvas.loading')}</div>
@@ -1039,7 +1111,8 @@ export function ProjectCanvasSurface({
   const svgMinY = edgeBounds.minY - padding
   const svgWidth = Math.max(1200, edgeBounds.maxX - edgeBounds.minX + padding * 2)
   const svgHeight = Math.max(900, edgeBounds.maxY - edgeBounds.minY + padding * 2)
-  const editingNode = canvas.nodes.find(node => node.id === editingNodeId) ?? null
+  const editingNode = canvas.nodes.find(node => node.id === editingNodeId)
+    ?? (peekNode?.id === editingNodeId ? peekNode : null)
   const editingEntry = editingNode
     ? findEntryForProjectCanvasRef(entries, editingNode.ref, refsByNodeId.get(editingNode.id)?.targetPath, vaultPath)
     : null
@@ -1128,7 +1201,7 @@ export function ProjectCanvasSurface({
                 vaultPath={vaultPath}
                 onClick={(event) => handleSelectNode(node, event)}
                 onDoubleClick={() => editDocumentNode(node)}
-                onNavigateWikilink={onNavigateWikilink}
+                onNavigateWikilink={handleCanvasNavigate}
                 onPointerDown={(event) => handleNodePointerDown(event, node)}
                 onConnectPointerDown={(event) => handleConnectPointerDown(event, node)}
                 onResizePointerDown={(event) => handleResizePointerDown(event, node)}
@@ -1139,6 +1212,31 @@ export function ProjectCanvasSurface({
               />
             )
           })}
+          {peekNode ? (
+            <ProjectCanvasNodeCard
+              node={peekNode}
+              editing={editingNodeId === peekNode.id && !focusMode}
+              editorHostRef={editingNodeId === peekNode.id && !focusMode ? setEditorHost : undefined}
+              entry={findEntryForProjectCanvasRef(entries, peekNode.ref, undefined, vaultPath)}
+              locale={locale}
+              selected={selectedNodeId === peekNode.id}
+              presentation="preview"
+              temporary
+              vaultPath={vaultPath}
+              onClick={(event) => handleSelectNode(peekNode, event)}
+              onCloseTemporary={closePeekNode}
+              onDoubleClick={() => editDocumentNode(peekNode)}
+              onNavigateWikilink={handleCanvasNavigate}
+              onPinTemporary={pinPeekNode}
+              onPointerDown={event => event.stopPropagation()}
+              onConnectPointerDown={event => event.stopPropagation()}
+              onResizePointerDown={event => event.stopPropagation()}
+              onSelect={(event) => handleSelectNode(peekNode, event)}
+              onToggleTask={() => {}}
+              onTextBlur={() => {}}
+              onTextChange={() => {}}
+            />
+          ) : null}
         </div>
         {focusMode && editingEntry ? (
           <section
@@ -1171,7 +1269,7 @@ export function ProjectCanvasSurface({
             onClose={focusMode ? () => changeFocusMode(false) : closeCanvasEditor}
             onCopyFilePath={onCopyFilePath}
             onContentChange={onContentChange}
-            onNavigateWikilink={onNavigateWikilink}
+            onNavigateWikilink={handleCanvasNavigate}
             onOpenExternalFile={onOpenExternalFile}
             onParsePaper={onParsePaper}
             onRevealFile={onRevealFile}
@@ -1193,7 +1291,7 @@ export function ProjectCanvasSurface({
             setSelectedEdgeId(null)
           }}
           onDeleteEdge={deleteSelectedEdge}
-          onDeleteNode={deleteSelectedNode}
+          onDeleteNode={selectedNodeId === peekNode?.id ? closePeekNode : deleteSelectedNode}
           onEdgeChange={updateSelectedEdge}
           onEdgeKindDefaultChange={setEdgeKind}
           onNavigate={selectedNode && !nodeIsEmbedded(selectedNode) && selectedNode.type !== 'image'
@@ -1355,162 +1453,5 @@ export function ProjectCanvasSurface({
         </div>
       </div>
     </section>
-  )
-}
-
-function ProjectCanvasNodeCard({
-  node,
-  editing,
-  editorHostRef,
-  entry,
-  locale,
-  resolved,
-  selected,
-  presentation,
-  vaultPath,
-  onClick,
-  onDoubleClick,
-  onNavigateWikilink,
-  onConnectPointerDown,
-  onPointerDown,
-  onResizePointerDown,
-  onSelect,
-  onToggleTask,
-  onTextChange,
-  onTextBlur,
-}: {
-  node: ProjectCanvasNode
-  editing: boolean
-  editorHostRef?: (element: HTMLDivElement | null) => void
-  entry: VaultEntry | null
-  locale: AppLocale
-  resolved?: ProjectCanvasResolvedRef
-  selected: boolean
-  presentation: ProjectCanvasNodePresentation
-  vaultPath: string
-  onClick: (event: React.MouseEvent<HTMLElement>) => void
-  onDoubleClick: () => void
-  onNavigateWikilink: (target: string) => void
-  onConnectPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void
-  onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
-  onResizePointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
-  onSelect: (event: React.MouseEvent<HTMLButtonElement>) => void
-  onToggleTask: () => void
-  onTextChange: (text: string) => void
-  onTextBlur: () => void
-}) {
-  const isEmbedded = nodeIsEmbedded(node)
-  const isStale = resolved?.state === 'stale'
-  const title = node.title ?? entry?.title ?? resolved?.targetTitle ?? node.ref ?? translate(locale, 'projectCanvas.untitledNode')
-  const subtitle = entry?.isA === 'Paper' ? paperSubtitle(entry) : null
-  const snippet = node.type === 'paper_block'
-    ? boundedSnippet(node.text ?? resolved?.message ?? null)
-    : boundedSnippet(node.text ?? entry?.snippet ?? null)
-  const imageSource = node.type === 'image' ? imageSourceForNode(node, vaultPath) : null
-
-  return (
-    <article
-      className={cn(
-        'project-canvas-node',
-        `project-canvas-node--type-${node.type}`,
-        isStale && 'project-canvas-node--stale',
-        selected && 'project-canvas-node--selected',
-        editing && 'project-canvas-node--editing',
-        `project-canvas-node--${presentation}`,
-      )}
-      data-presentation={presentation}
-      data-testid="project-canvas-node"
-      data-node-id={node.id}
-      style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      onPointerDown={onPointerDown}
-    >
-      <div className="project-canvas-node__body">
-        <div className="project-canvas-node__header">
-          <span className="project-canvas-node__kind">{translate(locale, nodeKindKey(node))}</span>
-          <span className="project-canvas-node__header-actions">
-            {isStale ? <span className="project-canvas-node__state">{translate(locale, 'projectCanvas.stale')}</span> : null}
-            <Button
-              type="button"
-              size="xs"
-              variant={selected ? 'secondary' : 'ghost'}
-              className="project-canvas-node__select"
-              aria-label={selected ? translate(locale, 'projectCanvas.selected') : translate(locale, 'projectCanvas.selectSource')}
-              onClick={(event) => {
-                event.stopPropagation()
-                onSelect(event)
-              }}
-            >
-              {translate(locale, 'projectCanvas.selectSource')}
-            </Button>
-          </span>
-        </div>
-        <div className="project-canvas-node__title">{title}</div>
-        {subtitle && presentation !== 'overview' ? <div className="project-canvas-node__subtitle">{subtitle}</div> : null}
-        {editing ? (
-          <div className="project-canvas-node__editor-host" ref={editorHostRef} />
-        ) : entry && (node.type === 'note' || node.type === 'paper') ? (
-          <ProjectDocumentPreview
-            active={presentation === 'preview'}
-            entry={entry}
-            locale={locale}
-            onNavigateWikilink={onNavigateWikilink}
-          />
-        ) : null}
-        {node.type === 'task' ? (
-          <label className="project-canvas-node__task">
-            <Checkbox checked={node.completed === true} onCheckedChange={onToggleTask} />
-            <Textarea
-              className="project-canvas-node__textarea"
-              value={node.text ?? ''}
-              onChange={(event) => onTextChange(event.target.value)}
-              onBlur={onTextBlur}
-              placeholder={translate(locale, 'projectCanvas.textPlaceholder')}
-            />
-          </label>
-        ) : node.type === 'image' ? (
-          <div className="project-canvas-node__image-frame">
-            {imageSource ? (
-              <img src={imageSource} alt={title} className="project-canvas-node__image" />
-            ) : (
-              <div className="project-canvas-node__image-empty">{translate(locale, 'projectCanvas.imageMissing')}</div>
-            )}
-          </div>
-        ) : isEmbedded ? (
-          <Textarea
-            className="project-canvas-node__textarea"
-            value={node.text ?? ''}
-            onChange={(event) => onTextChange(event.target.value)}
-            onBlur={onTextBlur}
-            placeholder={translate(locale, 'projectCanvas.textPlaceholder')}
-          />
-        ) : snippet && presentation === 'card' ? (
-          <div className="project-canvas-node__snippet">{snippet}</div>
-        ) : null}
-        {isStale && resolved?.message ? <div className="project-canvas-node__message">{resolved.message}</div> : null}
-        {!isEmbedded && node.ref && presentation !== 'overview' ? (
-          <div className="project-canvas-node__footer">
-            <span>{node.ref}</span>
-          </div>
-        ) : null}
-      </div>
-      <Button
-        type="button"
-        size="icon-sm"
-        variant="secondary"
-        className="project-canvas-node__connect"
-        aria-label={translate(locale, 'projectCanvas.connectFrom', { title })}
-        onPointerDown={onConnectPointerDown}
-        onClick={event => event.stopPropagation()}
-      >
-        <LineSegment size={13} />
-      </Button>
-      <div
-        className="project-canvas-node__resize"
-        role="presentation"
-        onPointerDown={onResizePointerDown}
-      />
-    </article>
   )
 }

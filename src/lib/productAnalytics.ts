@@ -163,6 +163,14 @@ export function trackProjectCanvasFocusModeChanged(params: {
   })
 }
 
+export function trackProjectCanvasPeekOpened(params: { nodeType: ProjectCanvasNodeKind }): void {
+  trackEvent('project_canvas_peek_opened', { node_type: params.nodeType })
+}
+
+export function trackProjectCanvasPeekPinned(params: { nodeType: ProjectCanvasNodeKind }): void {
+  trackEvent('project_canvas_peek_pinned', { node_type: params.nodeType })
+}
+
 export function trackProjectCanvasNodeAdded(params: { linked: boolean; nodeType: ProjectCanvasNodeKind }): void {
   trackEvent('project_canvas_node_added', {
     linked: numericFlag(params.linked),
