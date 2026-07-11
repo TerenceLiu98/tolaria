@@ -33,9 +33,11 @@ describe('CanvasViewport', () => {
 
   it('round-trips coordinates and zooms around the pointer', () => {
     const viewport = new CanvasViewport({ x: 20, y: 30, zoom: 1 })
-    viewport.setViewportSize({ width: 800, height: 600 })
+    viewport.setViewportSize({ width: 800, height: 600, left: 100, top: 50 })
     const canvasPoint = viewport.screenToCanvas({ x: 220, y: 230 })
     expect(viewport.canvasToScreen(canvasPoint)).toEqual({ x: 220, y: 230 })
+    expect(viewport.clientToCanvas({ x: 320, y: 280 })).toEqual(canvasPoint)
+    expect(viewport.canvasCenter(200, 100)).toEqual({ x: 280, y: 220 })
 
     viewport.zoomAtScreenPoint({ x: 400, y: 300 }, 2)
     viewport.flush()
@@ -53,9 +55,54 @@ describe('CanvasViewport', () => {
     expect(snapshot.renderBounds.maxX).toBeGreaterThan(snapshot.hitTestBounds.maxX)
     expect(snapshot.camera.zoom).toBeGreaterThan(0.35)
   })
+
+  it('derives deterministic graphics bounds from scene bounds', () => {
+    const viewport = new CanvasViewport()
+    expect(viewport.graphicsBounds(null)).toEqual({ minX: -400, minY: -300, width: 1200, height: 900 })
+    expect(viewport.graphicsBounds({ minX: 0, minY: 10, maxX: 1400, maxY: 1100 })).toEqual({
+      minX: -240,
+      minY: -230,
+      width: 1880,
+      height: 1570,
+    })
+  })
 })
 
 describe('CanvasSceneStore', () => {
+  it('keeps 1,000-node viewport queries bounded', () => {
+    const nodes = Array.from({ length: 1000 }, (_, index) => ({
+      id: `node-${index}`,
+      type: 'text' as const,
+      x: (index % 50) * 80,
+      y: Math.floor(index / 50) * 80,
+      width: 48,
+      height: 48,
+    }))
+    const store = new CanvasSceneStore({ ...defaultProjectCanvas('projects/medium/project.md'), nodes, edges: [] })
+    store.query({ minX: 800, minY: 800, maxX: 850, maxY: 850 })
+    expect(store.getDiagnostics().lastQueryCandidates).toBeLessThan(1000)
+  })
+
+  it('queries a deterministic 5,000-node scene through spatial candidates', () => {
+    const nodes = Array.from({ length: 5000 }, (_, index) => ({
+      id: `node-${String(index).padStart(4, '0')}`,
+      type: 'text' as const,
+      x: (index % 100) * 80,
+      y: Math.floor(index / 100) * 80,
+      width: 48,
+      height: 48,
+    }))
+    const store = new CanvasSceneStore({
+      ...defaultProjectCanvas('projects/large/project.md'),
+      nodes,
+      edges: [],
+    })
+
+    const result = store.query({ minX: 1600, minY: 1600, maxX: 1650, maxY: 1650 })
+    expect(result.map(node => node.id)).toEqual(['node-2020'])
+    expect(store.getDiagnostics().lastQueryCandidates).toBeLessThan(500)
+  })
+
   it('normalizes the scene, serializes deterministically, and spatially queries/hit-tests', () => {
     const store = new CanvasSceneStore(canvasWithNodes())
     expect(store.serialize().nodes.map(node => node.id)).toEqual(['a', 'project_overview', 'z'])
@@ -148,16 +195,38 @@ describe('Canvas layers, node specs, and overlays', () => {
     expect(['note', 'paper', 'paper_block', 'image', 'text', 'task', 'group'].every(type => specs.has(type as ProjectCanvas['nodes'][number]['type']))).toBe(true)
     expect(specs.getForNode({ id: 'project_overview', type: 'note', x: 0, y: 0, width: 10, height: 10 }).key).toBe('overview')
     expect(specs.get('image').clipboard({ id: 'image', type: 'image', x: 0, y: 0, width: 10, height: 10 })).not.toBeNull()
+    expect(specs.get('note').renderer).toBe('document')
+    expect(specs.get('overview').renderer).toBe('document')
+    expect(specs.get('note').editorGeometry).toMatchObject({ width: 560, height: 420 })
+    expect(specs.get('task').toolbarActions).toContain('toggle-complete')
+    expect(specs.get('paper_block').resolveDrop('@block[attention#b001]')).toEqual({ ref: '@block[attention#b001]' })
+    expect(specs.get('image').resolveDrop('figure.png')).toEqual({ ref: 'figure.png', title: 'figure.png' })
+    expect(specs.get('text').resolveDrop('plain text')).toEqual({ text: 'plain text' })
 
     const viewport = new CanvasViewport({ x: 10, y: 20, zoom: 0.5 })
+    viewport.setViewportSize({ width: 400, height: 300 })
     const overlays = new CanvasOverlayCoordinator()
+    overlays.setViewportBounds({ left: 0, top: 0, width: 400, height: 300 })
     const rect = overlays.positionForNodes([{ id: 'a', type: 'text', x: 0, y: 0, width: 100, height: 80 }], viewport)
     expect(rect).toEqual({ left: 10, top: 20, width: 50, height: 40 })
     expect(overlays.getSnapshot().handleSize).toBe(8)
+    expect(overlays.getSnapshot().zOrder).toEqual(['selection', 'snap', 'resize', 'connection', 'toolbar', 'comment', 'menu'])
+    expect(overlays.getSnapshot().zIndices.toolbar).toBe(overlays.zIndexFor('toolbar'))
+    expect(overlays.zIndexFor('toolbar')).toBeGreaterThan(overlays.zIndexFor('selection'))
+    overlays.setActive(['selection', 'toolbar', 'menu'], false)
+    overlays.setFocusOwner('overlay')
+    expect(overlays.getSnapshot().focusOwner).toBe('overlay')
+    expect(overlays.dismissTop()).toBe('menu')
     expect(overlays.getSnapshot().handles).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: 'connect', nodeId: 'a', left: 60, top: 40 }),
       expect.objectContaining({ kind: 'resize', nodeId: 'a', left: 60, top: 60 }),
     ]))
+    expect(overlays.positionForNodes([{ id: 'offscreen', type: 'text', x: -100, y: 0, width: 100, height: 80 }], viewport)).toEqual({
+      left: 0,
+      top: 20,
+      width: 10,
+      height: 40,
+    })
   })
 
   it('enforces low-zoom budgets while retaining active nodes', () => {
@@ -173,6 +242,22 @@ describe('Canvas layers, node specs, and overlays', () => {
     const visible = layers.filterNodes(nodes, 0.4, new Set(['node-199']))
     expect(visible).toHaveLength(181)
     expect(visible.at(-1)?.id).toBe('node-199')
+  })
+
+  it('retains active, connected, and overlay-owned nodes in a 5,000-node low-zoom scene', () => {
+    const layers = new CanvasLayerManager()
+    const nodes = Array.from({ length: 5000 }, (_, index) => ({
+      id: `node-${index}`,
+      type: 'text' as const,
+      x: index * 10,
+      y: 0,
+      width: 8,
+      height: 8,
+    }))
+    const retained = new Set(['node-4900', 'node-4901', 'node-4902', 'node-4903'])
+    const visible = layers.filterNodes(nodes, 0.4, retained)
+    expect(visible).toHaveLength(184)
+    expect(visible.map(node => node.id)).toEqual(expect.arrayContaining([...retained]))
   })
 })
 
@@ -231,6 +316,109 @@ describe('ProjectCanvasPersistenceAdapter', () => {
 })
 
 describe('ProjectCanvasController', () => {
+  it('uses actual focus ownership for undo and preserves Canvas history across editor focus transitions', async () => {
+    const initial = canvasWithNodes()
+    const persistence = new ProjectCanvasPersistenceAdapter({
+      projectPath: initial.project,
+      vaultPath: '/vault',
+      deterministicWrites: false,
+      read: async () => ({
+        projectPath: initial.project,
+        canvasPath: 'projects/alpha/project.canvas.json',
+        state: 'ready' as const,
+        canvas: initial,
+      }),
+      create: async () => ({
+        projectPath: initial.project,
+        canvasPath: 'projects/alpha/project.canvas.json',
+        state: 'ready' as const,
+        canvas: initial,
+      }),
+      resolve: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', refs: [], diagnostics: [] }),
+      save: async (_vault, _project, canvas) => ({
+        projectPath: initial.project,
+        canvasPath: 'projects/alpha/project.canvas.json',
+        state: 'ready' as const,
+        canvas,
+      }),
+      viewportDebounceMs: 0,
+    })
+    const controller = new ProjectCanvasController({ persistence, migrateLoadedScene: false })
+    await controller.load()
+
+    controller.updateNode('a', { x: 100 }, true)
+    expect(controller.getSnapshot().historyDomain).toBe('canvas')
+    controller.setFocusOwner('document')
+    expect(controller.getSnapshot().historyDomain).toBe('document')
+    expect(controller.undo()).toBeNull()
+    controller.setFocusOwner('canvas')
+    expect(controller.getSnapshot().historyDomain).toBe('canvas')
+    expect(controller.undo()?.nodes.find(node => node.id === 'a')?.x).toBe(0)
+
+    controller.setFocusOwner('document')
+    controller.setFocusOwner('canvas')
+    expect(controller.redo()?.nodes.find(node => node.id === 'a')?.x).toBe(100)
+    controller.dispose()
+  })
+
+  it('constructs add and drop nodes through the controller using NodeSpec geometry', async () => {
+    const initial = canvasWithNodes()
+    const persistence = new ProjectCanvasPersistenceAdapter({
+      projectPath: initial.project,
+      vaultPath: '/vault',
+      deterministicWrites: false,
+      read: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas: initial }),
+      create: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas: initial }),
+      resolve: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', refs: [], diagnostics: [] }),
+      save: async (_vault, _project, canvas) => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas }),
+      viewportDebounceMs: 0,
+    })
+    const controller = new ProjectCanvasController({ persistence, migrateLoadedScene: false })
+    await controller.load()
+
+    const task = controller.createNode({ type: 'task', center: { x: 500, y: 400 }, text: 'Review' })
+    expect(task?.nodes.find(node => node.type === 'task')).toMatchObject({ x: 370, y: 325, width: 260, height: 150, text: 'Review' })
+    const image = controller.addDropValue('figure.png', { x: 800, y: 500 })
+    expect(image?.nodes.find(node => node.type === 'image')).toMatchObject({ ref: 'figure.png', title: 'figure.png' })
+    const peek = controller.createPeekNode('note', 'notes/peek.md', 'Peek', 'a')
+    expect(peek).toMatchObject({ type: 'note', ref: 'notes/peek.md', width: 560, height: 420, x: 280, y: 0 })
+    controller.dispose()
+  })
+
+  it('retains selected, editing, connected, and overlay-owned nodes outside the render bounds', async () => {
+    const initial = {
+      ...canvasWithNodes(),
+      nodes: [
+        { id: 'selected', type: 'text' as const, x: 0, y: 0, width: 100, height: 100 },
+        { id: 'connected', type: 'text' as const, x: 5000, y: 0, width: 100, height: 100 },
+        { id: 'editing', type: 'text' as const, x: 6000, y: 0, width: 100, height: 100 },
+        { id: 'overlay', type: 'text' as const, x: 7000, y: 0, width: 100, height: 100 },
+      ],
+      edges: [{ id: 'edge-1', from: 'selected', to: 'connected', kind: 'related' as const }],
+    }
+    const persistence = new ProjectCanvasPersistenceAdapter({
+      projectPath: initial.project,
+      vaultPath: '/vault',
+      deterministicWrites: false,
+      read: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas: initial }),
+      create: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas: initial }),
+      resolve: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', refs: [], diagnostics: [] }),
+      save: async (_vault, _project, canvas) => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas }),
+      viewportDebounceMs: 0,
+    })
+    const controller = new ProjectCanvasController({ persistence, migrateLoadedScene: false })
+    await controller.load()
+    controller.setViewportSize({ width: 300, height: 200 })
+    controller.selectNodes(['selected'])
+    const selectedIds = controller.queryVisibleNodes().map(node => node.id)
+    expect(selectedIds).toEqual(expect.arrayContaining(['selected', 'connected']))
+    controller.beginEditing('editing')
+    controller.setOverlayOwnedNodes(['overlay'])
+    const activeIds = controller.queryVisibleNodes().map(node => node.id)
+    expect(activeIds).toEqual(expect.arrayContaining(['editing', 'overlay']))
+    controller.dispose()
+  })
+
   it('routes scene mutations through transactions, supports cancellation, and persists structural changes', async () => {
     const saved: ProjectCanvas[] = []
     const initial = canvasWithNodes()

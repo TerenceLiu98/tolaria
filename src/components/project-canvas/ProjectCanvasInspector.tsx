@@ -1,4 +1,5 @@
 import { Minus, Trash } from '@phosphor-icons/react'
+import type { CanvasNodeSpec } from '../../canvasNodeSpecRegistry'
 import { translate, type AppLocale } from '../../lib/i18n'
 import {
   PROJECT_OVERVIEW_NODE_ID,
@@ -11,13 +12,14 @@ import { Checkbox } from '../ui/checkbox'
 import { Input } from '../ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Textarea } from '../ui/textarea'
-import { EDGE_KINDS, edgeKindKey, nodeKindKey } from './projectCanvasDisplay'
+import { EDGE_KINDS, edgeKindKey } from './projectCanvasDisplay'
 
 interface ProjectCanvasInspectorProps {
   canvas: ProjectCanvas
   edge: ProjectCanvas['edges'][number] | null
   locale: AppLocale
   node: ProjectCanvasNode | null
+  spec: CanvasNodeSpec | null
   onClose: () => void
   onDeleteEdge: () => void
   onDeleteNode: () => void
@@ -32,6 +34,7 @@ export function ProjectCanvasInspector({
   edge,
   locale,
   node,
+  spec,
   onClose,
   onDeleteEdge,
   onDeleteNode,
@@ -49,8 +52,8 @@ export function ProjectCanvasInspector({
       <div className="project-canvas-inspector__header">
         <div>
           <div className="project-canvas-inspector__eyebrow">
-            {node
-              ? translate(locale, nodeKindKey(node))
+            {node && spec
+              ? translate(locale, spec.kindKey)
               : edge
                 ? translate(locale, 'projectCanvas.edgeLabel')
                 : translate(locale, 'projectCanvas.projectSummary')}
@@ -82,6 +85,7 @@ export function ProjectCanvasInspector({
         <ProjectCanvasNodeInspector
           locale={locale}
           node={node}
+          spec={spec}
           onDelete={onDeleteNode}
           onNavigate={onNavigate}
           onNodeChange={onNodeChange}
@@ -112,12 +116,14 @@ function ProjectCanvasStat({ label, value }: { label: string; value: number }) {
 function ProjectCanvasNodeInspector({
   locale,
   node,
+  spec,
   onDelete,
   onNavigate,
   onNodeChange,
 }: {
   locale: AppLocale
   node: ProjectCanvasNode
+  spec: CanvasNodeSpec | null
   onDelete: () => void
   onNavigate?: () => void
   onNodeChange: (patch: Partial<ProjectCanvasNode>, persist?: boolean) => void
@@ -133,13 +139,13 @@ function ProjectCanvasNodeInspector({
           onBlur={() => onNodeChange({}, true)}
         />
       </label>
-      {node.ref ? (
+      {node.ref && spec?.inspectorFields.includes('reference') && spec.renderer !== 'image' ? (
         <label className="project-canvas-inspector__field">
           <span>{translate(locale, 'projectCanvas.inspectorReference')}</span>
           <Input value={node.ref} readOnly />
         </label>
       ) : null}
-      {node.type === 'task' ? (
+      {spec?.inspectorFields.includes('completed') ? (
         <label className="project-canvas-inspector__checkbox">
           <Checkbox
             checked={node.completed === true}
@@ -148,7 +154,7 @@ function ProjectCanvasNodeInspector({
           <span>{translate(locale, 'projectCanvas.taskCompleted')}</span>
         </label>
       ) : null}
-      {node.type === 'text' || node.type === 'task' || node.type === 'group' ? (
+      {spec?.inspectorFields.includes('text') ? (
         <label className="project-canvas-inspector__field">
           <span>{translate(locale, 'projectCanvas.inspectorText')}</span>
           <Textarea
@@ -158,7 +164,7 @@ function ProjectCanvasNodeInspector({
           />
         </label>
       ) : null}
-      {node.type === 'image' ? (
+      {spec?.renderer === 'image' && spec.inspectorFields.includes('reference') ? (
         <label className="project-canvas-inspector__field">
           <span>{translate(locale, 'projectCanvas.imagePath')}</span>
           <Input

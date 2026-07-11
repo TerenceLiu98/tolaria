@@ -8,6 +8,8 @@ export const DEFAULT_OVERSCAN_PX = 240
 export interface CanvasViewportSize {
   width: number
   height: number
+  left?: number
+  top?: number
 }
 
 export interface CanvasViewportBounds {
@@ -18,6 +20,7 @@ export interface CanvasViewportBounds {
 export interface CanvasViewportSnapshot {
   readonly camera: ProjectCanvasViewport
   readonly size: CanvasViewportSize
+  readonly origin: CanvasPoint
   readonly overscan: number
   readonly renderBounds: CanvasBounds
   readonly hitTestBounds: CanvasBounds
@@ -64,6 +67,7 @@ function cancelFrame(handle: number): void {
 export class CanvasViewport {
   private cameraValue: ProjectCanvasViewport
   private sizeValue: CanvasViewportSize = { width: 0, height: 0 }
+  private originValue: CanvasPoint = { x: 0, y: 0 }
   private overscanValue: number
   private revision = 0
   private pendingCamera: ProjectCanvasViewport | null = null
@@ -79,6 +83,7 @@ export class CanvasViewport {
   getSnapshot = (): CanvasViewportSnapshot => ({
     camera: { ...this.cameraValue },
     size: { ...this.sizeValue },
+    origin: { ...this.originValue },
     overscan: this.overscanValue,
     renderBounds: boundsForCamera(this.cameraValue, this.sizeValue, this.overscanValue),
     hitTestBounds: boundsForCamera(this.cameraValue, this.sizeValue, 0),
@@ -98,6 +103,10 @@ export class CanvasViewport {
     this.sizeValue = {
       width: Math.max(0, finite(size.width, 0)),
       height: Math.max(0, finite(size.height, 0)),
+    }
+    this.originValue = {
+      x: finite(size.left ?? 0, 0),
+      y: finite(size.top ?? 0, 0),
     }
     this.publish()
   }
@@ -135,6 +144,36 @@ export class CanvasViewport {
     return { x: (point.x - camera.x) / camera.zoom, y: (point.y - camera.y) / camera.zoom }
   }
 
+  clientToScreen(point: CanvasPoint): CanvasPoint {
+    return { x: point.x - this.originValue.x, y: point.y - this.originValue.y }
+  }
+
+  clientToCanvas(point: CanvasPoint): CanvasPoint {
+    return this.screenToCanvas(this.clientToScreen(point))
+  }
+
+  canvasCenter(width: number, height: number, fallback: CanvasViewportSize = { width: 760, height: 460 }): CanvasPoint {
+    const viewportWidth = this.sizeValue.width > 0 ? this.sizeValue.width : fallback.width
+    const viewportHeight = this.sizeValue.height > 0 ? this.sizeValue.height : fallback.height
+    const center = this.screenToCanvas({ x: viewportWidth / 2, y: viewportHeight / 2 })
+    return { x: center.x - width / 2, y: center.y - height / 2 }
+  }
+
+  graphicsBounds(
+    bounds: CanvasBounds | null,
+    padding = 240,
+    minimumWidth = 1200,
+    minimumHeight = 900,
+  ): { minX: number; minY: number; width: number; height: number } {
+    if (!bounds) return { minX: -400, minY: -300, width: minimumWidth, height: minimumHeight }
+    return {
+      minX: bounds.minX - padding,
+      minY: bounds.minY - padding,
+      width: Math.max(minimumWidth, bounds.maxX - bounds.minX + padding * 2),
+      height: Math.max(minimumHeight, bounds.maxY - bounds.minY + padding * 2),
+    }
+  }
+
   canvasToScreen(point: CanvasPoint): CanvasPoint {
     const camera = this.pendingCamera ?? this.cameraValue
     return { x: point.x * camera.zoom + camera.x, y: point.y * camera.zoom + camera.y }
@@ -152,24 +191,26 @@ export class CanvasViewport {
   }
 
   fitToBounds(bounds: CanvasBounds | null, padding = 96, maxZoom = 1.35): void {
-    if (!bounds || this.sizeValue.width <= 0 || this.sizeValue.height <= 0) {
+    if (!bounds) {
       this.scheduleCamera({ x: 0, y: 0, zoom: 1 })
       return
     }
+    const viewportWidth = this.sizeValue.width > 0 ? this.sizeValue.width : 760
+    const viewportHeight = this.sizeValue.height > 0 ? this.sizeValue.height : 460
     const width = Math.max(1, bounds.maxX - bounds.minX)
     const height = Math.max(1, bounds.maxY - bounds.minY)
     const zoom = Math.min(
       maxZoom,
       CANVAS_ZOOM_MAX,
       Math.max(CANVAS_ZOOM_MIN, Math.min(
-        (this.sizeValue.width - padding * 2) / width,
-        (this.sizeValue.height - padding * 2) / height,
+        (viewportWidth - padding * 2) / width,
+        (viewportHeight - padding * 2) / height,
       )),
     )
     this.scheduleCamera({
       zoom,
-      x: this.sizeValue.width / 2 - (bounds.minX + width / 2) * zoom,
-      y: this.sizeValue.height / 2 - (bounds.minY + height / 2) * zoom,
+      x: viewportWidth / 2 - (bounds.minX + width / 2) * zoom,
+      y: viewportHeight / 2 - (bounds.minY + height / 2) * zoom,
     })
   }
 
@@ -181,9 +222,11 @@ export class CanvasViewport {
     const width = Math.max(1, bounds.maxX - bounds.minX)
     const height = Math.max(1, bounds.maxY - bounds.minY)
     const camera = this.pendingCamera ?? this.cameraValue
+    const viewportWidth = this.sizeValue.width > 0 ? this.sizeValue.width : 760
+    const viewportHeight = this.sizeValue.height > 0 ? this.sizeValue.height : 460
     this.scheduleCamera({
-      x: this.sizeValue.width / 2 - (bounds.minX + width / 2) * camera.zoom,
-      y: this.sizeValue.height / 2 - (bounds.minY + height / 2) * camera.zoom,
+      x: viewportWidth / 2 - (bounds.minX + width / 2) * camera.zoom,
+      y: viewportHeight / 2 - (bounds.minY + height / 2) * camera.zoom,
     })
   }
 

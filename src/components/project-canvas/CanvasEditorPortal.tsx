@@ -28,6 +28,7 @@ interface CanvasEditorPortalProps {
   onParsePaper?: (paperId: string, options?: { force?: boolean }) => void | Promise<void>
   onRevealFile?: (path: string) => void
   onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
+  onFocusOwnerChange?: (owner: 'canvas' | 'document') => void
   onToggleFocus?: () => void
   paperParserProvider?: PaperParserProvider
   target: HTMLElement | null
@@ -47,6 +48,7 @@ export function CanvasEditorPortal({
   onParsePaper,
   onRevealFile,
   onSelectedTextContextChange,
+  onFocusOwnerChange,
   onToggleFocus,
   paperParserProvider = 'none',
   target,
@@ -102,6 +104,13 @@ export function CanvasEditorPortal({
     <div
       className="canvas-editor-portal"
       data-testid="canvas-editor-portal"
+      onFocusCapture={() => onFocusOwnerChange?.('document')}
+      onBlurCapture={(event) => {
+        const relatedTarget = event.relatedTarget
+        if (!(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
+          onFocusOwnerChange?.('canvas')
+        }
+      }}
       onClick={event => event.stopPropagation()}
       onDoubleClick={event => event.stopPropagation()}
       onKeyDown={(event) => {

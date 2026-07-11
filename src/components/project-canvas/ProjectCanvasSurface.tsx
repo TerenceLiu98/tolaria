@@ -14,7 +14,7 @@ import type { AiSelectedTextContext } from '../../utils/ai-context'
 import type { CreateProjectCanvasDraftNote } from '../../projectCanvasDrafts'
 import type { PaperParserProvider } from '../../paper/parserSettings'
 import { publishProjectCanvasSelection } from '../../projectCanvasSelectionStore'
-import { ProjectCanvasController, type CanvasControllerSnapshot } from '../../projectCanvasController'
+import { ProjectCanvasController, type CanvasControllerSnapshot, type CanvasNodeCreationOptions } from '../../projectCanvasController'
 import { ProjectCanvasPersistenceAdapter } from '../../projectCanvasPersistenceAdapter'
 import { Button } from '../ui/button'
 import {
@@ -48,16 +48,14 @@ import {
   DEFAULT_NODE_WIDTH,
   nodePresentation,
 } from './projectCanvasDisplay'
-import { looksLikeBlockCitation, looksLikeImageRef, nodeIsEmbedded, titleFromPath } from './projectCanvasNodeModel'
 import { ProjectCanvasNodeCard } from './ProjectCanvasNodeCard'
 import { ProjectCanvasNavigator } from './ProjectCanvasNavigator'
 import { ProjectCanvasToolbar, type ProjectCanvasAddPanelMode } from './ProjectCanvasToolbar'
 import { useProjectCanvasViewportSize } from './projectCanvasViewport'
 import { useProjectCanvasAiDraft } from './useProjectCanvasAiDraft'
+import { useProjectCanvasFocusMode } from './useProjectCanvasFocusMode'
+import { useProjectCanvasPeek } from './useProjectCanvasPeek'
 import './ProjectCanvasSurface.css'
-
-const EDITOR_MIN_WIDTH = 560
-const EDITOR_MIN_HEIGHT = 420
 
 interface ProjectCanvasSurfaceProps {
   editable?: boolean
@@ -138,9 +136,20 @@ export function ProjectCanvasSurface({
     ? controllerSnapshot.selection.primary.id
     : null
   const editingNodeId = controllerSnapshot.selection.editingNodeId
-  const [editorHost, setEditorHost] = useState<HTMLElement | null>(null)
-  const [focusMode, setFocusMode] = useState(false)
-  const [peekNode, setPeekNode] = useState<ProjectCanvasNode | null>(null)
+  const { closePeek, openPeek, peekNode } = useProjectCanvasPeek()
+  const focusTargetNode = canvas?.nodes.find(node => node.id === editingNodeId)
+    ?? (peekNode?.id === editingNodeId ? peekNode : null)
+  const {
+    changeFocusMode,
+    editorHost,
+    exitFocusMode,
+    focusMode,
+    setEditorHost,
+  } = useProjectCanvasFocusMode({
+    canFocus: node => controllerSnapshot.specs.getForNode(node).renderer === 'document',
+    node: focusTargetNode,
+    onChange: (node, enabled) => trackProjectCanvasFocusModeChanged({ enabled, nodeType: node.type }),
+  })
   const [linkFromSelected, setLinkFromSelected] = useState(true)
   const [edgeKind, setEdgeKind] = useState<ProjectCanvasEdgeKind>('related')
   const canvasRef = useRef<ProjectCanvas | null>(null)
@@ -170,10 +179,6 @@ export function ProjectCanvasSurface({
     if (nodeId) controller.beginEditing(nodeId)
     else controller.endEditing()
   }, [controller])
-
-  useEffect(() => {
-    controller.setActiveHistoryDomain(editingNodeId ? 'document' : 'canvas')
-  }, [controller, editingNodeId])
 
   useEffect(() => {
     canvasRef.current = canvas
@@ -279,25 +284,8 @@ export function ProjectCanvasSurface({
     })
   }, [entry.path, setSelectedEdgeId, setSelectedNodeIds])
 
-  const screenPointToCanvas = useCallback((clientX: number, clientY: number) => {
-    const rect = viewportRef.current?.getBoundingClientRect()
-    const safeClientX = Number.isFinite(clientX) ? clientX : (rect?.left ?? 0)
-    const safeClientY = Number.isFinite(clientY) ? clientY : (rect?.top ?? 0)
-    return controller.screenToCanvas({
-      x: safeClientX - (rect?.left ?? 0),
-      y: safeClientY - (rect?.top ?? 0),
-    })
-  }, [controller])
-
   const canvasCenter = useCallback((width = DEFAULT_NODE_WIDTH, height = DEFAULT_NODE_HEIGHT) => {
-    const rect = viewportRef.current?.getBoundingClientRect()
-    const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
-    const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
-    const point = controller.screenToCanvas({ x: viewportWidth / 2, y: viewportHeight / 2 })
-    return {
-      x: point.x - width / 2,
-      y: point.y - height / 2,
-    }
+    return controller.canvasCenter(width, height)
   }, [controller])
 
   const allocateNodeId = useCallback((prefix: string) => controller.allocateNodeId(prefix), [controller])
@@ -332,16 +320,17 @@ export function ProjectCanvasSurface({
     vaultPath,
   })
 
-  const addNodeToCanvas = useCallback((node: ProjectCanvasNode) => {
-    const linked = Boolean(selectedNodeId && linkFromSelected && selectedNodeId !== node.id)
-    const result = controller.addNode(node, {
+  const addNodeToCanvas = useCallback((options: CanvasNodeCreationOptions) => {
+    const linked = Boolean(selectedNodeId && linkFromSelected)
+    const result = controller.createNode({
+      ...options,
       linkFromNodeId: linked ? selectedNodeId : null,
       linkKind: edgeKind,
     })
     if (!result) return
     canvasRef.current = result
     if (linked) trackProjectCanvasEdgeCreated({ kind: edgeKind })
-    trackProjectCanvasNodeAdded({ linked, nodeType: node.type })
+    trackProjectCanvasNodeAdded({ linked, nodeType: options.type })
   }, [controller, edgeKind, linkFromSelected, selectedNodeId])
 
   const handleAddEntry = useCallback((candidate: VaultEntry) => {
@@ -361,16 +350,10 @@ export function ProjectCanvasSurface({
       selectSingleNode(existing.id)
       return
     }
-    const geometry = controller.geometryForNode(nodeType)
-    const position = canvasCenter(geometry.width, geometry.height)
     addNodeToCanvas({
-      id: controller.allocateNodeId(nodeType),
       type: nodeType,
       ref,
-      x: position.x,
-      y: position.y,
-      width: geometry.width,
-      height: geometry.height,
+      center: canvasCenter(),
       title: candidate.title,
       text: candidate.snippet || undefined,
     })
@@ -381,71 +364,40 @@ export function ProjectCanvasSurface({
     if (!current || addMode === 'existing') return
     const trimmed = newCardText.trim()
     if ((addMode === 'image' || addMode === 'block') && !trimmed) return
-    const geometry = controller.geometryForNode(addMode === 'block' ? 'paper_block' : addMode)
-    const position = canvasCenter(geometry.width, geometry.height)
     const nodeType: ProjectCanvasNodeType = addMode === 'block' ? 'paper_block' : addMode
     addNodeToCanvas({
-      id: controller.allocateNodeId(nodeType),
       type: nodeType,
       ref: addMode === 'image' || addMode === 'block' ? trimmed : undefined,
-      x: position.x,
-      y: position.y,
-      width: geometry.width,
-      height: geometry.height,
+      center: canvasCenter(),
       completed: addMode === 'task' ? false : undefined,
       text: addMode === 'image' || addMode === 'block' ? undefined : trimmed || undefined,
       title: addMode === 'group' && trimmed
         ? trimmed.split(/\n/u)[0]
-        : addMode === 'image'
-          ? titleFromPath(trimmed)
-          : undefined,
+        : undefined,
     })
     setNewCardText('')
-  }, [addMode, addNodeToCanvas, canvasCenter, controller, newCardText])
+  }, [addMode, addNodeToCanvas, canvasCenter, newCardText])
 
   const handleZoom = useCallback((delta: number) => {
     controller.zoomBy(delta)
   }, [controller])
 
   const handleFitToView = useCallback(() => {
-    const rect = viewportRef.current?.getBoundingClientRect()
-    controller.setViewportSize({
-      width: rect?.width && Number.isFinite(rect.width) ? rect.width : 760,
-      height: rect?.height && Number.isFinite(rect.height) ? rect.height : 460,
-    })
     controller.fitToContent()
   }, [controller])
 
   const handleAutoLayout = useCallback(() => {
-    const rect = viewportRef.current?.getBoundingClientRect()
-    const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
-    const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
-    controller.setViewportSize({ width: viewportWidth, height: viewportHeight })
     controller.autoLayout()
   }, [controller])
 
   const addLooseNodeAtPoint = useCallback((rawValue: string, point: { x: number; y: number }) => {
-    const value = rawValue.trim()
-    if (!canvasRef.current || !value) return
-    const isBlock = looksLikeBlockCitation(value)
-    const isImage = looksLikeImageRef(value)
-    const nodeType: ProjectCanvasNodeType = isBlock ? 'paper_block' : isImage ? 'image' : 'text'
-    const geometry = controller.geometryForNode(nodeType)
-    const node: ProjectCanvasNode = {
-      id: controller.allocateNodeId(nodeType),
-      type: nodeType,
-      ref: nodeType === 'image' || nodeType === 'paper_block' ? value : undefined,
-      x: point.x - geometry.width / 2,
-      y: point.y - geometry.height / 2,
-      width: geometry.width,
-      height: geometry.height,
-      title: nodeType === 'image' ? titleFromPath(value) : undefined,
-      text: nodeType === 'text' ? value : undefined,
-    }
-    const result = controller.addNode(node)
+    const current = canvasRef.current
+    if (!current || !rawValue.trim()) return
+    const result = controller.addDropValue(rawValue, point)
     if (!result) return
     canvasRef.current = result
-    trackProjectCanvasNodeAdded({ linked: false, nodeType })
+    const added = result.nodes.find(node => !current.nodes.some(candidate => candidate.id === node.id))
+    if (added) trackProjectCanvasNodeAdded({ linked: false, nodeType: added.type })
   }, [controller])
 
   const addPayloadNodeAtPoint = useCallback((payload: { nodeType: ProjectCanvasNodeType; ref: string; title?: string; text?: string }, point: { x: number; y: number }) => {
@@ -457,27 +409,16 @@ export function ProjectCanvasSurface({
       focusNode(existing, false)
       return
     }
-    const geometry = controller.geometryForNode(payload.nodeType)
-    const node: ProjectCanvasNode = {
-      id: controller.allocateNodeId(payload.nodeType),
-      type: payload.nodeType,
-      ref,
-      x: point.x - geometry.width / 2,
-      y: point.y - geometry.height / 2,
-      width: geometry.width,
-      height: geometry.height,
-      title: payload.title,
-      text: payload.text,
-    }
-    const result = controller.addNode(node)
+    const result = controller.addDropPayload({ ...payload, ref }, point)
     if (!result) return
     canvasRef.current = result
-    trackProjectCanvasNodeAdded({ linked: false, nodeType: payload.nodeType })
+    const added = result.nodes.find(node => !current.nodes.some(candidate => candidate.id === node.id))
+    if (added) trackProjectCanvasNodeAdded({ linked: false, nodeType: added.type })
   }, [controller, focusNode, vaultPath])
 
   const handleCanvasDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     if (!canvasRef.current) return
-    const point = screenPointToCanvas(event.clientX, event.clientY)
+    const point = controller.clientToCanvas({ x: event.clientX, y: event.clientY })
     const payload = readProjectCanvasDragPayload(event.dataTransfer)
     if (payload) {
       event.preventDefault()
@@ -491,7 +432,7 @@ export function ProjectCanvasSurface({
     if (!value.trim()) return
     event.preventDefault()
     addLooseNodeAtPoint(value, point)
-  }, [addLooseNodeAtPoint, addPayloadNodeAtPoint, screenPointToCanvas])
+  }, [addLooseNodeAtPoint, addPayloadNodeAtPoint, controller])
 
   const handleCanvasDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     if (
@@ -522,7 +463,7 @@ export function ProjectCanvasSurface({
   const handleViewportPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !canvasRef.current) return
     if (event.target !== event.currentTarget) return
-    const point = { x: event.clientX, y: event.clientY }
+    const point = controller.clientToScreen({ x: event.clientX, y: event.clientY })
     if (controller.getSnapshot().tool === 'hand') controller.beginGesture('pan', { point, pointerId: event.pointerId, shiftKey: event.shiftKey })
     else if (controller.getSnapshot().tool === 'frame') controller.beginGesture('group', { point, pointerId: event.pointerId, shiftKey: event.shiftKey })
     else controller.beginGesture('marquee', { point, pointerId: event.pointerId, shiftKey: event.shiftKey })
@@ -533,26 +474,26 @@ export function ProjectCanvasSurface({
     if (controller.isHandOverrideActive() || controller.getSnapshot().tool === 'hand') {
       event.preventDefault()
       event.stopPropagation()
-      controller.beginPan({ x: event.clientX, y: event.clientY }, event.pointerId)
+      controller.beginPan(controller.clientToScreen({ x: event.clientX, y: event.clientY }), event.pointerId)
       return
     }
     if ((event.target as HTMLElement).closest('button, input, textarea, select, [role="checkbox"], [contenteditable="true"], .project-document-preview, .project-canvas-node__snippet, .project-canvas-node__footer')) return
     event.stopPropagation()
     if (controller.getSnapshot().tool === 'connect') {
       selectSingleNode(node.id)
-      controller.beginConnection(node.id, { x: event.clientX, y: event.clientY }, event.pointerId)
+      controller.beginConnection(node.id, controller.clientToScreen({ x: event.clientX, y: event.clientY }), event.pointerId)
       return
     }
-    controller.beginNodeDrag(node.id, { x: event.clientX, y: event.clientY }, event.pointerId)
+    controller.beginNodeDrag(node.id, controller.clientToScreen({ x: event.clientX, y: event.clientY }), event.pointerId)
   }, [controller, selectSingleNode])
 
   const handleOverlayConnectStart = useCallback((nodeId: string, point: { x: number; y: number }) => {
     selectSingleNode(nodeId)
-    controller.beginConnection(nodeId, point)
+    controller.beginConnection(nodeId, controller.clientToScreen(point))
   }, [controller, selectSingleNode])
 
   const handleOverlayResizeStart = useCallback((nodeId: string, point: { x: number; y: number }) => {
-    controller.beginNodeResize(nodeId, point)
+    controller.beginNodeResize(nodeId, controller.clientToScreen(point))
   }, [controller])
 
   useEffect(() => {
@@ -577,6 +518,12 @@ export function ProjectCanvasSurface({
 
   const refsByNodeId = useMemo(() => resolvedMap(refs), [refs])
 
+  const handleSurfaceFocusCapture = useCallback((event: React.FocusEvent<HTMLElement>) => {
+    const target = event.target instanceof HTMLElement ? event.target : null
+    if (target?.closest('.canvas-editor-portal')) return
+    controller.setFocusOwner('canvas')
+  }, [controller])
+
   const connectPreview = useMemo(() => {
     const gesture = controllerSnapshot.gesture
     if (gesture.kind !== 'connect' || !gesture.start || !gesture.current || !canvas) return null
@@ -590,31 +537,22 @@ export function ProjectCanvasSurface({
 
   const handleNodeClick = useCallback((node: ProjectCanvasNode) => {
     if (Date.now() < suppressClickUntilRef.current) return
-    if (nodeIsEmbedded(node) || node.type === 'image') return
+    if (!controllerSnapshot.specs.getForNode(node).canNavigate) return
     const resolved = refsByNodeId.get(node.id)
     const target = resolved?.targetPath ?? resolved?.targetTitle ?? node.ref
     if (!target) return
     onNavigateWikilink(target)
-  }, [onNavigateWikilink, refsByNodeId])
+  }, [controllerSnapshot.specs, onNavigateWikilink, refsByNodeId])
 
   const closeCanvasEditor = useCallback(() => {
     if (editingNodeId) onSave?.()
     setEditingNodeId(null)
     setEditorHost(null)
-    setFocusMode(false)
-  }, [editingNodeId, onSave, setEditingNodeId])
-
-  const changeFocusMode = useCallback((enabled: boolean) => {
-    const current = canvasRef.current?.nodes.find(node => node.id === editingNodeId)
-      ?? (peekNode?.id === editingNodeId ? peekNode : null)
-    if (!current || (current.type !== 'note' && current.type !== 'paper')) return
-    setEditorHost(null)
-    setFocusMode(enabled)
-    trackProjectCanvasFocusModeChanged({ enabled, nodeType: current.type })
-  }, [editingNodeId, peekNode])
+    exitFocusMode()
+  }, [editingNodeId, exitFocusMode, onSave, setEditingNodeId, setEditorHost])
 
   const editDocumentNode = useCallback((node: ProjectCanvasNode) => {
-    if (node.type !== 'note' && node.type !== 'paper') {
+    if (controllerSnapshot.specs.getForNode(node).renderer !== 'document') {
       handleNodeClick(node)
       return
     }
@@ -629,34 +567,35 @@ export function ProjectCanvasSurface({
     setEditorHost(null)
     selectSingleNode(node.id)
     const geometry = controller.geometryForNode(node.type)
-    if (node.width < Math.max(geometry.minWidth, EDITOR_MIN_WIDTH) || node.height < Math.max(geometry.minHeight, EDITOR_MIN_HEIGHT)) {
+    const editorGeometry = controllerSnapshot.specs.getForNode(node).editorGeometry ?? geometry
+    if (node.width < Math.max(geometry.minWidth, editorGeometry.minWidth) || node.height < Math.max(geometry.minHeight, editorGeometry.minHeight)) {
       const next = controller.updateNode(node.id, {
-        width: Math.max(node.width, geometry.minWidth, EDITOR_MIN_WIDTH),
-        height: Math.max(node.height, geometry.minHeight, EDITOR_MIN_HEIGHT),
+        width: Math.max(node.width, geometry.minWidth, editorGeometry.minWidth),
+        height: Math.max(node.height, geometry.minHeight, editorGeometry.minHeight),
       }, true)
       if (next) canvasRef.current = next
     }
     setEditingNodeId(node.id)
-  }, [controller, editingNodeId, entries, handleNodeClick, onSave, refsByNodeId, selectSingleNode, setEditingNodeId, vaultPath])
+  }, [controller, controllerSnapshot.specs, editingNodeId, entries, handleNodeClick, onSave, refsByNodeId, selectSingleNode, setEditingNodeId, setEditorHost, vaultPath])
 
   const closePeekNode = useCallback(() => {
     if (!peekNode) return
     if (editingNodeId === peekNode.id) onSave?.()
-    setPeekNode(null)
+    closePeek()
     setEditorHost(null)
     setEditingNodeId(null)
-    setFocusMode(false)
+    exitFocusMode()
     selectSingleNode(null)
-  }, [editingNodeId, onSave, peekNode, selectSingleNode, setEditingNodeId])
+  }, [closePeek, editingNodeId, exitFocusMode, onSave, peekNode, selectSingleNode, setEditingNodeId, setEditorHost])
 
   const pinPeekNode = useCallback(() => {
     if (!peekNode) return
     const next = controller.addNode(peekNode)
     if (!next) return
-    setPeekNode(null)
+    closePeek()
     canvasRef.current = next
     trackProjectCanvasPeekPinned({ nodeType: peekNode.type })
-  }, [controller, peekNode])
+  }, [closePeek, controller, peekNode])
 
   const handleCanvasNavigate = useCallback((target: string) => {
     const current = canvasRef.current
@@ -671,8 +610,8 @@ export function ProjectCanvasSurface({
     })
     if (existingNode) {
       if (peekNode && editingNodeId === peekNode.id) onSave?.()
-      setPeekNode(null)
-      setFocusMode(false)
+      closePeek()
+      exitFocusMode()
       focusNode(existingNode, false)
       editDocumentNode(existingNode)
       return
@@ -690,23 +629,23 @@ export function ProjectCanvasSurface({
       onNavigateWikilink(target)
       return
     }
-    const nextPeek: ProjectCanvasNode = {
-      id: controller.allocateNodeId('peek'),
-      type: nodeType,
-      ref: relativeVaultPath(targetEntry.path, vaultPath),
-      x: sourceNode ? sourceNode.x + sourceNode.width + 80 : canvasCenter(EDITOR_MIN_WIDTH, EDITOR_MIN_HEIGHT).x,
-      y: sourceNode ? sourceNode.y : canvasCenter(EDITOR_MIN_WIDTH, EDITOR_MIN_HEIGHT).y,
-      width: EDITOR_MIN_WIDTH,
-      height: EDITOR_MIN_HEIGHT,
-      title: targetEntry.title,
+    const nextPeek = controller.createPeekNode(
+      nodeType,
+      relativeVaultPath(targetEntry.path, vaultPath),
+      targetEntry.title,
+      sourceNode?.id,
+    )
+    if (!nextPeek) {
+      onNavigateWikilink(target)
+      return
     }
     setEditorHost(null)
-    setFocusMode(false)
-    setPeekNode(nextPeek)
+    exitFocusMode()
+    openPeek(nextPeek)
     focusNode(nextPeek, false)
     setEditingNodeId(nextPeek.id)
     trackProjectCanvasPeekOpened({ nodeType })
-  }, [canvasCenter, controller, editDocumentNode, editingNodeId, entries, focusNode, onNavigateWikilink, onSave, peekNode, refsByNodeId, selectedNodeId, setEditingNodeId, vaultPath])
+  }, [closePeek, controller, editDocumentNode, editingNodeId, entries, exitFocusMode, focusNode, onNavigateWikilink, onSave, openPeek, peekNode, refsByNodeId, selectedNodeId, setEditingNodeId, setEditorHost, vaultPath])
 
   useEffect(() => {
     const navigate = (target: string) => {
@@ -776,13 +715,13 @@ export function ProjectCanvasSurface({
       onSave?.()
       setEditingNodeId(null)
       setEditorHost(null)
-      setFocusMode(false)
+      exitFocusMode()
     }
     setSelectedNodeId(null)
     setSelectedNodeIds([])
     const next = controller.deleteNodes(deletableIds)
     if (next) canvasRef.current = next
-  }, [controller, editingNodeId, onSave, selectedNodeId, selectedNodeIds, setEditingNodeId, setSelectedNodeId, setSelectedNodeIds])
+  }, [controller, editingNodeId, exitFocusMode, onSave, selectedNodeId, selectedNodeIds, setEditingNodeId, setEditorHost, setSelectedNodeId, setSelectedNodeIds])
 
   const deleteSelectedEdge = useCallback(() => {
     if (!selectedEdgeId) return
@@ -887,12 +826,7 @@ export function ProjectCanvasSurface({
     )
   }
 
-  const edgeBounds = controllerSnapshot.sceneSnapshot?.bounds ?? { minX: -400, minY: -300, maxX: 1000, maxY: 800 }
-  const padding = 240
-  const svgMinX = edgeBounds.minX - padding
-  const svgMinY = edgeBounds.minY - padding
-  const svgWidth = Math.max(1200, edgeBounds.maxX - edgeBounds.minX + padding * 2)
-  const svgHeight = Math.max(900, edgeBounds.maxY - edgeBounds.minY + padding * 2)
+  const graphicsBounds = controller.graphicsBounds()
   const editingNode = canvas.nodes.find(node => node.id === editingNodeId)
     ?? (peekNode?.id === editingNodeId ? peekNode : null)
   const editingEntry = editingNode
@@ -905,7 +839,11 @@ export function ProjectCanvasSurface({
   const camera = controllerSnapshot.viewport.camera
 
   return (
-    <section className="project-canvas-surface" data-testid="project-canvas-surface">
+    <section
+      className="project-canvas-surface"
+      data-testid="project-canvas-surface"
+      onFocusCapture={handleSurfaceFocusCapture}
+    >
       <ProjectCanvasToolbar
         addMode={addMode}
         addPanelOpen={addPanelOpen}
@@ -971,7 +909,7 @@ export function ProjectCanvasSurface({
           }}
         >
           <CanvasGraphicsLayer
-            bounds={{ minX: svgMinX, minY: svgMinY, width: svgWidth, height: svgHeight }}
+            bounds={graphicsBounds}
             canvas={canvas}
             connectPreview={connectPreview}
             onSelectEdge={handleSelectEdge}
@@ -1068,6 +1006,9 @@ export function ProjectCanvasSurface({
             return translate(locale, 'projectCanvas.resizeNode', { title: node?.title ?? node?.ref ?? nodeId })
           }}
           selectionRect={controllerSnapshot.overlay.rect}
+          snapGuides={controllerSnapshot.overlay.snapGuides}
+          toolbarRect={controllerSnapshot.overlay.toolbarRect}
+          zIndices={controllerSnapshot.overlay.zIndices}
         />
         {focusMode && editingEntry ? (
           <section
@@ -1105,6 +1046,7 @@ export function ProjectCanvasSurface({
             onParsePaper={onParsePaper}
             onRevealFile={onRevealFile}
             onSelectedTextContextChange={onSelectedTextContextChange}
+            onFocusOwnerChange={owner => controller.setFocusOwner(owner)}
             onToggleFocus={() => changeFocusMode(!focusMode)}
             paperParserProvider={paperParserProvider}
             target={editorHost}
@@ -1116,6 +1058,7 @@ export function ProjectCanvasSurface({
           edge={selectedEdge}
           locale={locale}
           node={selectedNode}
+          spec={selectedNode ? controllerSnapshot.specs.getForNode(selectedNode) : null}
           onClose={() => {
             setSelectedNodeId(null)
             setSelectedNodeIds([])
@@ -1125,7 +1068,7 @@ export function ProjectCanvasSurface({
           onDeleteNode={selectedNodeId === peekNode?.id ? closePeekNode : deleteSelectedNode}
           onEdgeChange={updateSelectedEdge}
           onEdgeKindDefaultChange={setEdgeKind}
-          onNavigate={selectedNode && !nodeIsEmbedded(selectedNode) && selectedNode.type !== 'image'
+          onNavigate={selectedNode && controllerSnapshot.specs.getForNode(selectedNode).canNavigate
             ? () => handleNodeClick(selectedNode)
             : undefined}
           onNodeChange={updateSelectedNode}

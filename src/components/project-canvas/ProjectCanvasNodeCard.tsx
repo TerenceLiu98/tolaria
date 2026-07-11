@@ -9,8 +9,8 @@ import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
 import { Textarea } from '../ui/textarea'
 import { boundedSnippet, paperSubtitle } from './projectCanvasEntryPreview'
-import { nodeKindKey, type ProjectCanvasNodePresentation } from './projectCanvasDisplay'
-import { imageSourceForNode, nodeIsEmbedded } from './projectCanvasNodeModel'
+import { type ProjectCanvasNodePresentation } from './projectCanvasDisplay'
+import { imageSourceForNode } from './projectCanvasNodeModel'
 import { ProjectDocumentPreview } from './ProjectDocumentPreview'
 import { MarkdownContent } from '../MarkdownContent'
 
@@ -69,15 +69,15 @@ export function ProjectCanvasNodeCard({
   temporarySaving = false,
   vaultPath,
 }: ProjectCanvasNodeCardProps) {
-  const isEmbedded = nodeIsEmbedded(node)
+  const isEmbedded = spec.renderer === 'text' || spec.renderer === 'task' || spec.renderer === 'group'
   const isStale = resolved?.state === 'stale'
   const preview = spec.preview(node, presentation)
   const title = node.title ?? entry?.title ?? resolved?.targetTitle ?? preview.title ?? node.ref ?? translate(locale, 'projectCanvas.untitledNode')
   const subtitle = entry?.isA === 'Paper' ? paperSubtitle(entry) : null
-  const snippet = node.type === 'paper_block'
+  const snippet = spec.renderer === 'paper_block'
     ? boundedSnippet(preview.text ?? resolved?.message ?? null)
     : boundedSnippet(preview.text ?? entry?.snippet ?? null)
-  const imageSource = node.type === 'image' ? imageSourceForNode(node, vaultPath) : null
+  const imageSource = spec.renderer === 'image' ? imageSourceForNode(node, vaultPath) : null
 
   return (
     <article
@@ -102,7 +102,7 @@ export function ProjectCanvasNodeCard({
     >
       <div className="project-canvas-node__body">
         <div className="project-canvas-node__header">
-          <span className="project-canvas-node__kind">{translate(locale, nodeKindKey(node))}</span>
+            <span className="project-canvas-node__kind">{translate(locale, spec.kindKey)}</span>
           <span className="project-canvas-node__header-actions">
             {temporary ? (
               <span className="project-canvas-node__state project-canvas-node__state--peek">
@@ -149,10 +149,10 @@ export function ProjectCanvasNodeCard({
           </div>
         ) : editing ? (
           <div className="project-canvas-node__editor-host" ref={editorHostRef} />
-        ) : entry && (node.type === 'note' || node.type === 'paper') ? (
+        ) : entry && spec.renderer === 'document' ? (
           <ProjectDocumentPreview active={presentation === 'preview'} entry={entry} locale={locale} onNavigateWikilink={onNavigateWikilink} />
         ) : null}
-        {node.type === 'task' ? (
+        {spec.renderer === 'task' ? (
           <label className="project-canvas-node__task">
             <Checkbox checked={node.completed === true} onCheckedChange={onToggleTask} />
             <Textarea
@@ -163,7 +163,7 @@ export function ProjectCanvasNodeCard({
               placeholder={translate(locale, 'projectCanvas.textPlaceholder')}
             />
           </label>
-        ) : node.type === 'image' ? (
+        ) : spec.renderer === 'image' ? (
           <div className="project-canvas-node__image-frame">
             {imageSource ? (
               <img src={imageSource} alt={title} className="project-canvas-node__image" loading="lazy" decoding="async" />

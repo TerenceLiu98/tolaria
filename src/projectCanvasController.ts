@@ -32,6 +32,7 @@ export interface CanvasControllerSnapshot {
   readonly overlay: ReturnType<CanvasOverlayCoordinator['getSnapshot']>
   readonly canUndo: boolean
   readonly canRedo: boolean
+  readonly historyDomain: CanvasHistoryDomain
   readonly saving: boolean
   readonly error: string | null
   readonly refs: readonly ProjectCanvasResolvedRef[]
@@ -66,6 +67,22 @@ export interface CanvasAddNodeOptions {
   readonly linkFromNodeId?: string | null
   readonly linkKind?: ProjectCanvasEdgeKind
   readonly select?: boolean
+}
+
+export interface CanvasNodeCreationOptions extends CanvasAddNodeOptions {
+  readonly type: ProjectCanvasNode['type']
+  readonly center?: CanvasPoint
+  readonly ref?: string
+  readonly title?: string
+  readonly text?: string
+  readonly completed?: boolean
+}
+
+export interface CanvasDropPayload {
+  readonly nodeType?: ProjectCanvasNode['type']
+  readonly ref: string
+  readonly title?: string
+  readonly text?: string
 }
 
 function nextId(prefix: string, ids: Iterable<string>): string {
@@ -110,6 +127,7 @@ export class ProjectCanvasController {
   private notifyFrame: number | null = null
   private readonly listeners = new Set<() => void>()
   private readonly migrateLoadedScene: boolean
+  private focusOwnerValue: CanvasHistoryDomain = 'canvas'
 
   constructor(options: CanvasControllerOptions) {
     this.persistence = options.persistence
@@ -132,6 +150,7 @@ export class ProjectCanvasController {
       this.sceneStore?.setViewport(camera)
       this.lastCommittedCamera = camera
       if (cameraChanged && this.statusValue === 'ready') void this.persist(this.getScene(), 'viewport')
+      this.updateSelectionOverlay(false)
       this.publish()
     })
     this.selection.subscribe(() => {
@@ -213,10 +232,30 @@ export class ProjectCanvasController {
 
   setViewportSize(size: CanvasViewportSize): void {
     this.viewport.setViewportSize(size)
+    this.overlays.setViewportBounds(size.width > 0 && size.height > 0
+      ? { left: 0, top: 0, width: size.width, height: size.height }
+      : null, false)
+    this.updateSelectionOverlay(false)
   }
 
   screenToCanvas(point: CanvasPoint): CanvasPoint {
     return this.viewport.screenToCanvas(point)
+  }
+
+  clientToScreen(point: CanvasPoint): CanvasPoint {
+    return this.viewport.clientToScreen(point)
+  }
+
+  clientToCanvas(point: CanvasPoint): CanvasPoint {
+    return this.viewport.clientToCanvas(point)
+  }
+
+  canvasCenter(width: number, height: number): CanvasPoint {
+    return this.viewport.canvasCenter(width, height)
+  }
+
+  graphicsBounds(): { minX: number; minY: number; width: number; height: number } {
+    return this.viewport.graphicsBounds(this.sceneStore?.getSnapshot().bounds ?? null)
   }
 
   isHandOverrideActive(): boolean {
@@ -250,6 +289,8 @@ export class ProjectCanvasController {
     for (const nodeId of scene.connectedNodeIds(new Set(selection.selectedNodeIds))) retained.add(nodeId)
     const gestureTarget = this.tools.getSnapshot().targetId
     if (gestureTarget) retained.add(gestureTarget)
+    for (const nodeId of selection.overlayOwnedNodeIds) retained.add(nodeId)
+    for (const nodeId of scene.connectedNodeIds(retained)) retained.add(nodeId)
     return this.layers.filterNodes(scene.query(viewport.renderBounds, retained), viewport.camera.zoom, retained)
   }
 
@@ -292,8 +333,15 @@ export class ProjectCanvasController {
     this.selection.setPeekNode(nodeId)
   }
 
-  setActiveHistoryDomain(domain: CanvasHistoryDomain): void {
-    this.history.setActiveDomain(domain)
+  setOverlayOwnedNodes(nodeIds: readonly string[]): void {
+    this.selection.setOverlayOwnedNodes(nodeIds)
+  }
+
+  setFocusOwner(owner: CanvasHistoryDomain): void {
+    if (this.focusOwnerValue === owner && this.history.activeDomain === owner) return
+    this.focusOwnerValue = owner
+    this.history.setActiveDomain(owner)
+    this.overlays.setFocusOwner(owner === 'document' ? 'editor' : 'canvas')
   }
 
   updateScene(updater: (canvas: ProjectCanvas) => ProjectCanvas): ProjectCanvas | null {
@@ -408,6 +456,57 @@ export class ProjectCanvasController {
     }))
     if (result && options.select !== false) this.selectNodes([node.id], node.id)
     return result
+  }
+
+  createNode(options: CanvasNodeCreationOptions): ProjectCanvas | null {
+    return this.addNode(this.buildNode(options), options)
+  }
+
+  createPeekNode(type: ProjectCanvasNode['type'], ref: string, title?: string, sourceNodeId?: string): ProjectCanvasNode | null {
+    const spec = this.specs.get(type)
+    const geometry = spec.editorGeometry ?? spec.geometry
+    const source = sourceNodeId ? this.sceneStore?.node(sourceNodeId) : null
+    const center = source
+      ? { x: source.x + source.width + 80 + geometry.width / 2, y: source.y + geometry.height / 2 }
+      : this.canvasCenter(geometry.width, geometry.height)
+    return this.buildNode({ type, ref, title, center }, geometry, 'peek')
+  }
+
+  addDropValue(value: string, point: CanvasPoint, options: CanvasAddNodeOptions = {}): ProjectCanvas | null {
+    const block = this.specs.get('paper_block').resolveDrop(value)
+    const image = this.specs.get('image').resolveDrop(value)
+    const type: ProjectCanvasNode['type'] = block ? 'paper_block' : image ? 'image' : 'text'
+    const resolved = block ?? image ?? this.specs.get('text').resolveDrop(value)
+    if (!resolved) return this.getScene()
+    return this.createNode({
+      ...options,
+      type,
+      center: point,
+      ref: resolved.ref,
+      title: resolved.title,
+      text: resolved.text,
+    })
+  }
+
+  addDropPayload(payload: CanvasDropPayload, point: CanvasPoint, options: CanvasAddNodeOptions = {}): ProjectCanvas | null {
+    const current = this.getScene()
+    const ref = payload.ref.trim()
+    if (!current || !ref) return current
+    const existing = current.nodes.find(node => node.ref === ref)
+    if (existing) {
+      this.focusNode(existing.id)
+      return current
+    }
+    const type = payload.nodeType ?? 'text'
+    const resolved = this.specs.get(type).resolveDrop(ref) ?? { ref }
+    return this.createNode({
+      ...options,
+      type,
+      center: point,
+      ref: resolved.ref ?? ref,
+      title: payload.title ?? resolved.title,
+      text: payload.text ?? resolved.text,
+    })
   }
 
   allocateNodeId(prefix: string): string {
@@ -568,7 +667,9 @@ export class ProjectCanvasController {
     onFinish?: (details: { gesture: CanvasGestureSnapshot; targetNodeId: string | null }) => void,
   ): () => void {
     const handlePointerMove = (event: PointerEvent) => {
-      if (this.tools.getSnapshot().phase !== 'idle') this.updatePointer({ x: event.clientX, y: event.clientY })
+      if (this.tools.getSnapshot().phase !== 'idle') {
+        this.updatePointer(this.viewport.clientToScreen({ x: event.clientX, y: event.clientY }))
+      }
     }
     const handlePointerUp = (event: PointerEvent) => {
       const gesture = this.tools.getSnapshot()
@@ -777,6 +878,28 @@ export class ProjectCanvasController {
     return after
   }
 
+  private buildNode(
+    options: CanvasNodeCreationOptions,
+    geometry = this.specs.get(options.type).geometry,
+    idPrefix: string = options.type,
+  ): ProjectCanvasNode {
+    const spec = this.specs.get(options.type)
+    const resolved = options.ref ? spec.resolveDrop(options.ref) : null
+    const center = options.center ?? this.canvasCenter(geometry.width, geometry.height)
+    return {
+      id: this.allocateNodeId(idPrefix),
+      type: options.type,
+      ref: options.ref ?? resolved?.ref,
+      title: options.title ?? resolved?.title,
+      text: options.text ?? resolved?.text,
+      completed: options.completed,
+      x: center.x - geometry.width / 2,
+      y: center.y - geometry.height / 2,
+      width: geometry.width,
+      height: geometry.height,
+    }
+  }
+
   private mutateScene(
     updater: (canvas: ProjectCanvas) => ProjectCanvas,
     options: { history: boolean; persistence: ProjectCanvasPersistenceReason | null; label: string },
@@ -801,7 +924,7 @@ export class ProjectCanvasController {
     })
     this.overlays.positionForNodes(selectedNodes, this.viewport, notify, selection.primary?.kind === 'node'
       ? selection.primary.id
-      : null)
+      : null, node => this.specs.getForNode(node).canResize)
     this.overlays.setActive(ids.size > 0 ? ['selection', 'resize', 'toolbar'] : [], notify)
   }
 
@@ -828,6 +951,7 @@ export class ProjectCanvasController {
       overlay: this.overlays.getSnapshot(),
       canUndo: this.history.canUndo,
       canRedo: this.history.canRedo,
+      historyDomain: this.history.activeDomain,
       saving: this.savingValue,
       error: this.errorValue,
       refs: this.refsValue,

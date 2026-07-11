@@ -15,6 +15,7 @@ export interface CanvasSelectionSnapshot {
   readonly editingNodeId: string | null
   readonly activeGroupId: string | null
   readonly peekNodeId: string | null
+  readonly overlayOwnedNodeIds: readonly string[]
   readonly bounds: CanvasBounds | null
   readonly mode: CanvasSelectionMode
   readonly revision: number
@@ -43,6 +44,7 @@ export class CanvasSelectionManager {
   private editingNodeIdValue: string | null = null
   private activeGroupIdValue: string | null = null
   private peekNodeIdValue: string | null = null
+  private overlayOwnedNodeIdsValue: string[] = []
   private modeValue: CanvasSelectionMode = 'idle'
   private boundsValue: CanvasBounds | null = null
   private revision = 0
@@ -55,6 +57,7 @@ export class CanvasSelectionManager {
     editingNodeId: this.editingNodeIdValue,
     activeGroupId: this.activeGroupIdValue,
     peekNodeId: this.peekNodeIdValue,
+    overlayOwnedNodeIds: this.overlayOwnedNodeIdsValue,
     bounds: this.boundsValue,
     mode: this.modeValue,
     revision: this.revision,
@@ -96,6 +99,7 @@ export class CanvasSelectionManager {
     this.selectedNodeIdsValue = []
     this.selectedEdgeIdsValue = []
     this.primaryValue = null
+    this.overlayOwnedNodeIdsValue = []
     this.boundsValue = null
     this.modeValue = 'idle'
     this.publish()
@@ -116,6 +120,11 @@ export class CanvasSelectionManager {
 
   setPeekNode(nodeId: string | null): void {
     this.peekNodeIdValue = nodeId
+    this.publish()
+  }
+
+  setOverlayOwnedNodes(nodeIds: readonly string[]): void {
+    this.overlayOwnedNodeIdsValue = [...new Set(nodeIds)]
     this.publish()
   }
 

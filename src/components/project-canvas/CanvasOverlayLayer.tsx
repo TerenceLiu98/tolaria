@@ -1,4 +1,4 @@
-import type { CanvasOverlayHandle, CanvasOverlayRect } from '../../canvasOverlayCoordinator'
+import type { CanvasOverlayGuide, CanvasOverlayHandle, CanvasOverlayKind, CanvasOverlayRect } from '../../canvasOverlayCoordinator'
 import type { CanvasPoint } from '../../canvasSceneStore'
 import { LinkSimple, Resize } from '@phosphor-icons/react'
 import { Button } from '../ui/button'
@@ -11,13 +11,26 @@ interface CanvasOverlayLayerProps {
   onConnectStart: (nodeId: string, point: CanvasPoint) => void
   onResizeStart: (nodeId: string, point: CanvasPoint) => void
   resizeLabel: (nodeId: string) => string
+  snapGuides?: readonly CanvasOverlayGuide[]
+  toolbarRect?: CanvasOverlayRect | null
+  zIndices: Readonly<Record<CanvasOverlayKind, number>>
 }
 
 /** Screen-space overlay layer. Controls remain pixel-sized while the Canvas zooms. */
-export function CanvasOverlayLayer({ connectionHandles, connectLabel, handles, onConnectStart, onResizeStart, resizeLabel, selectionRect }: CanvasOverlayLayerProps) {
-  if (!selectionRect && handles.length === 0 && connectionHandles.length === 0) return null
+export function CanvasOverlayLayer({ connectionHandles, connectLabel, handles, onConnectStart, onResizeStart, resizeLabel, selectionRect, snapGuides = [], toolbarRect = null, zIndices }: CanvasOverlayLayerProps) {
+  if (!selectionRect && handles.length === 0 && connectionHandles.length === 0 && snapGuides.length === 0 && !toolbarRect) return null
   return (
     <div className="project-canvas-overlay-layer">
+      {snapGuides.map((guide, index) => (
+        <div
+          key={`${guide.orientation}-${guide.position}-${index}`}
+          className={`project-canvas-snap-guide project-canvas-snap-guide--${guide.orientation}`}
+          data-testid="project-canvas-snap-guide"
+          style={guide.orientation === 'vertical'
+            ? { left: guide.position, zIndex: zIndices.snap }
+            : { top: guide.position, zIndex: zIndices.snap }}
+        />
+      ))}
       {selectionRect ? (
         <div
           className="project-canvas-selection-overlay"
@@ -28,7 +41,16 @@ export function CanvasOverlayLayer({ connectionHandles, connectLabel, handles, o
             top: selectionRect.top,
             width: selectionRect.width,
             height: selectionRect.height,
+            zIndex: zIndices.selection,
           }}
+        />
+      ) : null}
+      {toolbarRect ? (
+        <div
+          className="project-canvas-contextual-toolbar"
+          data-testid="project-canvas-contextual-toolbar"
+          aria-hidden="true"
+          style={{ left: toolbarRect.left, top: toolbarRect.top, width: toolbarRect.width, height: toolbarRect.height, zIndex: zIndices.toolbar }}
         />
       ) : null}
       {[...connectionHandles, ...handles].map(handle => (
@@ -41,7 +63,11 @@ export function CanvasOverlayLayer({ connectionHandles, connectLabel, handles, o
           data-node-id={handle.nodeId}
           data-testid={`project-canvas-${handle.kind}-handle`}
           aria-label={handle.kind === 'connect' ? connectLabel(handle.nodeId) : resizeLabel(handle.nodeId)}
-          style={{ left: handle.left, top: handle.top }}
+          style={{
+            left: handle.left,
+            top: handle.top,
+            zIndex: zIndices[handle.kind === 'connect' ? 'connection' : 'resize'],
+          }}
           onPointerDown={(event) => {
             event.stopPropagation()
             if (handle.kind === 'connect') onConnectStart(handle.nodeId, { x: event.clientX, y: event.clientY })

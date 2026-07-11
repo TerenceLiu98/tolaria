@@ -4,6 +4,8 @@ import type { ProjectCanvas, ProjectCanvasNode } from '../../projectCanvas'
 export interface ProjectCanvasViewportSize {
   width: number
   height: number
+  left?: number
+  top?: number
 }
 
 const VIEWPORT_OVERSCAN_PX = 240
@@ -38,7 +40,7 @@ export function visibleProjectCanvasNodes(
 
 function elementSize(element: HTMLElement): ProjectCanvasViewportSize {
   const rect = element.getBoundingClientRect()
-  return { width: rect.width, height: rect.height }
+  return { width: rect.width, height: rect.height, left: rect.left, top: rect.top }
 }
 
 export function useProjectCanvasViewportSize(
@@ -57,7 +59,7 @@ export function useProjectCanvasViewportSize(
     }
     const observer = new ResizeObserver(entries => {
       const entry = entries[0]
-      if (entry) setSize({ width: entry.contentRect.width, height: entry.contentRect.height })
+      if (entry) setSize(elementSize(element))
     })
     observer.observe(element)
     return () => observer.disconnect()

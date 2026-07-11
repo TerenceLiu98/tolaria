@@ -144,6 +144,33 @@ describe('CanvasEditorPortal', () => {
     expect(onToggleFocus).toHaveBeenCalledTimes(1)
   })
 
+  it('reports document focus and returns ownership to Canvas when the editor loses focus', async () => {
+    const target = document.createElement('div')
+    document.body.append(target)
+    vi.mocked(loadContentForOpen).mockResolvedValue('# Evidence')
+    editor.tryParseMarkdownToBlocks.mockResolvedValue([])
+    const onFocusOwnerChange = vi.fn()
+
+    render(
+      <CanvasEditorPortal
+        editable
+        entries={[note]}
+        entry={note}
+        onFocusOwnerChange={onFocusOwnerChange}
+        onNavigateWikilink={vi.fn()}
+        target={target}
+        vaultPath="/vault"
+      />,
+    )
+
+    const portal = await screen.findByTestId('canvas-editor-portal')
+    fireEvent.focusIn(portal)
+    fireEvent.focusOut(portal, { relatedTarget: document.body })
+
+    expect(onFocusOwnerChange).toHaveBeenNthCalledWith(1, 'document')
+    expect(onFocusOwnerChange).toHaveBeenLastCalledWith('canvas')
+  })
+
   it('routes Paper documents through the existing Paper reader capabilities', async () => {
     const target = document.createElement('div')
     document.body.append(target)

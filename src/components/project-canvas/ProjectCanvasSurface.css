@@ -802,7 +802,37 @@
   position: absolute;
   z-index: 12;
   inset: 0;
+  overflow: hidden;
   pointer-events: none;
+}
+
+.project-canvas-contextual-toolbar {
+  position: absolute;
+  z-index: 40;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--background) 92%, transparent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--foreground) 12%, transparent);
+  pointer-events: none;
+}
+
+.project-canvas-snap-guide {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--primary) 65%, transparent);
+}
+
+.project-canvas-snap-guide--vertical {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.project-canvas-snap-guide--horizontal {
+  left: 0;
+  right: 0;
+  height: 1px;
 }
 
 .project-canvas-overlay-handle {
