@@ -247,6 +247,27 @@ describe('ProjectCanvasSurface', () => {
     await waitFor(() => expect(view.container.querySelector('[data-node-id="project_overview"]')).not.toBeNull())
   })
 
+  it('changes the active Canvas tool from the mouse toolbar', async () => {
+    const canvas = defaultProjectCanvas('projects/alpha/project.md')
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const handTool = await screen.findByRole('button', { name: 'Hand tool' })
+    fireEvent.click(handTool)
+
+    await waitFor(() => expect(handTool).toHaveAttribute('aria-pressed', 'true'))
+  })
+
   it('keeps the Project Overview root node non-deletable', async () => {
     const canvas = defaultProjectCanvas('projects/alpha/project.md')
     vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))

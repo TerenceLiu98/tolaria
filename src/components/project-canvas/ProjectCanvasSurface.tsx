@@ -939,7 +939,7 @@ export function ProjectCanvasSurface({
         onLinkFromSelectedChange={setLinkFromSelected}
         onNewCardTextChange={setNewCardText}
         onRedo={() => restoreCanvasFromHistory('redo')}
-        onToolChange={controller.setTool}
+        onToolChange={tool => controller.setTool(tool)}
         onUndo={() => restoreCanvasFromHistory('undo')}
         onZoom={handleZoom}
       />
