@@ -106,6 +106,10 @@ export class ProjectCanvasPersistenceAdapter {
     })
   }
 
+  resolveReferences(canvas: ProjectCanvas): Promise<ProjectCanvasResolveResult> {
+    return this.resolve(this.vaultPath, this.projectPath, canvas)
+  }
+
   async flush(): Promise<ProjectCanvasReadResult | null> {
     if (this.viewportTimer) {
       clearTimeout(this.viewportTimer)
@@ -127,6 +131,6 @@ export class ProjectCanvasPersistenceAdapter {
     const nextCanvas = this.deterministicWrites
       ? normalizeProjectCanvas(canvas, this.projectPath)
       : { ...canvas, viewport: { ...canvas.viewport }, nodes: canvas.nodes.map(node => ({ ...node })), edges: canvas.edges.map(edge => ({ ...edge })) }
-    return this.save(this.vaultPath, this.projectPath, nextCanvas)
+    return Promise.resolve(this.save(this.vaultPath, this.projectPath, nextCanvas))
   }
 }

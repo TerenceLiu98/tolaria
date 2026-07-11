@@ -2,13 +2,20 @@ import { autoLayoutCanvas } from './components/project-canvas/projectCanvasDispl
 import { CanvasHistoryManager, type CanvasHistoryDomain } from './canvasHistoryManager'
 import { CanvasLayerManager } from './canvasLayerManager'
 import { CanvasNodeSpecRegistry } from './canvasNodeSpecRegistry'
-import { CanvasOverlayCoordinator } from './canvasOverlayCoordinator'
+import { CanvasOverlayCoordinator, type CanvasOverlayHandle } from './canvasOverlayCoordinator'
 import { CanvasSceneStore, type CanvasPoint, type CanvasSceneDiagnostics, type CanvasSceneSnapshot } from './canvasSceneStore'
 import { CanvasSelectionManager, type CanvasSelectionSnapshot } from './canvasSelectionManager'
 import { CanvasToolManager, type CanvasGestureKind, type CanvasGestureSnapshot, type CanvasPointerInput, type CanvasTool } from './canvasToolManager'
 import { CanvasViewport, type CanvasViewportSize, type CanvasViewportSnapshot } from './canvasViewport'
 import { ProjectCanvasPersistenceAdapter, type ProjectCanvasPersistenceReason } from './projectCanvasPersistenceAdapter'
-import { normalizeProjectCanvas, type ProjectCanvas, type ProjectCanvasEdgeKind, type ProjectCanvasNode } from './projectCanvas'
+import {
+  normalizeProjectCanvas,
+  type ProjectCanvas,
+  type ProjectCanvasEdgeKind,
+  type ProjectCanvasNode,
+  type ProjectCanvasRefDiagnostic,
+  type ProjectCanvasResolvedRef,
+} from './projectCanvas'
 
 export type CanvasControllerStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -27,6 +34,8 @@ export interface CanvasControllerSnapshot {
   readonly canRedo: boolean
   readonly saving: boolean
   readonly error: string | null
+  readonly refs: readonly ProjectCanvasResolvedRef[]
+  readonly refDiagnostics: readonly ProjectCanvasRefDiagnostic[]
   readonly revision: number
 }
 
@@ -49,6 +58,14 @@ interface GestureContext {
   startViewport: ProjectCanvas['viewport']
   startNodes: Readonly<Record<string, ProjectCanvasNode>>
   nodeId: string | null
+  additive: boolean
+}
+
+export interface CanvasAddNodeOptions {
+  readonly label?: string
+  readonly linkFromNodeId?: string | null
+  readonly linkKind?: ProjectCanvasEdgeKind
+  readonly select?: boolean
 }
 
 function nextId(prefix: string, ids: Iterable<string>): string {
@@ -83,6 +100,13 @@ export class ProjectCanvasController {
   private snapshotValue: CanvasControllerSnapshot
   private gestureContext: GestureContext | null = null
   private clipboard: ProjectCanvasNode[] = []
+  private readonly transientNodeEdits = new Map<string, ProjectCanvas>()
+  private readonly transientEdgeEdits = new Map<string, ProjectCanvas>()
+  private refsValue: ProjectCanvasResolvedRef[] = []
+  private refDiagnosticsValue: ProjectCanvasRefDiagnostic[] = []
+  private referenceRequest = 0
+  private lastCommittedCamera: ProjectCanvas['viewport'] = { x: 0, y: 0, zoom: 1 }
+  private disposedValue = false
   private notifyFrame: number | null = null
   private readonly listeners = new Set<() => void>()
   private readonly migrateLoadedScene: boolean
@@ -100,7 +124,14 @@ export class ProjectCanvasController {
     this.snapshotValue = this.makeSnapshot()
 
     this.viewport.subscribe(() => {
-      this.sceneStore?.setViewport(this.viewport.getCamera())
+      if (this.disposedValue) return
+      const camera = this.viewport.getCamera()
+      const cameraChanged = camera.x !== this.lastCommittedCamera.x
+        || camera.y !== this.lastCommittedCamera.y
+        || camera.zoom !== this.lastCommittedCamera.zoom
+      this.sceneStore?.setViewport(camera)
+      this.lastCommittedCamera = camera
+      if (cameraChanged && this.statusValue === 'ready') void this.persist(this.getScene(), 'viewport')
       this.publish()
     })
     this.selection.subscribe(() => {
@@ -136,6 +167,8 @@ export class ProjectCanvasController {
         ? normalizeProjectCanvas(loaded.result.canvas!, loaded.result.projectPath || this.persistence.projectPath)
         : loaded.result.canvas!
       this.sceneStore = new CanvasSceneStore(loadedCanvas, { normalize: this.migrateLoadedScene })
+      this.refsValue = loaded.resolve?.refs.map(ref => ({ ...ref })) ?? []
+      this.refDiagnosticsValue = loaded.resolve?.diagnostics.map(diagnostic => ({ ...diagnostic })) ?? []
       this.sceneStore.subscribe(() => {
         const selectedNodes = this.selectedNodes()
         this.selection.updateBounds(selectedNodes, false)
@@ -144,6 +177,7 @@ export class ProjectCanvasController {
       })
       this.viewport.scheduleCamera(loadedCanvas.viewport)
       this.viewport.flush()
+      this.lastCommittedCamera = this.viewport.getCamera()
       this.selection.clear()
       this.history.clear()
       this.statusValue = 'ready'
@@ -158,6 +192,8 @@ export class ProjectCanvasController {
   }
 
   dispose(): void {
+    this.disposedValue = true
+    this.viewport.dispose()
     if (this.notifyFrame !== null) {
       if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.notifyFrame)
       else clearTimeout(this.notifyFrame)
@@ -191,6 +227,10 @@ export class ProjectCanvasController {
     return this.tools.getSnapshot()
   }
 
+  getConnectionHandles(nodes: readonly ProjectCanvasNode[]): CanvasOverlayHandle[] {
+    return this.overlays.connectionHandlesForNodes(nodes, this.viewport)
+  }
+
   queryVisibleNodes(retainedNodeIds: ReadonlySet<string> = new Set()): ProjectCanvasNode[] {
     const scene = this.sceneStore
     if (!scene) return []
@@ -207,12 +247,14 @@ export class ProjectCanvasController {
         retained.add(edge.to)
       }
     }
+    for (const nodeId of scene.connectedNodeIds(new Set(selection.selectedNodeIds))) retained.add(nodeId)
     const gestureTarget = this.tools.getSnapshot().targetId
     if (gestureTarget) retained.add(gestureTarget)
-    return scene.query(viewport.renderBounds, retained)
+    return this.layers.filterNodes(scene.query(viewport.renderBounds, retained), viewport.camera.zoom, retained)
   }
 
   setTool(tool: CanvasTool): void {
+    if (this.tools.getSnapshot().phase !== 'idle') this.cancelGesture()
     this.tools.setTool(tool)
   }
 
@@ -283,11 +325,97 @@ export class ProjectCanvasController {
   }
 
   updateNode(nodeId: string, patch: Partial<ProjectCanvasNode>, commit = false): ProjectCanvas | null {
+    if (!commit && !this.transientNodeEdits.has(nodeId)) {
+      const before = this.getScene()
+      if (before) this.transientNodeEdits.set(nodeId, before)
+    }
     const update = (canvas: ProjectCanvas) => ({
       ...canvas,
       nodes: canvas.nodes.map(node => node.id === nodeId ? { ...node, ...patch } : node),
     })
-    return commit ? this.commitScene('Update node', update) : this.updateScene(update)
+    const transientBefore = commit ? this.transientNodeEdits.get(nodeId) : undefined
+    if (commit && transientBefore) {
+      const result = this.updateScene(update)
+      this.transientNodeEdits.delete(nodeId)
+      if (result && JSON.stringify(transientBefore) !== JSON.stringify(result)) {
+        this.history.record('Update node', transientBefore, result)
+        void this.persist(result, 'structural')
+      }
+      return result
+    }
+    const result = commit ? this.commitScene('Update node', update) : this.updateScene(update)
+    if (commit) this.transientNodeEdits.delete(nodeId)
+    return result
+  }
+
+  commitNodeEdit(nodeId: string, label = 'Update node'): ProjectCanvas | null {
+    const before = this.transientNodeEdits.get(nodeId)
+    const after = this.getScene()
+    this.transientNodeEdits.delete(nodeId)
+    if (!before || !after) return after
+    if (JSON.stringify(before) === JSON.stringify(after)) return after
+    this.history.record(label, before, after)
+    void this.persist(after, 'structural')
+    return after
+  }
+
+  updateEdge(edgeId: string, patch: Partial<ProjectCanvas['edges'][number]>, commit = false): ProjectCanvas | null {
+    if (!commit && !this.transientEdgeEdits.has(edgeId)) {
+      const before = this.getScene()
+      if (before) this.transientEdgeEdits.set(edgeId, before)
+    }
+    const update = (canvas: ProjectCanvas) => ({
+      ...canvas,
+      edges: canvas.edges.map(edge => edge.id === edgeId ? { ...edge, ...patch } : edge),
+    })
+    const transientBefore = commit ? this.transientEdgeEdits.get(edgeId) : undefined
+    if (commit && transientBefore) {
+      const result = this.updateScene(update)
+      this.transientEdgeEdits.delete(edgeId)
+      if (result && JSON.stringify(transientBefore) !== JSON.stringify(result)) {
+        this.history.record('Update edge', transientBefore, result)
+        void this.persist(result, 'structural')
+      }
+      return result
+    }
+    if (commit) this.transientEdgeEdits.delete(edgeId)
+    return commit ? this.commitScene('Update edge', update) : this.updateScene(update)
+  }
+
+  toggleTask(nodeId: string): ProjectCanvas | null {
+    const node = this.sceneStore?.node(nodeId)
+    if (!node || node.type !== 'task') return this.getScene()
+    return this.commitScene('Toggle task', canvas => ({
+      ...canvas,
+      nodes: canvas.nodes.map(candidate => candidate.id === nodeId
+        ? { ...candidate, completed: !candidate.completed }
+        : candidate),
+    }))
+  }
+
+  addNode(node: ProjectCanvasNode, options: CanvasAddNodeOptions = {}): ProjectCanvas | null {
+    const current = this.getScene()
+    if (!current || current.nodes.some(candidate => candidate.id === node.id)) return current
+    const linkFromNodeId = options.linkFromNodeId
+    const linkKind = options.linkKind ?? 'related'
+    const edge = linkFromNodeId && linkFromNodeId !== node.id && current.nodes.some(candidate => candidate.id === linkFromNodeId)
+      ? { id: nextId('edge', current.edges.map(candidate => candidate.id)), from: linkFromNodeId, to: node.id, kind: linkKind }
+      : null
+    const result = this.commitScene(options.label ?? 'Add Canvas membership', canvas => ({
+      ...canvas,
+      nodes: [...canvas.nodes, node],
+      edges: edge ? [...canvas.edges, edge] : canvas.edges,
+    }))
+    if (result && options.select !== false) this.selectNodes([node.id], node.id)
+    return result
+  }
+
+  allocateNodeId(prefix: string): string {
+    return nextId(prefix, this.sceneStore?.getSnapshot().nodeOrder ?? [])
+  }
+
+  geometryForNode(nodeType: ProjectCanvasNode['type']): { width: number; height: number; minWidth: number; minHeight: number } {
+    return { ...this.specs.get(nodeType).geometry }
   }
 
   deleteNodes(nodeIds: readonly string[]): ProjectCanvas | null {
@@ -381,27 +509,29 @@ export class ProjectCanvasController {
   beginGesture(kind: CanvasGestureKind, input: CanvasPointerInput): CanvasGestureSnapshot {
     const scene = this.getScene()
     if (!scene) return this.tools.getSnapshot()
+    const effectiveKind = input.spaceOverride || this.tools.isHandOverrideActive() ? 'pan' : kind
     const startNodes: Record<string, ProjectCanvasNode> = {}
-    const gestureNodeIds = kind === 'drag'
+    const gestureNodeIds = effectiveKind === 'drag'
       ? this.selection.getSnapshot().selectedNodeIds
-      : kind === 'resize' && input.targetId ? [input.targetId] : []
+      : effectiveKind === 'resize' && input.targetId ? [input.targetId] : []
     for (const nodeId of gestureNodeIds) {
       const node = this.sceneStore?.node(nodeId)
       if (node) startNodes[node.id] = node
     }
     this.gestureContext = {
       before: scene,
-      kind,
+      kind: effectiveKind,
       startScreen: { ...input.point },
       startViewport: { ...scene.viewport },
       startNodes,
       nodeId: input.targetId ?? null,
+      additive: input.shiftKey === true,
     }
-    if (kind === 'drag') this.selection.setMode('dragging')
-    if (kind === 'resize') this.selection.setMode('resizing')
-    if (kind === 'connect') this.selection.setMode('connecting')
-    if (kind === 'marquee') this.selection.setMode('marquee')
-    if (kind === 'pan') this.selection.setMode('dragging')
+    if (effectiveKind === 'drag') this.selection.setMode('dragging')
+    if (effectiveKind === 'resize') this.selection.setMode('resizing')
+    if (effectiveKind === 'connect') this.selection.setMode('connecting')
+    if (effectiveKind === 'marquee' || effectiveKind === 'group') this.selection.setMode('marquee')
+    if (effectiveKind === 'pan') this.selection.setMode('dragging')
     return this.tools.begin(kind, input)
   }
 
@@ -421,6 +551,10 @@ export class ProjectCanvasController {
 
   beginMarquee(point: CanvasPoint, pointerId?: number): CanvasGestureSnapshot {
     return this.beginGesture('marquee', { point, pointerId })
+  }
+
+  beginGroup(point: CanvasPoint, pointerId?: number): CanvasGestureSnapshot {
+    return this.beginGesture('group', { point, pointerId })
   }
 
   beginConnection(fromNodeId: string, point: CanvasPoint, pointerId?: number): CanvasGestureSnapshot {
@@ -464,10 +598,11 @@ export class ProjectCanvasController {
     const zoom = context.startViewport.zoom
     const patches = Object.values(context.startNodes).flatMap(startNode => {
       if (context.kind === 'resize' && startNode.id === context.nodeId) {
+        const geometry = this.specs.getForNode(startNode).geometry
         return [{
           id: startNode.id,
-          width: Math.max(180, startNode.width + dx / zoom),
-          height: Math.max(110, startNode.height + dy / zoom),
+          width: Math.max(geometry.minWidth, startNode.width + dx / zoom),
+          height: Math.max(geometry.minHeight, startNode.height + dy / zoom),
         }]
       }
       if (context.kind === 'drag') {
@@ -489,11 +624,12 @@ export class ProjectCanvasController {
     if (context.kind === 'pan') {
       this.viewport.flush()
       result = this.getScene()
-      void this.persist(result, 'viewport')
     }
     if (context.kind === 'connect' && targetNodeId && context.nodeId) {
       result = this.createConnection(context.nodeId, targetNodeId, connectKind)
-    } else if (context.kind === 'marquee' && gesture.start && gesture.current) {
+    } else if ((context.kind === 'marquee' || context.kind === 'group') && gesture.phase === 'pressed') {
+      if (context.kind === 'marquee') this.clearSelection()
+    } else if ((context.kind === 'marquee' || context.kind === 'group') && gesture.start && gesture.current) {
       const start = this.viewport.screenToCanvas(gesture.start)
       const end = this.viewport.screenToCanvas(gesture.current)
       const bounds = {
@@ -505,7 +641,8 @@ export class ProjectCanvasController {
       const ids = this.sceneStore?.query(bounds)
         .filter(node => node.x >= bounds.minX && node.y >= bounds.minY && node.x + node.width <= bounds.maxX && node.y + node.height <= bounds.maxY)
         .map(node => node.id) ?? []
-      this.selectNodes(ids, ids.at(-1) ?? null)
+      this.selectNodes(ids, ids.at(-1) ?? null, context.additive)
+      if (context.kind === 'group') result = this.groupSelection()
     } else if (context.kind === 'drag') {
       result = this.commitGesture('Drag nodes', context.before)
     } else if (context.kind === 'resize') {
@@ -522,6 +659,8 @@ export class ProjectCanvasController {
     this.gestureContext = null
     this.tools.cancel()
     this.selection.setMode('idle')
+    this.viewport.scheduleCamera(context.startViewport)
+    this.viewport.flush()
     this.sceneStore?.replace(context.before)
     return context.before
   }
@@ -564,25 +703,21 @@ export class ProjectCanvasController {
 
   zoomAtScreenPoint(point: CanvasPoint, zoom: number): void {
     this.viewport.zoomAtScreenPoint(point, zoom)
-    void this.persist(this.getScene(), 'viewport')
   }
 
   zoomBy(delta: number): void {
     const camera = this.viewport.getCamera()
     this.viewport.scheduleCamera({ zoom: camera.zoom + delta })
-    void this.persist(this.getScene(), 'viewport')
   }
 
   fitToContent(): void {
     this.viewport.fitToBounds(this.sceneStore?.getSnapshot().bounds ?? null)
     this.viewport.flush()
-    void this.persist(this.getScene(), 'viewport')
   }
 
   fitToSelection(): void {
     this.viewport.fitToSelection(this.selection.getSnapshot().bounds)
     this.viewport.flush()
-    void this.persist(this.getScene(), 'viewport')
   }
 
   focusNode(nodeId: string, persist = false): void {
@@ -590,14 +725,13 @@ export class ProjectCanvasController {
     if (!node) return
     this.selectNodes([nodeId], nodeId)
     this.viewport.focusOnBounds({ minX: node.x, minY: node.y, maxX: node.x + node.width, maxY: node.y + node.height })
-    if (persist) void this.persist(this.getScene(), 'viewport')
+    if (persist) this.viewport.flush()
   }
 
   autoLayout(): ProjectCanvas | null {
     const result = this.commitScene('Auto-layout', autoLayoutCanvas)
     this.viewport.fitToBounds(result ? { minX: Math.min(...result.nodes.map(node => node.x)), minY: Math.min(...result.nodes.map(node => node.y)), maxX: Math.max(...result.nodes.map(node => node.x + node.width)), maxY: Math.max(...result.nodes.map(node => node.y + node.height)) } : null)
     this.viewport.flush()
-    void this.persist(this.getScene(), 'viewport')
     return result
   }
 
@@ -607,6 +741,7 @@ export class ProjectCanvasController {
     this.publish()
     try {
       await this.persistence.persist(canvas, reason)
+      if (reason !== 'viewport') await this.refreshReferences(canvas)
       this.errorValue = null
     } catch (error) {
       this.errorValue = error instanceof Error ? error.message : String(error)
@@ -617,11 +752,27 @@ export class ProjectCanvasController {
     }
   }
 
+  private async refreshReferences(canvas: ProjectCanvas): Promise<void> {
+    const request = this.referenceRequest + 1
+    this.referenceRequest = request
+    try {
+      const result = await this.persistence.resolveReferences(canvas)
+      if (request !== this.referenceRequest) return
+      this.refsValue = result.refs.map(ref => ({ ...ref }))
+      this.refDiagnosticsValue = result.diagnostics.map(diagnostic => ({ ...diagnostic }))
+      this.publishImmediate()
+    } catch {
+      // Reference failures are recoverable; retain the last known resolution.
+    }
+  }
+
   private commitGesture(label: string, before: ProjectCanvas): ProjectCanvas | null {
     const after = this.getScene()
     if (!after) return null
-    this.history.record(label, before, after)
-    void this.persist(after, 'structural')
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      this.history.record(label, before, after)
+      void this.persist(after, 'structural')
+    }
     return after
   }
 
@@ -646,7 +797,9 @@ export class ProjectCanvasController {
       const node = scene.node(nodeId)
       return node ? [node] : []
     })
-    this.overlays.positionForNodes(selectedNodes, this.viewport, notify)
+    this.overlays.positionForNodes(selectedNodes, this.viewport, notify, this.selection.getSnapshot().primary?.kind === 'node'
+      ? this.selection.getSnapshot().primary.id
+      : null)
     this.overlays.setActive(ids.size > 0 ? ['selection', 'resize', 'toolbar'] : [], notify)
   }
 
@@ -662,7 +815,7 @@ export class ProjectCanvasController {
   private makeSnapshot(): CanvasControllerSnapshot {
     return {
       status: this.statusValue,
-      scene: this.sceneStore?.getCanvas() ?? null,
+      scene: this.sceneStore?.getCanvasSnapshot() ?? null,
       sceneSnapshot: this.sceneStore?.getSnapshot() ?? null,
       viewport: this.viewport.getSnapshot(),
       selection: this.selection.getSnapshot(),
@@ -675,6 +828,8 @@ export class ProjectCanvasController {
       canRedo: this.history.canRedo,
       saving: this.savingValue,
       error: this.errorValue,
+      refs: this.refsValue,
+      refDiagnostics: this.refDiagnosticsValue,
       revision: this.revision,
     }
   }

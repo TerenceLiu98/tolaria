@@ -16,13 +16,13 @@ function center(node: ProjectCanvas['nodes'][number]) {
 
 function edgeLine(
   edge: ProjectCanvasEdge,
-  canvas: ProjectCanvas,
+  nodesById: ReadonlyMap<string, ProjectCanvas['nodes'][number]>,
   bounds: CanvasGraphicsLayerProps['bounds'],
   selected: boolean,
   onSelectEdge: (edgeId: string) => void,
 ): React.ReactNode {
-  const from = canvas.nodes.find(node => node.id === edge.from)
-  const to = canvas.nodes.find(node => node.id === edge.to)
+  const from = nodesById.get(edge.from)
+  const to = nodesById.get(edge.to)
   if (!from || !to) return null
   const fromPoint = center(from)
   const toPoint = center(to)
@@ -51,6 +51,7 @@ export function CanvasGraphicsLayer({
   onSelectEdge,
   selectedEdgeId,
 }: CanvasGraphicsLayerProps) {
+  const nodesById = new Map(canvas.nodes.map(node => [node.id, node]))
   return (
     <svg
       className="project-canvas-edges"
@@ -58,7 +59,7 @@ export function CanvasGraphicsLayer({
       viewBox={`0 0 ${bounds.width} ${bounds.height}`}
       aria-hidden="true"
     >
-      {canvas.edges.map(edge => edgeLine(edge, canvas, bounds, edge.id === selectedEdgeId, onSelectEdge))}
+      {canvas.edges.map(edge => edgeLine(edge, nodesById, bounds, edge.id === selectedEdgeId, onSelectEdge))}
       {connectPreview ? (
         <line
           className="project-canvas-edge project-canvas-edge--preview"

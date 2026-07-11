@@ -197,6 +197,13 @@ export class CanvasViewport {
     this.restoreCamera = null
   }
 
+  dispose(): void {
+    if (this.frame !== null) cancelFrame(this.frame)
+    this.frame = null
+    this.pendingCamera = null
+    this.listeners.clear()
+  }
+
   private publish(): void {
     this.revision += 1
     for (const listener of this.listeners) listener()

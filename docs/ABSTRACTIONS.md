@@ -1144,12 +1144,12 @@ Managed by `useSettings` hook and `SettingsPanel` component. `theme_mode` is ins
 
 `ProjectCanvasController` is the public command boundary. React surfaces subscribe to its snapshot with `useSyncExternalStore`; they do not own camera, selection, pointer-operation, history-stack, or Canvas persistence state.
 
-- `CanvasSceneStore` normalizes node/edge records, ordering, group membership references, bounds, and a coarse spatial index. `serialize()` sorts records deterministically for Git-friendly JSON and stores no document body.
+- `CanvasSceneStore` normalizes node/edge records, ordering, group membership references, bounds, a coarse spatial index, and node adjacency. `serialize()` sorts records deterministically for Git-friendly JSON and stores no document body. Pointer-frequency geometry uses incremental cell patches and stable scene snapshots; selected, editing, gesture-target, and connected nodes can be retained without a full-scene comparison.
 - `CanvasViewport` owns the v1 `{ x, y, zoom }` camera contract, screen/canvas transforms, pointer-centered zoom, fit operations, camera restoration, exact hit bounds, and bounded overscan render bounds. Camera commits are animation-frame based.
 - `CanvasSelectionManager` distinguishes selected, editing, dragging, resizing, connecting, marquee, and idle states. Inspector, Navigator, overlays, AI selection context, and the editor portal all derive from this source.
 - `CanvasToolManager` models Select, Hand, Connect, Frame, temporary Space-to-Hand, and pointer lifecycles as explicit state transitions. Escape cancels the active transaction before changing editing or selection state.
 - `CanvasHistoryManager` records one reversible transaction for a completed drag, resize, connect/reconnect, group, paste, delete, or auto-layout operation. BlockNote undo is a separate history domain.
-- `CanvasLayerManager`, `CanvasOverlayCoordinator`, and `CanvasNodeSpecRegistry` keep graphics, document DOM, screen-space UI, and node behavior extensible without renderer or node-type conditionals in the engine.
+- `CanvasLayerManager`, `CanvasOverlayCoordinator`, and `CanvasNodeSpecRegistry` keep graphics, document DOM, screen-space UI, and node behavior extensible without renderer or node-type conditionals in the engine. Low zoom applies bounded DOM/document/image budgets, and overlay handles remain fixed-size in screen space.
 - `ProjectCanvasPersistenceAdapter` validates/migrates readable Canvas files, preserves stale references, debounces camera-only writes, flushes structural writes, and never mutates referenced Markdown or Paper sidecars.
 
 The current renderer keeps SVG behind `CanvasGraphicsLayer` while leaving room for a Canvas2D implementation. `CanvasDocumentLayer` retains only visible/active DOM nodes, and `CanvasOverlayLayer` keeps selection controls at stable pixel sizes regardless of zoom.

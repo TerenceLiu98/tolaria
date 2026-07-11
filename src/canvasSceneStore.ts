@@ -144,6 +144,7 @@ export class CanvasSceneStore {
   private readonly normalize: boolean
   private readonly spatialIndex = new Map<string, Set<string>>()
   private readonly nodeRanks = new Map<string, number>()
+  private readonly connectedNodeIdsByNode = new Map<string, Set<string>>()
   private fullRebuilds = 0
   private geometryPatchBatches = 0
   private geometryPatchedNodes = 0
@@ -166,6 +167,15 @@ export class CanvasSceneStore {
 
   getCanvas(): ProjectCanvas {
     return cloneCanvas(this.canvas)
+  }
+
+  /**
+   * Stable render view for pointer-frequency snapshots. Structural callers
+   * must still mutate through the controller; this object is intentionally
+   * not cloned on every animation frame.
+   */
+  getCanvasSnapshot(): ProjectCanvas {
+    return this.canvas
   }
 
   getDiagnostics(): CanvasSceneDiagnostics {
@@ -284,6 +294,14 @@ export class CanvasSceneStore {
     return this.snapshotValue.edgeOrder.map(edgeId => ({ ...this.snapshotValue.edgesById[edgeId] }))
   }
 
+  connectedNodeIds(nodeIds: ReadonlySet<string>): string[] {
+    const connected = new Set<string>()
+    for (const nodeId of nodeIds) {
+      for (const connectedNodeId of this.connectedNodeIdsByNode.get(nodeId) ?? []) connected.add(connectedNodeId)
+    }
+    return [...connected]
+  }
+
   query(bounds: CanvasBounds, retainedNodeIds: ReadonlySet<string> = new Set()): ProjectCanvasNode[] {
     const candidateIds = new Set<string>(retainedNodeIds)
     for (const cell of this.cellsForBounds(bounds)) {
@@ -322,10 +340,19 @@ export class CanvasSceneStore {
   private rebuildSpatialIndex(): void {
     this.spatialIndex.clear()
     this.nodeRanks.clear()
+    this.connectedNodeIdsByNode.clear()
     this.fullRebuilds += 1
     for (const [rank, node] of this.canvas.nodes.entries()) {
       this.nodeRanks.set(node.id, rank)
       this.addNodeToSpatialIndex(node)
+    }
+    for (const edge of this.canvas.edges) {
+      const from = this.connectedNodeIdsByNode.get(edge.from) ?? new Set<string>()
+      from.add(edge.to)
+      this.connectedNodeIdsByNode.set(edge.from, from)
+      const to = this.connectedNodeIdsByNode.get(edge.to) ?? new Set<string>()
+      to.add(edge.from)
+      this.connectedNodeIdsByNode.set(edge.to, to)
     }
   }
 

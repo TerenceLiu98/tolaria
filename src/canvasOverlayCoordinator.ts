@@ -11,9 +11,17 @@ export interface CanvasOverlayRect {
   height: number
 }
 
+export interface CanvasOverlayHandle {
+  readonly kind: 'resize' | 'connect'
+  readonly nodeId: string
+  readonly left: number
+  readonly top: number
+}
+
 export interface CanvasOverlaySnapshot {
   readonly active: readonly CanvasOverlayKind[]
   readonly rect: CanvasOverlayRect | null
+  readonly handles: readonly CanvasOverlayHandle[]
   readonly handleSize: number
   readonly revision: number
 }
@@ -22,12 +30,14 @@ export interface CanvasOverlaySnapshot {
 export class CanvasOverlayCoordinator {
   private activeValue: CanvasOverlayKind[] = []
   private rectValue: CanvasOverlayRect | null = null
+  private handlesValue: CanvasOverlayHandle[] = []
   private revision = 0
   private readonly listeners = new Set<() => void>()
 
   getSnapshot = (): CanvasOverlaySnapshot => ({
     active: this.activeValue,
     rect: this.rectValue,
+    handles: this.handlesValue,
     handleSize: 8,
     revision: this.revision,
   })
@@ -42,9 +52,10 @@ export class CanvasOverlayCoordinator {
     if (notify) this.publish()
   }
 
-  positionForNodes(nodes: readonly ProjectCanvasNode[], viewport: CanvasViewport, notify = true): CanvasOverlayRect | null {
+  positionForNodes(nodes: readonly ProjectCanvasNode[], viewport: CanvasViewport, notify = true, primaryNodeId: string | null = null): CanvasOverlayRect | null {
     if (nodes.length === 0) {
       this.rectValue = null
+      this.handlesValue = []
       if (notify) this.publish()
       return null
     }
@@ -60,6 +71,23 @@ export class CanvasOverlayCoordinator {
       width: Math.max(0, bottomRight.x - topLeft.x),
       height: Math.max(0, bottomRight.y - topLeft.y),
     }
+    this.handlesValue = nodes.flatMap(node => {
+      const nodeTopLeft = viewport.canvasToScreen({ x: node.x, y: node.y })
+      const nodeBottomRight = viewport.canvasToScreen({ x: node.x + node.width, y: node.y + node.height })
+      const handles: CanvasOverlayHandle[] = [{
+        kind: 'connect',
+        nodeId: node.id,
+        left: nodeBottomRight.x,
+        top: nodeTopLeft.y + (nodeBottomRight.y - nodeTopLeft.y) / 2,
+      }]
+      if (node.id === primaryNodeId || (!primaryNodeId && nodes.length === 1)) handles.push({
+        kind: 'resize',
+        nodeId: node.id,
+        left: nodeBottomRight.x,
+        top: nodeBottomRight.y,
+      })
+      return handles
+    })
     if (notify) this.publish()
     return this.rectValue
   }
@@ -68,9 +96,23 @@ export class CanvasOverlayCoordinator {
     return viewport.canvasToScreen(point)
   }
 
+  connectionHandlesForNodes(nodes: readonly ProjectCanvasNode[], viewport: CanvasViewport): CanvasOverlayHandle[] {
+    return nodes.map(node => {
+      const topLeft = viewport.canvasToScreen({ x: node.x, y: node.y })
+      const bottomRight = viewport.canvasToScreen({ x: node.x + node.width, y: node.y + node.height })
+      return {
+        kind: 'connect' as const,
+        nodeId: node.id,
+        left: bottomRight.x,
+        top: topLeft.y + (bottomRight.y - topLeft.y) / 2,
+      }
+    })
+  }
+
   dismiss(): void {
     this.activeValue = []
     this.rectValue = null
+    this.handlesValue = []
     this.publish()
   }
 

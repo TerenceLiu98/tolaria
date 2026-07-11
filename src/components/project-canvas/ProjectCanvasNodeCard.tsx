@@ -1,5 +1,6 @@
 import type React from 'react'
-import { LineSegment, PushPin, X } from '@phosphor-icons/react'
+import { PushPin, X } from '@phosphor-icons/react'
+import type { CanvasNodeSpec } from '../../canvasNodeSpecRegistry'
 import { translate, type AppLocale } from '../../lib/i18n'
 import { cn } from '../../lib/utils'
 import type { ProjectCanvasNode, ProjectCanvasResolvedRef } from '../../projectCanvas'
@@ -21,14 +22,13 @@ interface ProjectCanvasNodeCardProps {
   entry: VaultEntry | null
   locale: AppLocale
   node: ProjectCanvasNode
+  spec: CanvasNodeSpec
   onClick: (event: React.MouseEvent<HTMLElement>) => void
   onCloseTemporary?: () => void
-  onConnectPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void
   onDoubleClick: () => void
   onNavigateWikilink: (target: string) => void
   onPinTemporary?: () => void
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
-  onResizePointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
   onSelect: (event: React.MouseEvent<HTMLButtonElement>) => void
   onTextBlur: () => void
   onTextChange: (text: string) => void
@@ -51,17 +51,16 @@ export function ProjectCanvasNodeCard({
   node,
   onClick,
   onCloseTemporary,
-  onConnectPointerDown,
   onDoubleClick,
   onNavigateWikilink,
   onPinTemporary,
   onPointerDown,
-  onResizePointerDown,
   onSelect,
   onTextBlur,
   onTextChange,
   onToggleTask,
   presentation,
+  spec,
   resolved,
   selected,
   temporary = false,
@@ -72,11 +71,12 @@ export function ProjectCanvasNodeCard({
 }: ProjectCanvasNodeCardProps) {
   const isEmbedded = nodeIsEmbedded(node)
   const isStale = resolved?.state === 'stale'
-  const title = node.title ?? entry?.title ?? resolved?.targetTitle ?? node.ref ?? translate(locale, 'projectCanvas.untitledNode')
+  const preview = spec.preview(node, presentation)
+  const title = node.title ?? entry?.title ?? resolved?.targetTitle ?? preview.title ?? node.ref ?? translate(locale, 'projectCanvas.untitledNode')
   const subtitle = entry?.isA === 'Paper' ? paperSubtitle(entry) : null
   const snippet = node.type === 'paper_block'
-    ? boundedSnippet(node.text ?? resolved?.message ?? null)
-    : boundedSnippet(node.text ?? entry?.snippet ?? null)
+    ? boundedSnippet(preview.text ?? resolved?.message ?? null)
+    : boundedSnippet(preview.text ?? entry?.snippet ?? null)
   const imageSource = node.type === 'image' ? imageSourceForNode(node, vaultPath) : null
 
   return (
@@ -166,7 +166,7 @@ export function ProjectCanvasNodeCard({
         ) : node.type === 'image' ? (
           <div className="project-canvas-node__image-frame">
             {imageSource ? (
-              <img src={imageSource} alt={title} className="project-canvas-node__image" />
+              <img src={imageSource} alt={title} className="project-canvas-node__image" loading="lazy" decoding="async" />
             ) : (
               <div className="project-canvas-node__image-empty">{translate(locale, 'projectCanvas.imageMissing')}</div>
             )}
@@ -188,20 +188,6 @@ export function ProjectCanvasNodeCard({
           <div className="project-canvas-node__footer"><span>{node.ref}</span></div>
         ) : null}
       </div>
-      {!temporary ? (
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="secondary"
-          className="project-canvas-node__connect"
-          aria-label={translate(locale, 'projectCanvas.connectFrom', { title })}
-          onPointerDown={onConnectPointerDown}
-          onClick={event => event.stopPropagation()}
-        >
-          <LineSegment size={13} />
-        </Button>
-      ) : null}
-      {!temporary ? <div className="project-canvas-node__resize" role="presentation" onPointerDown={onResizePointerDown} /> : null}
     </article>
   )
 }

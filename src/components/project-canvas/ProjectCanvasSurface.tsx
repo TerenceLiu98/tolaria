@@ -1,34 +1,26 @@
 import type React from 'react'
-import { ArrowCounterClockwise, ArrowClockwise, CheckSquare, Clipboard, CornersIn, CornersOut, Graph, ImageSquare, MagnifyingGlass, Minus, Plus, Square, TextT } from '@phosphor-icons/react'
+import { CornersIn } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { translate, type AppLocale } from '../../lib/i18n'
 import {
   PROJECT_OVERVIEW_NODE_ID,
-  resolveProjectCanvasRefs,
   type ProjectCanvas,
   type ProjectCanvasEdgeKind,
   type ProjectCanvasNode,
   type ProjectCanvasNodeType,
-  type ProjectCanvasResolvedRef,
 } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
 import type { AiSelectedTextContext } from '../../utils/ai-context'
 import type { CreateProjectCanvasDraftNote } from '../../projectCanvasDrafts'
 import type { PaperParserProvider } from '../../paper/parserSettings'
 import { publishProjectCanvasSelection } from '../../projectCanvasSelectionStore'
-import { ProjectCanvasController } from '../../projectCanvasController'
+import { ProjectCanvasController, type CanvasControllerSnapshot } from '../../projectCanvasController'
 import { ProjectCanvasPersistenceAdapter } from '../../projectCanvasPersistenceAdapter'
 import { Button } from '../ui/button'
-import { Checkbox } from '../ui/checkbox'
-import { Input } from '../ui/input'
-import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from '../ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Textarea } from '../ui/textarea'
 import {
   trackProjectCanvasCreated,
   trackProjectCanvasEdgeCreated,
   trackProjectCanvasFocusModeChanged,
-  trackProjectCanvasLayoutSaved,
   trackProjectCanvasNavigatorFocused,
   trackProjectCanvasNodeAdded,
   trackProjectCanvasOpened,
@@ -52,18 +44,14 @@ import {
   type ProjectCanvasOpenEvent,
 } from './projectCanvasNavigation'
 import {
-  canvasBounds,
-  DEFAULT_EMBEDDED_NODE_HEIGHT,
   DEFAULT_NODE_HEIGHT,
   DEFAULT_NODE_WIDTH,
-  EDGE_KINDS,
-  edgeKindKey,
   nodePresentation,
-  ZOOM_STEP,
 } from './projectCanvasDisplay'
 import { looksLikeBlockCitation, looksLikeImageRef, nodeIsEmbedded, titleFromPath } from './projectCanvasNodeModel'
 import { ProjectCanvasNodeCard } from './ProjectCanvasNodeCard'
 import { ProjectCanvasNavigator } from './ProjectCanvasNavigator'
+import { ProjectCanvasToolbar, type ProjectCanvasAddPanelMode } from './ProjectCanvasToolbar'
 import { useProjectCanvasViewportSize } from './projectCanvasViewport'
 import { useProjectCanvasAiDraft } from './useProjectCanvasAiDraft'
 import './ProjectCanvasSurface.css'
@@ -89,9 +77,7 @@ interface ProjectCanvasSurfaceProps {
   paperParserProvider?: PaperParserProvider
 }
 
-type AddPanelMode = 'existing' | 'text' | 'task' | 'image' | 'block' | 'group'
-
-function resolvedMap(refs: ProjectCanvasResolvedRef[]): Map<string, ProjectCanvasResolvedRef> {
+function resolvedMap(refs: CanvasControllerSnapshot['refs']): Map<string, CanvasControllerSnapshot['refs'][number]> {
   return new Map(refs.map(item => [item.nodeId, item]))
 }
 
@@ -106,15 +92,6 @@ function candidateEntryType(entry: VaultEntry): ProjectCanvasNodeType | null {
   if (entry.isA === 'Paper') return 'paper'
   if (entry.isA === 'Note') return 'note'
   return null
-}
-
-function nextCanvasId(prefix: string, existingIds: Iterable<string>): string {
-  const ids = new Set(existingIds)
-  for (let index = ids.size + 1; index < ids.size + 10000; index += 1) {
-    const candidate = `${prefix}_${index}`
-    if (!ids.has(candidate)) return candidate
-  }
-  return `${prefix}_${Date.now()}`
 }
 
 export function ProjectCanvasSurface({
@@ -145,12 +122,12 @@ export function ProjectCanvasSurface({
     controller.getSnapshot,
   )
   const canvas = controllerSnapshot.scene
-  const [refs, setRefs] = useState<ProjectCanvasResolvedRef[]>([])
+  const refs = controllerSnapshot.refs
   const state = controllerSnapshot.status === 'idle' ? 'loading' : controllerSnapshot.status
   const error = controllerSnapshot.error
   const saving = controllerSnapshot.saving
   const [addPanelOpen, setAddPanelOpen] = useState(false)
-  const [addMode, setAddMode] = useState<AddPanelMode>('existing')
+  const [addMode, setAddMode] = useState<ProjectCanvasAddPanelMode>('existing')
   const [candidateQuery, setCandidateQuery] = useState('')
   const [newCardText, setNewCardText] = useState('')
   const selectedNodeId = controllerSnapshot.selection.primary?.kind === 'node'
@@ -166,14 +143,10 @@ export function ProjectCanvasSurface({
   const [peekNode, setPeekNode] = useState<ProjectCanvasNode | null>(null)
   const [linkFromSelected, setLinkFromSelected] = useState(true)
   const [edgeKind, setEdgeKind] = useState<ProjectCanvasEdgeKind>('related')
-  const clipboardRef = useRef<ProjectCanvasNode | null>(null)
-  const clipboardNodesRef = useRef<ProjectCanvasNode[]>([])
   const canvasRef = useRef<ProjectCanvas | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
-  const resolveRequestRef = useRef(0)
   const suppressClickUntilRef = useRef(0)
   const openedTrackedRef = useRef(false)
-  const zoomSaveTimerRef = useRef<number | null>(null)
   const viewportSize = useProjectCanvasViewportSize(viewportRef)
 
   useEffect(() => {
@@ -199,30 +172,19 @@ export function ProjectCanvasSurface({
   }, [controller])
 
   useEffect(() => {
+    controller.setActiveHistoryDomain(editingNodeId ? 'document' : 'canvas')
+  }, [controller, editingNodeId])
+
+  useEffect(() => {
     canvasRef.current = canvas
   }, [canvas])
 
   useEffect(() => () => controller.dispose(), [controller])
 
-  const resolveCanvas = useCallback(async (nextCanvas: ProjectCanvas) => {
-    if (!vaultPath) return
-    const requestId = resolveRequestRef.current + 1
-    resolveRequestRef.current = requestId
-    try {
-      const result = await resolveProjectCanvasRefs(vaultPath, entry.path, nextCanvas)
-      if (resolveRequestRef.current === requestId) setRefs(result.refs)
-    } catch {
-      if (resolveRequestRef.current === requestId) setRefs([])
-    }
-  }, [entry.path, vaultPath])
-
   const loadCanvas = useCallback(async () => {
     try {
       const loaded = await controller.load()
-      const nextCanvas = controller.getScene()
-      if (!nextCanvas) throw new Error(translate(locale, 'projectCanvas.errorDescription'))
       if (loaded.created) trackProjectCanvasCreated()
-      void resolveCanvas(nextCanvas)
       if (!openedTrackedRef.current) {
         openedTrackedRef.current = true
         trackProjectCanvasOpened({ state: loaded.created ? 'created' : 'ready' })
@@ -232,7 +194,7 @@ export function ProjectCanvasSurface({
       // the async callback explicit without creating a second state machine.
       void loadError
     }
-  }, [controller, locale, resolveCanvas])
+  }, [controller])
 
   useEffect(() => {
     openedTrackedRef.current = false
@@ -248,44 +210,19 @@ export function ProjectCanvasSurface({
     return () => window.removeEventListener(PROJECT_CANVAS_OPEN_EVENT, handleOpen)
   }, [entry.path, loadCanvas])
 
-  useEffect(() => () => {
-    if (zoomSaveTimerRef.current !== null) window.clearTimeout(zoomSaveTimerRef.current)
-  }, [])
-
-  const persistCanvas = useCallback(async (nextCanvas: ProjectCanvas, reason: 'create' | 'layout' | 'content') => {
-    await controller.persist(nextCanvas, reason === 'layout' ? 'viewport' : reason === 'content' ? 'structural' : 'structural')
-    void resolveCanvas(nextCanvas)
-    if (reason === 'layout') trackProjectCanvasLayoutSaved()
-  }, [controller, resolveCanvas])
-
-  const updateCanvas = useCallback((updater: (current: ProjectCanvas) => ProjectCanvas) => {
-    const next = controller.updateScene(updater)
-    if (next) canvasRef.current = next
-  }, [controller])
-
-  const persistLatestLayout = useCallback(() => {
-    const latest = controller.getScene()
-    if (!latest) return
-    canvasRef.current = latest
-    void persistCanvas(latest, 'layout')
-  }, [controller, persistCanvas])
-
-  const commitContentCanvas = useCallback((nextCanvas: ProjectCanvas, previousCanvas?: ProjectCanvas) => {
-    void previousCanvas
+  const commitContentCanvas = useCallback((nextCanvas: ProjectCanvas) => {
     const committed = controller.replaceScene(nextCanvas, 'Canvas transaction', 'structural')
     if (committed) {
       canvasRef.current = committed
-      void resolveCanvas(committed)
     }
-  }, [controller, resolveCanvas])
+  }, [controller])
 
   const restoreCanvasFromHistory = useCallback((direction: 'undo' | 'redo') => {
     const next = direction === 'undo' ? controller.undo() : controller.redo()
     if (next) {
       canvasRef.current = next
-      void resolveCanvas(next)
     }
-  }, [controller, resolveCanvas])
+  }, [controller])
 
   const candidateEntries = useMemo(() => {
     const query = candidateQuery.trim().toLowerCase()
@@ -363,6 +300,8 @@ export function ProjectCanvasSurface({
     }
   }, [controller])
 
+  const allocateNodeId = useCallback((prefix: string) => controller.allocateNodeId(prefix), [controller])
+
   const focusNode = useCallback((node: ProjectCanvasNode, persist = false) => {
     const current = canvasRef.current
     if (!current) return
@@ -379,6 +318,7 @@ export function ProjectCanvasSurface({
     pin: pinAiDraft,
     saving: aiDraftSaving,
   } = useProjectCanvasAiDraft({
+    allocateNodeId,
     canvas,
     canvasCenter,
     canvasRef,
@@ -392,34 +332,17 @@ export function ProjectCanvasSurface({
     vaultPath,
   })
 
-  const withSelectedEdge = useCallback((current: ProjectCanvas, newNode: ProjectCanvasNode): ProjectCanvas => {
-    if (!selectedNodeId || !linkFromSelected || selectedNodeId === newNode.id) return current
-    if (!current.nodes.some(node => node.id === selectedNodeId)) return current
-    const edgeExists = current.edges.some(edge => edge.from === selectedNodeId && edge.to === newNode.id)
-    if (edgeExists) return current
-    const edge = {
-      id: nextCanvasId('edge', current.edges.map(item => item.id)),
-      from: selectedNodeId,
-      to: newNode.id,
-      kind: edgeKind,
-    }
-    trackProjectCanvasEdgeCreated({ kind: edgeKind })
-    return { ...current, edges: [...current.edges, edge] }
-  }, [edgeKind, linkFromSelected, selectedNodeId])
-
-  const persistAddedNode = useCallback((nextCanvas: ProjectCanvas, node: ProjectCanvasNode, linked: boolean) => {
-    selectSingleNode(node.id)
-    commitContentCanvas(nextCanvas)
-    trackProjectCanvasNodeAdded({ linked, nodeType: node.type })
-  }, [commitContentCanvas, selectSingleNode])
-
   const addNodeToCanvas = useCallback((node: ProjectCanvasNode) => {
-    const current = canvasRef.current
-    if (!current) return
-    const nextWithNode = { ...current, nodes: [...current.nodes, node] }
-    const nextCanvas = withSelectedEdge(nextWithNode, node)
-    persistAddedNode(nextCanvas, node, nextCanvas.edges.length > current.edges.length)
-  }, [persistAddedNode, withSelectedEdge])
+    const linked = Boolean(selectedNodeId && linkFromSelected && selectedNodeId !== node.id)
+    const result = controller.addNode(node, {
+      linkFromNodeId: linked ? selectedNodeId : null,
+      linkKind: edgeKind,
+    })
+    if (!result) return
+    canvasRef.current = result
+    if (linked) trackProjectCanvasEdgeCreated({ kind: edgeKind })
+    trackProjectCanvasNodeAdded({ linked, nodeType: node.type })
+  }, [controller, edgeKind, linkFromSelected, selectedNodeId])
 
   const handleAddEntry = useCallback((candidate: VaultEntry) => {
     const nodeType = candidateEntryType(candidate)
@@ -429,53 +352,46 @@ export function ProjectCanvasSurface({
     const ref = relativeVaultPath(candidate.path, vaultPath)
     const existing = current.nodes.find(node => node.ref === ref)
     if (existing) {
-      const nextCanvas = withSelectedEdge(current, existing)
-      const focusedCanvas = nextCanvas
-      controller.updateScene(() => focusedCanvas)
+      if (selectedNodeId && linkFromSelected && selectedNodeId !== existing.id) {
+        controller.createConnection(selectedNodeId, existing.id, edgeKind)
+        trackProjectCanvasEdgeCreated({ kind: edgeKind })
+      }
       controller.focusNode(existing.id)
       canvasRef.current = controller.getScene()
       selectSingleNode(existing.id)
-      void resolveCanvas(focusedCanvas)
-      if (focusedCanvas.edges.length > current.edges.length) {
-        void controller.persist(focusedCanvas, 'structural')
-      } else {
-        focusNode(existing, false)
-      }
       return
     }
-    const width = DEFAULT_NODE_WIDTH
-    const height = DEFAULT_NODE_HEIGHT
-    const position = canvasCenter(width, height)
+    const geometry = controller.geometryForNode(nodeType)
+    const position = canvasCenter(geometry.width, geometry.height)
     addNodeToCanvas({
-      id: nextCanvasId(nodeType, current.nodes.map(item => item.id)),
+      id: controller.allocateNodeId(nodeType),
       type: nodeType,
       ref,
       x: position.x,
       y: position.y,
-      width,
-      height,
+      width: geometry.width,
+      height: geometry.height,
       title: candidate.title,
       text: candidate.snippet || undefined,
     })
-  }, [addNodeToCanvas, canvasCenter, controller, focusNode, resolveCanvas, selectSingleNode, vaultPath, withSelectedEdge])
+  }, [addNodeToCanvas, canvasCenter, controller, edgeKind, linkFromSelected, selectedNodeId, selectSingleNode, vaultPath])
 
   const handleAddEmbeddedNode = useCallback(() => {
     const current = canvasRef.current
     if (!current || addMode === 'existing') return
     const trimmed = newCardText.trim()
     if ((addMode === 'image' || addMode === 'block') && !trimmed) return
-    const width = addMode === 'group' ? 320 : addMode === 'image' ? 300 : DEFAULT_NODE_WIDTH
-    const height = addMode === 'group' ? 190 : addMode === 'image' ? 210 : DEFAULT_EMBEDDED_NODE_HEIGHT
-    const position = canvasCenter(width, height)
+    const geometry = controller.geometryForNode(addMode === 'block' ? 'paper_block' : addMode)
+    const position = canvasCenter(geometry.width, geometry.height)
     const nodeType: ProjectCanvasNodeType = addMode === 'block' ? 'paper_block' : addMode
     addNodeToCanvas({
-      id: nextCanvasId(nodeType, current.nodes.map(item => item.id)),
+      id: controller.allocateNodeId(nodeType),
       type: nodeType,
       ref: addMode === 'image' || addMode === 'block' ? trimmed : undefined,
       x: position.x,
       y: position.y,
-      width,
-      height,
+      width: geometry.width,
+      height: geometry.height,
       completed: addMode === 'task' ? false : undefined,
       text: addMode === 'image' || addMode === 'block' ? undefined : trimmed || undefined,
       title: addMode === 'group' && trimmed
@@ -485,13 +401,11 @@ export function ProjectCanvasSurface({
           : undefined,
     })
     setNewCardText('')
-  }, [addMode, addNodeToCanvas, canvasCenter, newCardText])
+  }, [addMode, addNodeToCanvas, canvasCenter, controller, newCardText])
 
   const handleZoom = useCallback((delta: number) => {
     controller.zoomBy(delta)
-    if (zoomSaveTimerRef.current !== null) window.clearTimeout(zoomSaveTimerRef.current)
-    zoomSaveTimerRef.current = window.setTimeout(persistLatestLayout, 240)
-  }, [controller, persistLatestLayout])
+  }, [controller])
 
   const handleFitToView = useCallback(() => {
     const rect = viewportRef.current?.getBoundingClientRect()
@@ -511,30 +425,28 @@ export function ProjectCanvasSurface({
   }, [controller])
 
   const addLooseNodeAtPoint = useCallback((rawValue: string, point: { x: number; y: number }) => {
-    const current = canvasRef.current
     const value = rawValue.trim()
-    if (!current || !value) return
+    if (!canvasRef.current || !value) return
     const isBlock = looksLikeBlockCitation(value)
     const isImage = looksLikeImageRef(value)
     const nodeType: ProjectCanvasNodeType = isBlock ? 'paper_block' : isImage ? 'image' : 'text'
-    const width = nodeType === 'image' ? 300 : DEFAULT_NODE_WIDTH
-    const height = nodeType === 'image' ? 210 : DEFAULT_EMBEDDED_NODE_HEIGHT
+    const geometry = controller.geometryForNode(nodeType)
     const node: ProjectCanvasNode = {
-      id: nextCanvasId(nodeType, current.nodes.map(item => item.id)),
+      id: controller.allocateNodeId(nodeType),
       type: nodeType,
       ref: nodeType === 'image' || nodeType === 'paper_block' ? value : undefined,
-      x: point.x - width / 2,
-      y: point.y - height / 2,
-      width,
-      height,
+      x: point.x - geometry.width / 2,
+      y: point.y - geometry.height / 2,
+      width: geometry.width,
+      height: geometry.height,
       title: nodeType === 'image' ? titleFromPath(value) : undefined,
       text: nodeType === 'text' ? value : undefined,
     }
-    const nextCanvas = { ...current, nodes: [...current.nodes, node] }
-    selectSingleNode(node.id)
-    commitContentCanvas(nextCanvas, current)
+    const result = controller.addNode(node)
+    if (!result) return
+    canvasRef.current = result
     trackProjectCanvasNodeAdded({ linked: false, nodeType })
-  }, [commitContentCanvas, selectSingleNode])
+  }, [controller])
 
   const addPayloadNodeAtPoint = useCallback((payload: { nodeType: ProjectCanvasNodeType; ref: string; title?: string; text?: string }, point: { x: number; y: number }) => {
     const current = canvasRef.current
@@ -545,24 +457,23 @@ export function ProjectCanvasSurface({
       focusNode(existing, false)
       return
     }
-    const width = DEFAULT_NODE_WIDTH
-    const height = DEFAULT_NODE_HEIGHT
+    const geometry = controller.geometryForNode(payload.nodeType)
     const node: ProjectCanvasNode = {
-      id: nextCanvasId(payload.nodeType, current.nodes.map(item => item.id)),
+      id: controller.allocateNodeId(payload.nodeType),
       type: payload.nodeType,
       ref,
-      x: point.x - width / 2,
-      y: point.y - height / 2,
-      width,
-      height,
+      x: point.x - geometry.width / 2,
+      y: point.y - geometry.height / 2,
+      width: geometry.width,
+      height: geometry.height,
       title: payload.title,
       text: payload.text,
     }
-    const nextCanvas = { ...current, nodes: [...current.nodes, node] }
-    selectSingleNode(node.id)
-    commitContentCanvas(nextCanvas, current)
+    const result = controller.addNode(node)
+    if (!result) return
+    canvasRef.current = result
     trackProjectCanvasNodeAdded({ linked: false, nodeType: payload.nodeType })
-  }, [commitContentCanvas, focusNode, selectSingleNode, vaultPath])
+  }, [controller, focusNode, vaultPath])
 
   const handleCanvasDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     if (!canvasRef.current) return
@@ -594,70 +505,54 @@ export function ProjectCanvasSurface({
   }, [])
 
   const copySelectedNode = useCallback(() => {
-    const current = canvasRef.current
-    if (!current || !selectedNodeId) return
-    clipboardRef.current = current.nodes.find(node => node.id === selectedNodeId) ?? null
-    clipboardNodesRef.current = current.nodes.filter(node => selectedNodeIds.includes(node.id))
-  }, [selectedNodeId, selectedNodeIds])
+    if (!selectedNodeId) return
+    controller.copySelection()
+  }, [controller, selectedNodeId])
 
   const pasteCopiedNode = useCallback(() => {
-    const current = canvasRef.current
-    const copiedNodes = clipboardNodesRef.current.length > 0
-      ? clipboardNodesRef.current
-      : clipboardRef.current ? [clipboardRef.current] : []
-    if (!current || copiedNodes.length === 0) return
-    const existingIds = current.nodes.map(item => item.id)
-    const pasted: ProjectCanvasNode[] = []
-    for (const copied of copiedNodes) {
-      const id = nextCanvasId(copied.type, [...existingIds, ...pasted.map(item => item.id)])
-      pasted.push({
-        ...copied,
-        id,
-        x: copied.x + 28,
-        y: copied.y + 28,
-      })
+    const pasted = controller.pasteSelection()
+    if (!pasted) return
+    canvasRef.current = pasted
+    for (const node of controller.getSnapshot().selection.selectedNodeIds) {
+      const pastedNode = pasted.nodes.find(candidate => candidate.id === node)
+      if (pastedNode) trackProjectCanvasNodeAdded({ linked: false, nodeType: pastedNode.type })
     }
-    const nextCanvas = { ...current, nodes: [...current.nodes, ...pasted] }
-    setSelectedNodeIds(pasted.map(node => node.id))
-    setSelectedEdgeId(null)
-    commitContentCanvas(nextCanvas, current)
-    for (const node of pasted) trackProjectCanvasNodeAdded({ linked: false, nodeType: node.type })
-  }, [commitContentCanvas, setSelectedEdgeId, setSelectedNodeIds])
+  }, [controller])
 
   const handleViewportPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !canvasRef.current) return
     if (event.target !== event.currentTarget) return
-    controller.beginPan({ x: event.clientX, y: event.clientY }, event.pointerId)
+    const point = { x: event.clientX, y: event.clientY }
+    if (controller.getSnapshot().tool === 'hand') controller.beginGesture('pan', { point, pointerId: event.pointerId, shiftKey: event.shiftKey })
+    else if (controller.getSnapshot().tool === 'frame') controller.beginGesture('group', { point, pointerId: event.pointerId, shiftKey: event.shiftKey })
+    else controller.beginGesture('marquee', { point, pointerId: event.pointerId, shiftKey: event.shiftKey })
   }, [controller])
 
   const handleNodePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, node: ProjectCanvasNode) => {
     if (event.button !== 0) return
-    if (controller.isHandOverrideActive() && canvasRef.current) {
+    if (controller.isHandOverrideActive() || controller.getSnapshot().tool === 'hand') {
       event.preventDefault()
       event.stopPropagation()
       controller.beginPan({ x: event.clientX, y: event.clientY }, event.pointerId)
       return
     }
-    if ((event.target as HTMLElement).closest('button, input, textarea, select, [role="checkbox"], [contenteditable="true"]')) return
+    if ((event.target as HTMLElement).closest('button, input, textarea, select, [role="checkbox"], [contenteditable="true"], .project-document-preview, .project-canvas-node__snippet, .project-canvas-node__footer')) return
     event.stopPropagation()
+    if (controller.getSnapshot().tool === 'connect') {
+      selectSingleNode(node.id)
+      controller.beginConnection(node.id, { x: event.clientX, y: event.clientY }, event.pointerId)
+      return
+    }
     controller.beginNodeDrag(node.id, { x: event.clientX, y: event.clientY }, event.pointerId)
-  }, [controller])
-
-  const handleConnectPointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>, node: ProjectCanvasNode) => {
-    if (event.button !== 0) return
-    event.stopPropagation()
-    selectSingleNode(node.id)
-    controller.beginGesture('connect', {
-      point: { x: event.clientX, y: event.clientY },
-      targetId: node.id,
-      pointerId: event.pointerId,
-    })
   }, [controller, selectSingleNode])
 
-  const handleResizePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, node: ProjectCanvasNode) => {
-    if (event.button !== 0) return
-    event.stopPropagation()
-    controller.beginNodeResize(node.id, { x: event.clientX, y: event.clientY }, event.pointerId)
+  const handleOverlayConnectStart = useCallback((nodeId: string, point: { x: number; y: number }) => {
+    selectSingleNode(nodeId)
+    controller.beginConnection(nodeId, point)
+  }, [controller, selectSingleNode])
+
+  const handleOverlayResizeStart = useCallback((nodeId: string, point: { x: number; y: number }) => {
+    controller.beginNodeResize(nodeId, point)
   }, [controller])
 
   useEffect(() => {
@@ -689,9 +584,9 @@ export function ProjectCanvasSurface({
     if (!fromNode) return null
     return {
       from: nodeCenter(fromNode),
-      to: screenPointToCanvas(gesture.current.x, gesture.current.y),
+      to: controller.screenToCanvas(gesture.current),
     }
-  }, [canvas, controllerSnapshot.gesture, screenPointToCanvas])
+  }, [canvas, controller, controllerSnapshot.gesture])
 
   const handleNodeClick = useCallback((node: ProjectCanvasNode) => {
     if (Date.now() < suppressClickUntilRef.current) return
@@ -733,22 +628,16 @@ export function ProjectCanvasSurface({
     if (editingNodeId && editingNodeId !== node.id) onSave?.()
     setEditorHost(null)
     selectSingleNode(node.id)
-    const current = canvasRef.current
-    if (current && (node.width < EDITOR_MIN_WIDTH || node.height < EDITOR_MIN_HEIGHT)) {
-      const nextCanvas = {
-        ...current,
-        nodes: current.nodes.map(candidate => candidate.id === node.id
-          ? {
-              ...candidate,
-              width: Math.max(candidate.width, EDITOR_MIN_WIDTH),
-              height: Math.max(candidate.height, EDITOR_MIN_HEIGHT),
-            }
-          : candidate),
-      }
-      commitContentCanvas(nextCanvas, current)
+    const geometry = controller.geometryForNode(node.type)
+    if (node.width < Math.max(geometry.minWidth, EDITOR_MIN_WIDTH) || node.height < Math.max(geometry.minHeight, EDITOR_MIN_HEIGHT)) {
+      const next = controller.updateNode(node.id, {
+        width: Math.max(node.width, geometry.minWidth, EDITOR_MIN_WIDTH),
+        height: Math.max(node.height, geometry.minHeight, EDITOR_MIN_HEIGHT),
+      }, true)
+      if (next) canvasRef.current = next
     }
     setEditingNodeId(node.id)
-  }, [commitContentCanvas, editingNodeId, entries, handleNodeClick, onSave, refsByNodeId, selectSingleNode, setEditingNodeId, vaultPath])
+  }, [controller, editingNodeId, entries, handleNodeClick, onSave, refsByNodeId, selectSingleNode, setEditingNodeId, vaultPath])
 
   const closePeekNode = useCallback(() => {
     if (!peekNode) return
@@ -761,13 +650,13 @@ export function ProjectCanvasSurface({
   }, [editingNodeId, onSave, peekNode, selectSingleNode, setEditingNodeId])
 
   const pinPeekNode = useCallback(() => {
-    const current = canvasRef.current
-    if (!current || !peekNode) return
-    const nextCanvas = { ...current, nodes: [...current.nodes, peekNode] }
+    if (!peekNode) return
+    const next = controller.addNode(peekNode)
+    if (!next) return
     setPeekNode(null)
-    commitContentCanvas(nextCanvas, current)
+    canvasRef.current = next
     trackProjectCanvasPeekPinned({ nodeType: peekNode.type })
-  }, [commitContentCanvas, peekNode])
+  }, [controller, peekNode])
 
   const handleCanvasNavigate = useCallback((target: string) => {
     const current = canvasRef.current
@@ -802,7 +691,7 @@ export function ProjectCanvasSurface({
       return
     }
     const nextPeek: ProjectCanvasNode = {
-      id: nextCanvasId('peek', current.nodes.map(node => node.id)),
+      id: controller.allocateNodeId('peek'),
       type: nodeType,
       ref: relativeVaultPath(targetEntry.path, vaultPath),
       x: sourceNode ? sourceNode.x + sourceNode.width + 80 : canvasCenter(EDITOR_MIN_WIDTH, EDITOR_MIN_HEIGHT).x,
@@ -817,7 +706,7 @@ export function ProjectCanvasSurface({
     focusNode(nextPeek, false)
     setEditingNodeId(nextPeek.id)
     trackProjectCanvasPeekOpened({ nodeType })
-  }, [canvasCenter, editDocumentNode, editingNodeId, entries, focusNode, onNavigateWikilink, onSave, peekNode, refsByNodeId, selectedNodeId, setEditingNodeId, vaultPath])
+  }, [canvasCenter, controller, editDocumentNode, editingNodeId, entries, focusNode, onNavigateWikilink, onSave, peekNode, refsByNodeId, selectedNodeId, setEditingNodeId, vaultPath])
 
   useEffect(() => {
     const navigate = (target: string) => {
@@ -825,14 +714,19 @@ export function ProjectCanvasSurface({
       handleCanvasNavigate(target)
     }
     const pending = consumeProjectCanvasNavigate(entry.path)
-    if (pending) handleCanvasNavigate(pending.target)
+    const pendingTimer = pending
+      ? window.setTimeout(() => handleCanvasNavigate(pending.target), 0)
+      : null
 
     const handleNavigate = (event: Event) => {
       const intent = (event as ProjectCanvasNavigateEvent).detail
       if (intent.projectPath === entry.path) navigate(intent.target)
     }
     window.addEventListener(PROJECT_CANVAS_NAVIGATE_EVENT, handleNavigate)
-    return () => window.removeEventListener(PROJECT_CANVAS_NAVIGATE_EVENT, handleNavigate)
+    return () => {
+      if (pendingTimer !== null) window.clearTimeout(pendingTimer)
+      window.removeEventListener(PROJECT_CANVAS_NAVIGATE_EVENT, handleNavigate)
+    }
   }, [entry.path, handleCanvasNavigate])
 
   const handleSelectNode = useCallback((node: ProjectCanvasNode, event?: React.MouseEvent<HTMLElement>) => {
@@ -848,86 +742,54 @@ export function ProjectCanvasSurface({
   }, [controller])
 
   const handleNodeTextChange = useCallback((nodeId: string, text: string) => {
-    updateCanvas(current => ({
-      ...current,
-      nodes: current.nodes.map(node => node.id === nodeId ? { ...node, text } : node),
-    }))
-  }, [updateCanvas])
+    const next = controller.updateNode(nodeId, { text })
+    if (next) canvasRef.current = next
+  }, [controller])
 
-  const handleNodeTextBlur = useCallback(() => {
-    const latest = canvasRef.current
-    if (!latest) return
-    void persistCanvas(latest, 'content')
-  }, [persistCanvas])
+  const handleNodeTextBlur = useCallback((nodeId: string) => {
+    const next = controller.commitNodeEdit(nodeId, 'Edit Canvas text')
+    if (next) canvasRef.current = next
+  }, [controller])
 
   const toggleTaskNode = useCallback((nodeId: string) => {
-    const current = canvasRef.current
-    if (!current) return
-    const nextCanvas = {
-      ...current,
-      nodes: current.nodes.map(node => node.id === nodeId ? { ...node, completed: !node.completed } : node),
-    }
-    commitContentCanvas(nextCanvas, current)
-  }, [commitContentCanvas])
+    const next = controller.toggleTask(nodeId)
+    if (next) canvasRef.current = next
+  }, [controller])
 
   const updateSelectedNode = useCallback((patch: Partial<ProjectCanvasNode>, persist = false) => {
-    const current = canvasRef.current
-    if (!current || !selectedNodeId) return
-    const nextCanvas = {
-      ...current,
-      nodes: current.nodes.map(node => node.id === selectedNodeId ? { ...node, ...patch } : node),
-    }
-    if (persist) controller.replaceScene(nextCanvas, 'Update node', 'structural')
-    else controller.updateScene(() => nextCanvas)
-    canvasRef.current = nextCanvas
-    if (persist && Object.keys(patch).length === 0) void controller.persist(nextCanvas, 'structural')
+    if (!selectedNodeId) return
+    const next = controller.updateNode(selectedNodeId, patch, persist)
+    if (next) canvasRef.current = next
   }, [controller, selectedNodeId])
 
   const updateSelectedEdge = useCallback((patch: Partial<ProjectCanvas['edges'][number]>, persist = false) => {
-    const current = canvasRef.current
-    if (!current || !selectedEdgeId) return
-    const nextCanvas = {
-      ...current,
-      edges: current.edges.map(edge => edge.id === selectedEdgeId ? { ...edge, ...patch } : edge),
-    }
-    if (persist) controller.replaceScene(nextCanvas, 'Update edge', 'structural')
-    else controller.updateScene(() => nextCanvas)
-    canvasRef.current = nextCanvas
-    if (persist && Object.keys(patch).length === 0) void controller.persist(nextCanvas, 'structural')
+    if (!selectedEdgeId) return
+    const next = controller.updateEdge(selectedEdgeId, patch, persist)
+    if (next) canvasRef.current = next
   }, [controller, selectedEdgeId])
 
   const deleteSelectedNode = useCallback(() => {
-    const current = canvasRef.current
     const ids = selectedNodeIds.length > 0 ? selectedNodeIds : selectedNodeId ? [selectedNodeId] : []
     const deletableIds = ids.filter(id => id !== PROJECT_OVERVIEW_NODE_ID)
-    if (!current || deletableIds.length === 0) return
+    if (deletableIds.length === 0) return
     if (editingNodeId && deletableIds.includes(editingNodeId)) {
       onSave?.()
       setEditingNodeId(null)
       setEditorHost(null)
       setFocusMode(false)
     }
-    const selectedIds = new Set(deletableIds)
-    const nextCanvas = {
-      ...current,
-      nodes: current.nodes.filter(node => !selectedIds.has(node.id)),
-      edges: current.edges.filter(edge => !selectedIds.has(edge.from) && !selectedIds.has(edge.to)),
-    }
     setSelectedNodeId(null)
     setSelectedNodeIds([])
-    commitContentCanvas(nextCanvas, current)
-  }, [commitContentCanvas, editingNodeId, onSave, selectedNodeId, selectedNodeIds, setEditingNodeId, setSelectedNodeId, setSelectedNodeIds])
+    const next = controller.deleteNodes(deletableIds)
+    if (next) canvasRef.current = next
+  }, [controller, editingNodeId, onSave, selectedNodeId, selectedNodeIds, setEditingNodeId, setSelectedNodeId, setSelectedNodeIds])
 
   const deleteSelectedEdge = useCallback(() => {
-    const current = canvasRef.current
-    if (!current || !selectedEdgeId) return
-    const nextCanvas = {
-      ...current,
-      edges: current.edges.filter(edge => edge.id !== selectedEdgeId),
-    }
+    if (!selectedEdgeId) return
     setSelectedEdgeId(null)
-    commitContentCanvas(nextCanvas, current)
-  }, [commitContentCanvas, selectedEdgeId, setSelectedEdgeId])
+    const next = controller.deleteEdge(selectedEdgeId)
+    if (next) canvasRef.current = next
+  }, [controller, selectedEdgeId, setSelectedEdgeId])
 
   const handleCanvasKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && editingNodeId) {
@@ -947,10 +809,6 @@ export function ProjectCanvasSurface({
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
-      if (addPanelOpen) {
-        setAddPanelOpen(false)
-        return
-      }
       if (controller.getGestureSnapshot().phase !== 'idle') {
         controller.escape()
         return
@@ -958,6 +816,10 @@ export function ProjectCanvasSurface({
       if (editingNodeId) {
         controller.escape()
         closeCanvasEditor()
+        return
+      }
+      if (addPanelOpen) {
+        setAddPanelOpen(false)
         return
       }
       selectSingleNode(null)
@@ -1025,7 +887,7 @@ export function ProjectCanvasSurface({
     )
   }
 
-  const edgeBounds = canvasBounds(canvas.nodes) ?? { minX: -400, minY: -300, maxX: 1000, maxY: 800 }
+  const edgeBounds = controllerSnapshot.sceneSnapshot?.bounds ?? { minX: -400, minY: -300, maxX: 1000, maxY: 800 }
   const padding = 240
   const svgMinX = edgeBounds.minX - padding
   const svgMinY = edgeBounds.minY - padding
@@ -1039,22 +901,48 @@ export function ProjectCanvasSurface({
   const retainedNodeIds = new Set(selectedNodeIds)
   if (editingNodeId) retainedNodeIds.add(editingNodeId)
   const visibleNodes = controller.queryVisibleNodes(retainedNodeIds)
+  const connectionHandles = controller.getConnectionHandles(visibleNodes.filter(node => !selectedNodeIds.includes(node.id)))
   const camera = controllerSnapshot.viewport.camera
 
   return (
     <section className="project-canvas-surface" data-testid="project-canvas-surface">
-      <header className="project-canvas-toolbar">
-        <div className="project-canvas-toolbar__meta">
-          <div className="project-canvas-toolbar__title">{entry.title}</div>
-          <div className="project-canvas-toolbar__status">
-            {translate(locale, 'projectCanvas.status', {
-              edgeCount: String(canvas.edges.length),
-              nodeCount: String(canvas.nodes.length),
-              savedState: saving ? translate(locale, 'projectCanvas.saving') : translate(locale, 'projectCanvas.saved'),
-            })}
-          </div>
-        </div>
-      </header>
+      <ProjectCanvasToolbar
+        addMode={addMode}
+        addPanelOpen={addPanelOpen}
+        candidateEntries={candidateEntries}
+        candidateQuery={candidateQuery}
+        canRedo={controllerSnapshot.canRedo}
+        canUndo={controllerSnapshot.canUndo}
+        edgeCount={canvas.edges.length}
+        edgeKind={edgeKind}
+        editingNodeId={editingNodeId}
+        focusMode={focusMode}
+        linkFromSelected={linkFromSelected}
+        locale={locale}
+        newCardText={newCardText}
+        nodeCount={canvas.nodes.length}
+        selectedNode={selectedNode}
+        selectedNodeId={selectedNodeId}
+        saving={saving}
+        title={entry.title}
+        tool={controllerSnapshot.tool}
+        zoom={camera.zoom}
+        onAddEmbeddedNode={handleAddEmbeddedNode}
+        onAddEntry={handleAddEntry}
+        onAddModeChange={setAddMode}
+        onAddPanelOpenChange={setAddPanelOpen}
+        onAutoLayout={handleAutoLayout}
+        onCandidateQueryChange={setCandidateQuery}
+        onEdgeKindChange={setEdgeKind}
+        onFit={handleFitToView}
+        onFocusModeChange={changeFocusMode}
+        onLinkFromSelectedChange={setLinkFromSelected}
+        onNewCardTextChange={setNewCardText}
+        onRedo={() => restoreCanvasFromHistory('redo')}
+        onToolChange={controller.setTool}
+        onUndo={() => restoreCanvasFromHistory('undo')}
+        onZoom={handleZoom}
+      />
       <div
         className="project-canvas-viewport"
         data-testid="project-canvas-viewport"
@@ -1095,6 +983,7 @@ export function ProjectCanvasSurface({
               <ProjectCanvasNodeCard
                 key={node.id}
                 node={node}
+                spec={controllerSnapshot.specs.getForNode(node)}
                 editing={editingNodeId === node.id && !focusMode}
                 editorHostRef={editingNodeId === node.id && !focusMode ? setEditorHost : undefined}
                 entry={nodeEntry}
@@ -1107,11 +996,9 @@ export function ProjectCanvasSurface({
                 onDoubleClick={() => editDocumentNode(node)}
                 onNavigateWikilink={handleCanvasNavigate}
                 onPointerDown={(event) => handleNodePointerDown(event, node)}
-                onConnectPointerDown={(event) => handleConnectPointerDown(event, node)}
-                onResizePointerDown={(event) => handleResizePointerDown(event, node)}
                 onSelect={(event) => handleSelectNode(node, event)}
                 onToggleTask={() => toggleTaskNode(node.id)}
-                onTextBlur={handleNodeTextBlur}
+                onTextBlur={() => handleNodeTextBlur(node.id)}
                 onTextChange={(text) => handleNodeTextChange(node.id, text)}
               />
             )
@@ -1119,6 +1006,7 @@ export function ProjectCanvasSurface({
           {peekNode ? (
             <ProjectCanvasNodeCard
               node={peekNode}
+              spec={controllerSnapshot.specs.getForNode(peekNode)}
               editing={editingNodeId === peekNode.id && !focusMode}
               editorHostRef={editingNodeId === peekNode.id && !focusMode ? setEditorHost : undefined}
               entry={findEntryForProjectCanvasRef(entries, peekNode.ref, undefined, vaultPath)}
@@ -1133,8 +1021,6 @@ export function ProjectCanvasSurface({
               onNavigateWikilink={handleCanvasNavigate}
               onPinTemporary={pinPeekNode}
               onPointerDown={event => event.stopPropagation()}
-              onConnectPointerDown={event => event.stopPropagation()}
-              onResizePointerDown={event => event.stopPropagation()}
               onSelect={(event) => handleSelectNode(peekNode, event)}
               onToggleTask={() => {}}
               onTextBlur={() => {}}
@@ -1144,6 +1030,7 @@ export function ProjectCanvasSurface({
           {aiDraftNode ? (
             <ProjectCanvasNodeCard
               node={aiDraftNode}
+              spec={controllerSnapshot.specs.getForNode(aiDraftNode)}
               editing={false}
               entry={null}
               locale={locale}
@@ -1160,8 +1047,6 @@ export function ProjectCanvasSurface({
               onNavigateWikilink={handleCanvasNavigate}
               onPinTemporary={() => { void pinAiDraft() }}
               onPointerDown={event => event.stopPropagation()}
-              onConnectPointerDown={event => event.stopPropagation()}
-              onResizePointerDown={event => event.stopPropagation()}
               onSelect={(event) => handleSelectNode(aiDraftNode, event)}
               onToggleTask={() => {}}
               onTextBlur={() => {}}
@@ -1169,7 +1054,21 @@ export function ProjectCanvasSurface({
             />
           ) : null}
         </div>
-        <CanvasOverlayLayer selectionRect={controllerSnapshot.overlay.rect} />
+        <CanvasOverlayLayer
+          connectionHandles={connectionHandles}
+          connectLabel={nodeId => {
+            const node = canvas.nodes.find(candidate => candidate.id === nodeId)
+            return translate(locale, 'projectCanvas.connectFrom', { title: node?.title ?? node?.ref ?? nodeId })
+          }}
+          handles={controllerSnapshot.overlay.handles}
+          onConnectStart={handleOverlayConnectStart}
+          onResizeStart={handleOverlayResizeStart}
+          resizeLabel={nodeId => {
+            const node = canvas.nodes.find(candidate => candidate.id === nodeId)
+            return translate(locale, 'projectCanvas.resizeNode', { title: node?.title ?? node?.ref ?? nodeId })
+          }}
+          selectionRect={controllerSnapshot.overlay.rect}
+        />
         {focusMode && editingEntry ? (
           <section
             className="project-canvas-focus-mode"
@@ -1231,158 +1130,6 @@ export function ProjectCanvasSurface({
             : undefined}
           onNodeChange={updateSelectedNode}
         />
-        <div className="project-canvas-floating-toolbar" aria-label={translate(locale, 'projectCanvas.toolbar')}>
-          <Button type="button" size="icon-sm" variant="secondary" aria-label={translate(locale, 'projectCanvas.selectTool')}>
-            <Square size={15} />
-          </Button>
-          {editingNodeId && !focusMode ? (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="outline"
-              aria-label={translate(locale, 'projectCanvas.enterFocusMode')}
-              onClick={() => changeFocusMode(true)}
-            >
-              <CornersOut size={14} />
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="outline"
-            onClick={() => restoreCanvasFromHistory('undo')}
-            disabled={!controllerSnapshot.canUndo}
-            aria-label={translate(locale, 'projectCanvas.undo')}
-          >
-            <ArrowCounterClockwise size={14} />
-          </Button>
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="outline"
-            onClick={() => restoreCanvasFromHistory('redo')}
-            disabled={!controllerSnapshot.canRedo}
-            aria-label={translate(locale, 'projectCanvas.redo')}
-          >
-            <ArrowClockwise size={14} />
-          </Button>
-          <Popover open={addPanelOpen} onOpenChange={setAddPanelOpen}>
-            <PopoverTrigger asChild>
-              <Button type="button" size="sm" variant="default">
-                <Plus size={14} />
-                {translate(locale, 'projectCanvas.add')}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="project-canvas-add-popover" align="center" side="top" sideOffset={12}>
-              <PopoverHeader>
-                <PopoverTitle>{translate(locale, 'projectCanvas.addToCanvas')}</PopoverTitle>
-              </PopoverHeader>
-              <div className="project-canvas-add-popover__modes" role="group" aria-label={translate(locale, 'projectCanvas.addMode')}>
-                {(['existing', 'text', 'task', 'image', 'block', 'group'] as const).map(mode => (
-                  <Button
-                    key={mode}
-                    type="button"
-                    size="xs"
-                    variant={addMode === mode ? 'secondary' : 'ghost'}
-                    onClick={() => setAddMode(mode)}
-                  >
-                    {mode === 'existing' ? <MagnifyingGlass size={13} /> : null}
-                    {mode === 'text' ? <TextT size={13} /> : null}
-                    {mode === 'task' ? <CheckSquare size={13} /> : null}
-                    {mode === 'image' ? <ImageSquare size={13} /> : null}
-                    {mode === 'block' ? <Clipboard size={13} /> : null}
-                    {mode === 'group' ? <Square size={13} /> : null}
-                    {translate(locale, `projectCanvas.addMode.${mode}`)}
-                  </Button>
-                ))}
-              </div>
-              <div className="project-canvas-add-popover__relation">
-                <label className="project-canvas-add-popover__checkbox">
-                  <Checkbox
-                    checked={Boolean(selectedNodeId && linkFromSelected)}
-                    disabled={!selectedNodeId}
-                    onCheckedChange={checked => setLinkFromSelected(checked === true)}
-                  />
-                  <span>
-                    {selectedNode
-                      ? translate(locale, 'projectCanvas.linkFromSelected', { title: selectedNode.title ?? selectedNode.ref ?? selectedNode.id })
-                      : translate(locale, 'projectCanvas.selectSourceHint')}
-                  </span>
-                </label>
-                <Select value={edgeKind} onValueChange={value => setEdgeKind(value as ProjectCanvasEdgeKind)} disabled={!selectedNodeId || !linkFromSelected}>
-                  <SelectTrigger size="sm" className="project-canvas-add-popover__edge-kind" aria-label={translate(locale, 'projectCanvas.edgeKind')}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent position="popper" align="end">
-                    {EDGE_KINDS.map(kind => (
-                      <SelectItem key={kind} value={kind}>
-                        {translate(locale, edgeKindKey(kind))}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {addMode === 'existing' ? (
-                <div className="project-canvas-add-popover__existing">
-                  <Input
-                    value={candidateQuery}
-                    onChange={event => setCandidateQuery(event.target.value)}
-                    placeholder={translate(locale, 'projectCanvas.searchPlaceholder')}
-                  />
-                  <div className="project-canvas-add-popover__results">
-                    {candidateEntries.length > 0 ? candidateEntries.map(candidate => {
-                      const type = candidateEntryType(candidate)
-                      return (
-                        <Button
-                          key={candidate.path}
-                          type="button"
-                          variant="ghost"
-                          className="project-canvas-add-popover__candidate"
-                          onClick={() => handleAddEntry(candidate)}
-                        >
-                          <span className="project-canvas-add-popover__candidate-kind">
-                            {type ? translate(locale, `projectCanvas.node.${type}`) : ''}
-                          </span>
-                          <span className="project-canvas-add-popover__candidate-title">{candidate.title}</span>
-                        </Button>
-                      )
-                    }) : (
-                      <div className="project-canvas-add-popover__empty">{translate(locale, 'projectCanvas.noCandidates')}</div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="project-canvas-add-popover__embedded">
-                  <Textarea
-                    value={newCardText}
-                    onChange={event => setNewCardText(event.target.value)}
-                    placeholder={translate(locale, `projectCanvas.addPlaceholder.${addMode}`)}
-                  />
-                  <Button type="button" size="sm" onClick={handleAddEmbeddedNode}>
-                    {translate(locale, 'projectCanvas.addCard')}
-                  </Button>
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
-          <Button type="button" size="icon-sm" variant="outline" onClick={() => handleZoom(-ZOOM_STEP)} aria-label={translate(locale, 'projectCanvas.zoomOut')}>
-            <Minus size={14} />
-          </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={handleFitToView}>
-            {Math.round(camera.zoom * 100)}%
-          </Button>
-          <Button type="button" size="icon-sm" variant="outline" onClick={() => handleZoom(ZOOM_STEP)} aria-label={translate(locale, 'projectCanvas.zoomIn')}>
-            <Plus size={14} />
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={handleFitToView}>
-            <CornersOut size={14} />
-            {translate(locale, 'projectCanvas.fit')}
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={handleAutoLayout}>
-            <Graph size={14} />
-            {translate(locale, 'projectCanvas.autoLayout')}
-          </Button>
-        </div>
       </div>
     </section>
   )

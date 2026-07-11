@@ -2,7 +2,7 @@
 type: ADR
 id: "0175"
 title: "AFFiNE-inspired Project Canvas engine boundaries"
-status: proposed
+status: accepted
 date: 2026-07-11
 ---
 
@@ -62,6 +62,14 @@ Sapientia will retain:
 - local-first, Git-friendly persistence
 
 Sapientia will not adopt BlockSuite, Yjs, or AFFiNE's document store as part of this decision.
+
+## Implementation Status (2026-07-11)
+
+The engine boundaries are now production code rather than a parallel prototype. `ProjectCanvasSurface` subscribes to `ProjectCanvasController` and composes the focused toolbar, graphics, document, overlay, editor, Navigator, and Inspector integrations. Durable scene mutations, clipboard operations, references, viewport persistence, gestures, and history pass through the controller and `ProjectCanvasPersistenceAdapter`.
+
+The hot paths use incremental geometry patches and a coarse spatial index. Pointer publication is animation-frame coalesced, query candidates are taken directly from spatial cells, and selected, editing, gesture-target, and connected nodes are retained outside the render bounds. `CanvasLayerManager` applies bounded low-zoom DOM, document-preview, and image budgets. `CanvasOverlayCoordinator` owns screen-space selection and connection/resize handles, while the DOM layer keeps one active `CanvasEditorPortal` and lazy image loading.
+
+The persistence adapter normalizes legacy readable files, validates graph references, sorts deterministic records before writes, debounces camera-only changes, flushes structural transactions promptly, and preserves stale-reference diagnostics. It never writes Markdown bodies, Paper sidecars, comments, or editor documents. Existing ADR 0174 behavior and the v1 `{ x, y, zoom }` viewport contract remain unchanged.
 
 ## Target Architecture
 

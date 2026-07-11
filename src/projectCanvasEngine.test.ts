@@ -75,6 +75,16 @@ describe('CanvasSceneStore', () => {
     ).map(node => node.id)).toContain('z')
   })
 
+  it('retains connected nodes through the adjacency index without scanning the scene', () => {
+    const canvas = canvasWithNodes()
+    canvas.edges = [{ id: 'edge', from: 'a', to: 'z', kind: 'related' }]
+    const store = new CanvasSceneStore(canvas)
+
+    expect(store.connectedNodeIds(new Set(['a']))).toEqual(['z'])
+    expect(store.query({ minX: 700, minY: 700, maxX: 1100, maxY: 1100 }, new Set(['a', 'z'])).map(node => node.id))
+      .toEqual(['a', 'z'])
+  })
+
   it('updates node geometry and spatial cells without rebuilding the full scene', () => {
     const store = new CanvasSceneStore(canvasWithNodes())
     const initialRebuilds = store.getDiagnostics().fullRebuilds
@@ -134,13 +144,89 @@ describe('Canvas layers, node specs, and overlays', () => {
     const layers = new CanvasLayerManager()
     expect(layers.layers.map(layer => layer.kind)).toEqual(['graphics', 'document', 'overlay'])
     expect(layers.get('overlay').screenSpace).toBe(true)
-    expect(new CanvasNodeSpecRegistry().has('paper_block')).toBe(true)
+    const specs = new CanvasNodeSpecRegistry()
+    expect(['note', 'paper', 'paper_block', 'image', 'text', 'task', 'group'].every(type => specs.has(type as ProjectCanvas['nodes'][number]['type']))).toBe(true)
+    expect(specs.getForNode({ id: 'project_overview', type: 'note', x: 0, y: 0, width: 10, height: 10 }).key).toBe('overview')
+    expect(specs.get('image').clipboard({ id: 'image', type: 'image', x: 0, y: 0, width: 10, height: 10 })).not.toBeNull()
 
     const viewport = new CanvasViewport({ x: 10, y: 20, zoom: 0.5 })
     const overlays = new CanvasOverlayCoordinator()
     const rect = overlays.positionForNodes([{ id: 'a', type: 'text', x: 0, y: 0, width: 100, height: 80 }], viewport)
     expect(rect).toEqual({ left: 10, top: 20, width: 50, height: 40 })
     expect(overlays.getSnapshot().handleSize).toBe(8)
+    expect(overlays.getSnapshot().handles).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'connect', nodeId: 'a', left: 60, top: 40 }),
+      expect.objectContaining({ kind: 'resize', nodeId: 'a', left: 60, top: 60 }),
+    ]))
+  })
+
+  it('enforces low-zoom budgets while retaining active nodes', () => {
+    const layers = new CanvasLayerManager()
+    const nodes = Array.from({ length: 200 }, (_, index) => ({
+      id: `node-${index}`,
+      type: 'text' as const,
+      x: index * 10,
+      y: 0,
+      width: 8,
+      height: 8,
+    }))
+    const visible = layers.filterNodes(nodes, 0.4, new Set(['node-199']))
+    expect(visible).toHaveLength(181)
+    expect(visible.at(-1)?.id).toBe('node-199')
+  })
+})
+
+describe('ProjectCanvasPersistenceAdapter', () => {
+  it('migrates on read, writes deterministic structural state, and debounces viewport state', async () => {
+    vi.useFakeTimers()
+    const source = canvasWithNodes()
+    const saved: ProjectCanvas[] = []
+    const adapter = new ProjectCanvasPersistenceAdapter({
+      vaultPath: '/vault',
+      projectPath: source.project,
+      read: async () => ({
+        projectPath: source.project,
+        canvasPath: 'projects/alpha/project.canvas.json',
+        state: 'ready' as const,
+        canvas: source,
+      }),
+      create: async () => ({
+        projectPath: source.project,
+        canvasPath: 'projects/alpha/project.canvas.json',
+        state: 'ready' as const,
+        canvas: source,
+      }),
+      resolve: async () => ({ projectPath: source.project, canvasPath: 'projects/alpha/project.canvas.json', refs: [], diagnostics: [] }),
+      save: async (_vault, _project, canvas) => {
+        saved.push(canvas)
+        return {
+          projectPath: source.project,
+          canvasPath: 'projects/alpha/project.canvas.json',
+          state: 'ready' as const,
+          canvas,
+        }
+      },
+      viewportDebounceMs: 100,
+    })
+
+    const loaded = await adapter.load()
+    expect(loaded.result.canvas?.nodes.map(node => node.id)).toEqual(['a', 'project_overview', 'z'])
+
+    const unsorted = { ...source, nodes: [...source.nodes].reverse(), edges: [...source.edges].reverse() }
+    const viewportWrite = adapter.persist(unsorted, 'viewport')
+    await vi.advanceTimersByTimeAsync(99)
+    expect(saved).toHaveLength(0)
+    await vi.advanceTimersByTimeAsync(1)
+    await viewportWrite
+    expect(saved.at(-1)?.nodes.map(node => node.id)).toEqual(['a', 'project_overview', 'z'])
+
+    const next = { ...unsorted, viewport: { x: 42, y: 24, zoom: 0.8 } }
+    const pendingViewport = adapter.persist(unsorted, 'viewport')
+    const structural = await adapter.persist(next, 'structural')
+    await pendingViewport
+    expect(structural?.canvas?.viewport).toEqual(next.viewport)
+    expect(saved).toHaveLength(2)
+    vi.useRealTimers()
   })
 })
 
@@ -157,16 +243,23 @@ describe('ProjectCanvasController', () => {
     const resolveResult = (): ProjectCanvasResolveResult => ({
       projectPath: initial.project,
       canvasPath: 'projects/alpha/project.canvas.json',
-      refs: [],
+      refs: [{
+        nodeId: 'a',
+        nodeType: 'note',
+        ref: 'notes/a.md',
+        state: 'resolved',
+        targetPath: 'notes/a.md',
+      }],
       diagnostics: [],
     })
+    const resolve = vi.fn(async () => resolveResult())
     const persistence = new ProjectCanvasPersistenceAdapter({
       projectPath: initial.project,
       vaultPath: '/vault',
       deterministicWrites: false,
       read: async () => readResult(),
       create: async () => readResult(),
-      resolve: async () => resolveResult(),
+      resolve,
       save: async (_vault, _project, canvas) => {
         saved.push(canvas)
         return readResult()
@@ -175,6 +268,7 @@ describe('ProjectCanvasController', () => {
     })
     const controller = new ProjectCanvasController({ persistence, migrateLoadedScene: false })
     await controller.load()
+    expect(controller.getSnapshot().refs).toEqual(resolveResult().refs)
     const initialRebuilds = controller.getSceneDiagnostics()?.fullRebuilds
     controller.selectNodes(['a'])
     controller.beginNodeDrag('a', { x: 0, y: 0 })
@@ -186,13 +280,22 @@ describe('ProjectCanvasController', () => {
     })
     controller.finishGesture()
     await vi.waitFor(() => expect(saved.length).toBeGreaterThan(0))
+    await vi.waitFor(() => expect(resolve).toHaveBeenCalledTimes(2))
     expect(saved.at(-1)?.nodes.find(node => node.id === 'a')?.x).toBe(120)
     expect(controller.getSnapshot().canUndo).toBe(true)
 
-    controller.beginNodeDrag('a', { x: 120, y: 50 })
-    controller.updatePointer({ x: 200, y: 50 })
+    expect(controller.undo()?.nodes.find(node => node.id === 'a')?.x).toBe(0)
+    expect(controller.getSnapshot().canUndo).toBe(false)
+
+    controller.beginNodeDrag('a', { x: 0, y: 50 })
+    controller.updatePointer({ x: 80, y: 50 })
     controller.cancelGesture()
-    expect(controller.getScene()?.nodes.find(node => node.id === 'a')?.x).toBe(120)
+    expect(controller.getScene()?.nodes.find(node => node.id === 'a')?.x).toBe(0)
+
+    controller.beginPan({ x: 50, y: 50 })
+    controller.updatePointer({ x: 120, y: 80 })
+    controller.cancelGesture()
+    expect(controller.getSnapshot().viewport.camera).toEqual(initial.viewport)
     controller.dispose()
   })
 })

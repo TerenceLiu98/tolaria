@@ -19,7 +19,8 @@ interface ProjectCanvasAiDraftConfig {
   canvas: ProjectCanvas | null
   canvasCenter: (width?: number, height?: number) => { x: number; y: number }
   canvasRef: MutableRefObject<ProjectCanvas | null>
-  commitCanvas: (next: ProjectCanvas, previous?: ProjectCanvas) => void
+  commitCanvas: (next: ProjectCanvas) => void
+  allocateNodeId: (prefix: string) => string
   createNote?: CreateProjectCanvasDraftNote
   focusNode: (node: ProjectCanvasNode, persist?: boolean) => void
   locale: AppLocale
@@ -29,16 +30,8 @@ interface ProjectCanvasAiDraftConfig {
   vaultPath: string
 }
 
-function nextNoteNodeId(nodes: ProjectCanvasNode[]): string {
-  const ids = new Set(nodes.map(node => node.id))
-  for (let index = 1; index <= nodes.length + 1; index += 1) {
-    const id = `note_${index}`
-    if (!ids.has(id)) return id
-  }
-  return `note_${nodes.length + 2}`
-}
-
 export function useProjectCanvasAiDraft({
+  allocateNodeId,
   canvas,
   canvasCenter,
   canvasRef,
@@ -111,13 +104,13 @@ export function useProjectCanvasAiDraft({
       if (!created) throw new Error(translate(locale, 'projectCanvas.aiDraftCreateFailed'))
       const savedNode: ProjectCanvasNode = {
         ...node,
-        id: nextNoteNodeId(current.nodes),
+        id: allocateNodeId('note'),
         ref: relativeVaultPath(created.path, vaultPath),
         title: created.title,
         text: undefined,
       }
       setNode(null)
-      commitCanvas({ ...current, nodes: [...current.nodes, savedNode] }, current)
+      commitCanvas({ ...current, nodes: [...current.nodes, savedNode] })
       selectNode(savedNode.id)
       trackProjectCanvasAiDraftPinned()
     } catch (pinError) {
@@ -127,7 +120,7 @@ export function useProjectCanvasAiDraft({
     } finally {
       setSaving(false)
     }
-  }, [canvasRef, commitCanvas, createNote, locale, node, saving, selectNode, vaultPath])
+  }, [allocateNodeId, canvasRef, commitCanvas, createNote, locale, node, saving, selectNode, vaultPath])
 
   return { discard, error, node, pin, saving }
 }
