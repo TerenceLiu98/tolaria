@@ -71,6 +71,19 @@ The hot paths use incremental geometry patches and a coarse spatial index. Point
 
 The persistence adapter normalizes legacy readable files, validates graph references, sorts deterministic records before writes, debounces camera-only changes, flushes structural transactions promptly, and preserves stale-reference diagnostics. It never writes Markdown bodies, Paper sidecars, comments, or editor documents. Existing ADR 0174 behavior and the v1 `{ x, y, zoom }` viewport contract remain unchanged.
 
+### Acceptance hardening (2026-07-11)
+
+The acceptance pass closes the remaining ownership gaps:
+
+- history domain follows actual focus ownership. Canvas undo/redo is available only when the Canvas owns focus; BlockNote retains document undo while the embedded editor owns focus, and switching focus does not clear either stack;
+- `ProjectCanvasSurface` delegates coordinate conversion, node construction, Peek placement, add/drop resolution, persistence, and durable mutations to the controller or its collaborators. It remains composition, subscriptions, event routing, and application integration;
+- NodeSpecs expose the renderer, preview, editor geometry, inspector fields, toolbar actions, drop resolution, clipboard behavior, navigation, and stale-state contract for Overview, Note, Paper, Paper block, image, text, task, and group nodes;
+- overlays are clipped to the viewport, positioned in screen space, and ordered as selection → snap guides → resize → connection → toolbar → comments → menus. Dismissal and focus ownership live in `CanvasOverlayCoordinator`, so camera changes do not require timing-based DOM measurements;
+- the 1,000- and 5,000-node deterministic tests enforce spatial candidate queries rather than full-scene scans. The current low-zoom budgets are 180 DOM nodes, 80 document previews, and 24 images; selected, editing, gesture-target, connected, and overlay-owned nodes bypass those budgets. The 5,000-node query fixture remains below 500 spatial candidates and the low-zoom fixture retains all four active off-screen nodes;
+- focused Playwright coverage verifies Project opening, Select/Hand/Connect/Frame, embedded Overview editing, Focus Mode, Canvas membership persistence, and reload behavior. Native Tauri mouse validation remains an environment release step when the desktop QA harness is available.
+
+ADR 0175 is accepted with these hardening constraints. Future work is product-level Canvas behavior, renderer performance profiling on target WKWebView builds, and additional native-device coverage—not a second Canvas engine.
+
 ## Target Architecture
 
 ```text
