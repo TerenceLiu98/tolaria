@@ -175,18 +175,24 @@ describe('ProjectCanvasController', () => {
     })
     const controller = new ProjectCanvasController({ persistence, migrateLoadedScene: false })
     await controller.load()
+    const initialRebuilds = controller.getSceneDiagnostics()?.fullRebuilds
     controller.selectNodes(['a'])
     controller.beginNodeDrag('a', { x: 0, y: 0 })
     controller.updatePointer({ x: 100, y: 50 })
+    controller.updatePointer({ x: 120, y: 50 })
+    expect(controller.getSceneDiagnostics()).toMatchObject({
+      fullRebuilds: initialRebuilds,
+      geometryPatchBatches: 2,
+    })
     controller.finishGesture()
     await vi.waitFor(() => expect(saved.length).toBeGreaterThan(0))
-    expect(saved.at(-1)?.nodes.find(node => node.id === 'a')?.x).toBe(100)
+    expect(saved.at(-1)?.nodes.find(node => node.id === 'a')?.x).toBe(120)
     expect(controller.getSnapshot().canUndo).toBe(true)
 
-    controller.beginNodeDrag('a', { x: 100, y: 50 })
+    controller.beginNodeDrag('a', { x: 120, y: 50 })
     controller.updatePointer({ x: 200, y: 50 })
     controller.cancelGesture()
-    expect(controller.getScene()?.nodes.find(node => node.id === 'a')?.x).toBe(100)
+    expect(controller.getScene()?.nodes.find(node => node.id === 'a')?.x).toBe(120)
     controller.dispose()
   })
 })

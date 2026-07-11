@@ -3,6 +3,7 @@ import {
   type ProjectCanvas,
   type ProjectCanvasEdge,
   type ProjectCanvasNode,
+  type ProjectCanvasViewport,
 } from './projectCanvas'
 
 export interface CanvasBounds {
@@ -199,6 +200,15 @@ export class CanvasSceneStore {
 
   update(updater: (canvas: ProjectCanvas) => ProjectCanvas): CanvasSceneMutationResult {
     return this.replace(updater(this.getCanvas()))
+  }
+
+  setViewport(viewport: ProjectCanvasViewport): void {
+    if (
+      viewport.x === this.canvas.viewport.x
+      && viewport.y === this.canvas.viewport.y
+      && viewport.zoom === this.canvas.viewport.zoom
+    ) return
+    this.canvas.viewport = { ...viewport }
   }
 
   /** Applies pointer-frequency geometry without rebuilding the normalized scene. */

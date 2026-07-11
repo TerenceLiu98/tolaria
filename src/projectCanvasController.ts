@@ -3,7 +3,7 @@ import { CanvasHistoryManager, type CanvasHistoryDomain } from './canvasHistoryM
 import { CanvasLayerManager } from './canvasLayerManager'
 import { CanvasNodeSpecRegistry } from './canvasNodeSpecRegistry'
 import { CanvasOverlayCoordinator } from './canvasOverlayCoordinator'
-import { CanvasSceneStore, type CanvasPoint, type CanvasSceneSnapshot } from './canvasSceneStore'
+import { CanvasSceneStore, type CanvasPoint, type CanvasSceneDiagnostics, type CanvasSceneSnapshot } from './canvasSceneStore'
 import { CanvasSelectionManager, type CanvasSelectionSnapshot } from './canvasSelectionManager'
 import { CanvasToolManager, type CanvasGestureKind, type CanvasGestureSnapshot, type CanvasPointerInput, type CanvasTool } from './canvasToolManager'
 import { CanvasViewport, type CanvasViewportSize, type CanvasViewportSnapshot } from './canvasViewport'
@@ -100,8 +100,7 @@ export class ProjectCanvasController {
     this.snapshotValue = this.makeSnapshot()
 
     this.viewport.subscribe(() => {
-      const scene = this.sceneStore
-      if (scene) scene.update(canvas => ({ ...canvas, viewport: this.viewport.getCamera() }))
+      this.sceneStore?.setViewport(this.viewport.getCamera())
       this.publish()
     })
     this.selection.subscribe(() => {
@@ -138,11 +137,12 @@ export class ProjectCanvasController {
         : loaded.result.canvas!
       this.sceneStore = new CanvasSceneStore(loadedCanvas, { normalize: this.migrateLoadedScene })
       this.sceneStore.subscribe(() => {
-        this.selection.updateBounds(this.sceneStore?.nodes() ?? [], false)
+        const selectedNodes = this.selectedNodes()
+        this.selection.updateBounds(selectedNodes, false)
         this.updateSelectionOverlay(false)
         this.publish()
       })
-      this.viewport.scheduleCamera(loaded.result.canvas!.viewport)
+      this.viewport.scheduleCamera(loadedCanvas.viewport)
       this.viewport.flush()
       this.selection.clear()
       this.history.clear()
@@ -171,6 +171,10 @@ export class ProjectCanvasController {
     return this.sceneStore?.getCanvas() ?? null
   }
 
+  getSceneDiagnostics(): CanvasSceneDiagnostics | null {
+    return this.sceneStore?.getDiagnostics() ?? null
+  }
+
   setViewportSize(size: CanvasViewportSize): void {
     this.viewport.setViewportSize(size)
   }
@@ -196,6 +200,13 @@ export class ProjectCanvasController {
     const selection = this.selection.getSnapshot()
     for (const nodeId of selection.selectedNodeIds) retained.add(nodeId)
     if (selection.editingNodeId) retained.add(selection.editingNodeId)
+    for (const edgeId of selection.selectedEdgeIds) {
+      const edge = scene.edge(edgeId)
+      if (edge) {
+        retained.add(edge.from)
+        retained.add(edge.to)
+      }
+    }
     const gestureTarget = this.tools.getSnapshot().targetId
     if (gestureTarget) retained.add(gestureTarget)
     return scene.query(viewport.renderBounds, retained)
@@ -371,7 +382,13 @@ export class ProjectCanvasController {
     const scene = this.getScene()
     if (!scene) return this.tools.getSnapshot()
     const startNodes: Record<string, ProjectCanvasNode> = {}
-    for (const node of scene.nodes) startNodes[node.id] = { ...node }
+    const gestureNodeIds = kind === 'drag'
+      ? this.selection.getSnapshot().selectedNodeIds
+      : kind === 'resize' && input.targetId ? [input.targetId] : []
+    for (const nodeId of gestureNodeIds) {
+      const node = this.sceneStore?.node(nodeId)
+      if (node) startNodes[node.id] = node
+    }
     this.gestureContext = {
       before: scene,
       kind,
@@ -445,24 +462,20 @@ export class ProjectCanvasController {
       return gesture
     }
     const zoom = context.startViewport.zoom
-    const selectedIds = new Set(this.selection.getSnapshot().selectedNodeIds)
-    this.updateScene(canvas => ({
-      ...canvas,
-      nodes: canvas.nodes.map(node => {
-        if (!selectedIds.has(node.id)) return node
-        const startNode = context.startNodes[node.id]
-        if (!startNode) return node
-        if (context.kind === 'resize' && node.id === context.nodeId) {
-          return {
-            ...node,
-            width: Math.max(180, startNode.width + dx / zoom),
-            height: Math.max(110, startNode.height + dy / zoom),
-          }
-        }
-        if (context.kind === 'drag') return { ...node, x: startNode.x + dx / zoom, y: startNode.y + dy / zoom }
-        return node
-      }),
-    }))
+    const patches = Object.values(context.startNodes).flatMap(startNode => {
+      if (context.kind === 'resize' && startNode.id === context.nodeId) {
+        return [{
+          id: startNode.id,
+          width: Math.max(180, startNode.width + dx / zoom),
+          height: Math.max(110, startNode.height + dy / zoom),
+        }]
+      }
+      if (context.kind === 'drag') {
+        return [{ id: startNode.id, x: startNode.x + dx / zoom, y: startNode.y + dy / zoom }]
+      }
+      return []
+    })
+    this.sceneStore.patchNodeGeometry(patches)
     return gesture
   }
 
@@ -471,6 +484,7 @@ export class ProjectCanvasController {
     if (!context) return this.getScene()
     const gesture = this.tools.getSnapshot()
     this.gestureContext = null
+    this.sceneStore?.finalizePatchedGeometry()
     let result = this.getScene()
     if (context.kind === 'pan') {
       this.viewport.flush()
@@ -628,8 +642,21 @@ export class ProjectCanvasController {
     const scene = this.sceneStore
     if (!scene) return
     const ids = new Set(this.selection.getSnapshot().selectedNodeIds)
-    this.overlays.positionForNodes(scene.nodes().filter(node => ids.has(node.id)), this.viewport, notify)
+    const selectedNodes = [...ids].flatMap(nodeId => {
+      const node = scene.node(nodeId)
+      return node ? [node] : []
+    })
+    this.overlays.positionForNodes(selectedNodes, this.viewport, notify)
     this.overlays.setActive(ids.size > 0 ? ['selection', 'resize', 'toolbar'] : [], notify)
+  }
+
+  private selectedNodes(): ProjectCanvasNode[] {
+    const scene = this.sceneStore
+    if (!scene) return []
+    return this.selection.getSnapshot().selectedNodeIds.flatMap(nodeId => {
+      const node = scene.node(nodeId)
+      return node ? [node] : []
+    })
   }
 
   private makeSnapshot(): CanvasControllerSnapshot {
