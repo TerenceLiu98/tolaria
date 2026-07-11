@@ -99,6 +99,13 @@ function sameCanvas(left: ProjectCanvas, right: ProjectCanvas): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
+function intersectsBounds(node: ProjectCanvasNode, bounds: CanvasBounds): boolean {
+  return node.x + node.width >= bounds.minX
+    && node.y + node.height >= bounds.minY
+    && node.x <= bounds.maxX
+    && node.y <= bounds.maxY
+}
+
 /**
  * Normalized, body-free Canvas layout state. Document bodies and editor
  * instances deliberately never enter this store.
@@ -108,6 +115,7 @@ export class CanvasSceneStore {
   private canvas: ProjectCanvas
   private readonly normalize: boolean
   private readonly spatialIndex = new Map<string, Set<string>>()
+  private readonly nodeRanks = new Map<string, number>()
   private revision = 0
   private snapshotValue: CanvasSceneSnapshot
   private readonly listeners = new Set<() => void>()
@@ -174,12 +182,13 @@ export class CanvasSceneStore {
     for (const cell of this.cellsForBounds(bounds)) {
       for (const nodeId of this.spatialIndex.get(cell) ?? []) candidateIds.add(nodeId)
     }
-    return this.nodes().filter(node => candidateIds.has(node.id) && (
-      node.x + node.width >= bounds.minX
-      && node.y + node.height >= bounds.minY
-      && node.x <= bounds.maxX
-      && node.y <= bounds.maxY
-    ))
+    return [...candidateIds]
+      .map(nodeId => this.snapshotValue.nodesById[nodeId])
+      .filter((node): node is ProjectCanvasNode => Boolean(
+        node && (retainedNodeIds.has(node.id) || intersectsBounds(node, bounds)),
+      ))
+      .sort((left, right) => (this.nodeRanks.get(left.id) ?? 0) - (this.nodeRanks.get(right.id) ?? 0))
+      .map(node => ({ ...node }))
   }
 
   hitTest(point: CanvasPoint, options: { includeGroups?: boolean } = {}): ProjectCanvasNode | null {
@@ -204,7 +213,9 @@ export class CanvasSceneStore {
 
   private rebuildSpatialIndex(): void {
     this.spatialIndex.clear()
-    for (const node of this.canvas.nodes) {
+    this.nodeRanks.clear()
+    for (const [rank, node] of this.canvas.nodes.entries()) {
+      this.nodeRanks.set(node.id, rank)
       for (const cell of this.cellsForNode(node)) {
         const ids = this.spatialIndex.get(cell) ?? new Set<string>()
         ids.add(node.id)

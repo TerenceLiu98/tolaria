@@ -65,6 +65,15 @@ describe('CanvasSceneStore', () => {
       .toContain('z')
     expect(store.hitTest({ x: 20, y: 20 })?.id).toBe('project_overview')
   })
+
+  it('retains active nodes outside the rendered viewport', () => {
+    const store = new CanvasSceneStore(canvasWithNodes())
+
+    expect(store.query(
+      { minX: -10, minY: -10, maxX: 250, maxY: 120 },
+      new Set(['z']),
+    ).map(node => node.id)).toContain('z')
+  })
 })
 
 describe('CanvasSelectionManager and CanvasToolManager', () => {
