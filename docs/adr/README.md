@@ -231,4 +231,4 @@ proposed → active → superseded
 | [0172](0172-paper-comments-jsonl-contract.md) | Paper comments JSONL contract | accepted |
 | [0173](0173-project-canvas-research-organization-layer.md) | Project Canvas as a research organization layer | proposed |
 | [0174](0174-project-as-unified-canvas-workspace.md) | Project as a unified Canvas workspace | proposed |
-| [0175](0175-affine-inspired-project-canvas-engine.md) | AFFiNE-inspired Project Canvas engine boundaries | accepted |
+| [0175](0175-affine-inspired-project-canvas-engine.md) | AFFiNE-inspired Project Canvas engine boundaries | active |
