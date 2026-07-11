@@ -229,6 +229,24 @@ describe('ProjectCanvasSurface', () => {
     expect(screen.queryByText('No Project Canvas yet')).not.toBeInTheDocument()
   })
 
+  it('migrates a readable legacy canvas before rendering it', async () => {
+    const legacyCanvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(legacyCanvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockImplementation(async (_vaultPath, _projectPath, canvas) => resolveResult(canvas))
+
+    const view = render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(view.container.querySelector('[data-node-id="project_overview"]')).not.toBeNull())
+  })
+
   it('keeps the Project Overview root node non-deletable', async () => {
     const canvas = defaultProjectCanvas('projects/alpha/project.md')
     vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
@@ -787,14 +805,15 @@ describe('ProjectCanvasSurface', () => {
 
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
     const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
-    expect(savedCanvas?.nodes).toHaveLength(2)
-    expect(savedCanvas?.nodes.at(-1)).toMatchObject({
+    const linkedNode = savedCanvas?.nodes.find(node => node.ref === 'notes/linked.md')
+    expect(savedCanvas?.nodes).toHaveLength(3)
+    expect(linkedNode).toMatchObject({
       ref: 'notes/linked.md',
       title: 'Linked Note',
       type: 'note',
     })
     expect(savedCanvas?.edges).toEqual([
-      expect.objectContaining({ from: 'source', kind: 'related', to: savedCanvas?.nodes.at(-1)?.id }),
+      expect.objectContaining({ from: 'source', kind: 'related', to: linkedNode?.id }),
     ])
   })
 
@@ -908,7 +927,7 @@ describe('ProjectCanvasSurface', () => {
 
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
     let savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
-    expect(savedCanvas?.nodes.at(-1)).toMatchObject({
+    expect(savedCanvas?.nodes.find(node => node.ref === 'attachments/figure-1.png')).toMatchObject({
       ref: 'attachments/figure-1.png',
       title: 'figure-1.png',
       type: 'image',
@@ -922,7 +941,7 @@ describe('ProjectCanvasSurface', () => {
 
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(2))
     savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
-    expect(savedCanvas?.nodes.at(-1)).toMatchObject({
+    expect(savedCanvas?.nodes.find(node => node.ref === '@block[kan#b0001]')).toMatchObject({
       ref: '@block[kan#b0001]',
       type: 'paper_block',
     })
@@ -982,7 +1001,7 @@ describe('ProjectCanvasSurface', () => {
 
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
     const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
-    expect(savedCanvas?.nodes.at(-1)).toMatchObject({
+    expect(savedCanvas?.nodes.find(node => node.ref === '@block[kan#b0002]')).toMatchObject({
       ref: '@block[kan#b0002]',
       type: 'paper_block',
     })
@@ -1024,7 +1043,7 @@ describe('ProjectCanvasSurface', () => {
 
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
     const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
-    expect(savedCanvas?.nodes.at(-1)).toMatchObject({
+    expect(savedCanvas?.nodes.find(node => node.ref === 'papers/example/paper.md')).toMatchObject({
       ref: 'papers/example/paper.md',
       text: 'A compact paper row.',
       title: 'Example Paper',
@@ -1057,12 +1076,13 @@ describe('ProjectCanvasSurface', () => {
 
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
     let savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
-    expect(savedCanvas?.nodes).toHaveLength(canvas.nodes.length + 1)
+    const normalizedNodeCount = projectCanvas.normalizeProjectCanvas(canvas, canvas.project).nodes.length
+    expect(savedCanvas?.nodes).toHaveLength(normalizedNodeCount + 1)
 
     fireEvent.keyDown(viewport, { key: 'z', metaKey: true })
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(2))
     savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
-    expect(savedCanvas?.nodes).toHaveLength(canvas.nodes.length)
+    expect(savedCanvas?.nodes).toHaveLength(normalizedNodeCount)
   })
 
   it('multi-selects nodes for group copy and delete', async () => {
@@ -1094,12 +1114,13 @@ describe('ProjectCanvasSurface', () => {
 
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
     let savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
-    expect(savedCanvas?.nodes).toHaveLength(canvas.nodes.length + 2)
+    const normalizedNodeCount = projectCanvas.normalizeProjectCanvas(canvas, canvas.project).nodes.length
+    expect(savedCanvas?.nodes).toHaveLength(normalizedNodeCount + 2)
 
     fireEvent.keyDown(viewport, { key: 'Delete' })
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(2))
     savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
-    expect(savedCanvas?.nodes).toHaveLength(canvas.nodes.length)
+    expect(savedCanvas?.nodes).toHaveLength(normalizedNodeCount)
   })
 
   it('creates an edge by dragging a node connect handle onto another node', async () => {

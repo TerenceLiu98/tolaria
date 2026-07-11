@@ -135,12 +135,10 @@ export function ProjectCanvasSurface({
   paperParserProvider = 'none',
 }: ProjectCanvasSurfaceProps) {
   const persistence = useMemo(() => new ProjectCanvasPersistenceAdapter({
-    deterministicWrites: false,
-    migrateOnLoad: false,
     projectPath: entry.path,
     vaultPath,
   }), [entry.path, vaultPath])
-  const controller = useMemo(() => new ProjectCanvasController({ migrateLoadedScene: false, persistence }), [persistence])
+  const controller = useMemo(() => new ProjectCanvasController({ persistence }), [persistence])
   const controllerSnapshot = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,
