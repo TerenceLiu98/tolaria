@@ -39,6 +39,21 @@ export interface CanvasSceneStoreOptions {
   normalize?: boolean
 }
 
+export interface CanvasNodeGeometryPatch {
+  readonly id: string
+  readonly x?: number
+  readonly y?: number
+  readonly width?: number
+  readonly height?: number
+}
+
+export interface CanvasSceneDiagnostics {
+  readonly fullRebuilds: number
+  readonly geometryPatchBatches: number
+  readonly geometryPatchedNodes: number
+  readonly lastQueryCandidates: number
+}
+
 function boundsForNodes(nodes: readonly ProjectCanvasNode[]): CanvasBounds | null {
   if (nodes.length === 0) return null
   return nodes.reduce<CanvasBounds>((bounds, node) => ({
@@ -106,6 +121,18 @@ function intersectsBounds(node: ProjectCanvasNode, bounds: CanvasBounds): boolea
     && node.y <= bounds.maxY
 }
 
+function boundsIncludingNode(bounds: CanvasBounds | null, node: ProjectCanvasNode): CanvasBounds {
+  if (!bounds) {
+    return { minX: node.x, minY: node.y, maxX: node.x + node.width, maxY: node.y + node.height }
+  }
+  return {
+    minX: Math.min(bounds.minX, node.x),
+    minY: Math.min(bounds.minY, node.y),
+    maxX: Math.max(bounds.maxX, node.x + node.width),
+    maxY: Math.max(bounds.maxY, node.y + node.height),
+  }
+}
+
 /**
  * Normalized, body-free Canvas layout state. Document bodies and editor
  * instances deliberately never enter this store.
@@ -116,6 +143,11 @@ export class CanvasSceneStore {
   private readonly normalize: boolean
   private readonly spatialIndex = new Map<string, Set<string>>()
   private readonly nodeRanks = new Map<string, number>()
+  private fullRebuilds = 0
+  private geometryPatchBatches = 0
+  private geometryPatchedNodes = 0
+  private lastQueryCandidates = 0
+  private geometryBoundsDirty = false
   private revision = 0
   private snapshotValue: CanvasSceneSnapshot
   private readonly listeners = new Set<() => void>()
@@ -135,6 +167,15 @@ export class CanvasSceneStore {
     return cloneCanvas(this.canvas)
   }
 
+  getDiagnostics(): CanvasSceneDiagnostics {
+    return {
+      fullRebuilds: this.fullRebuilds,
+      geometryPatchBatches: this.geometryPatchBatches,
+      geometryPatchedNodes: this.geometryPatchedNodes,
+      lastQueryCandidates: this.lastQueryCandidates,
+    }
+  }
+
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
@@ -148,6 +189,7 @@ export class CanvasSceneStore {
     const changed = !sameCanvas(before, after)
     if (!changed) return { before, after, changed }
     this.canvas = after
+    this.geometryBoundsDirty = false
     this.revision += 1
     this.snapshotValue = sceneSnapshot(this.canvas, this.revision)
     this.rebuildSpatialIndex()
@@ -157,6 +199,61 @@ export class CanvasSceneStore {
 
   update(updater: (canvas: ProjectCanvas) => ProjectCanvas): CanvasSceneMutationResult {
     return this.replace(updater(this.getCanvas()))
+  }
+
+  /** Applies pointer-frequency geometry without rebuilding the normalized scene. */
+  patchNodeGeometry(patches: readonly CanvasNodeGeometryPatch[]): boolean {
+    let changedNodes = 0
+    let nextBounds = this.snapshotValue.bounds
+    const nodesById = this.snapshotValue.nodesById as Record<string, ProjectCanvasNode>
+    for (const patch of patches) {
+      const rank = this.nodeRanks.get(patch.id)
+      const current = rank === undefined ? undefined : this.canvas.nodes[rank]
+      if (!current) continue
+      const next = {
+        ...current,
+        x: patch.x ?? current.x,
+        y: patch.y ?? current.y,
+        width: patch.width ?? current.width,
+        height: patch.height ?? current.height,
+      }
+      if (
+        next.x === current.x
+        && next.y === current.y
+        && next.width === current.width
+        && next.height === current.height
+      ) continue
+      this.removeNodeFromSpatialIndex(current)
+      this.canvas.nodes[rank] = next
+      nodesById[next.id] = next
+      this.addNodeToSpatialIndex(next)
+      nextBounds = boundsIncludingNode(nextBounds, next)
+      changedNodes += 1
+    }
+    if (changedNodes === 0) return false
+    this.geometryPatchBatches += 1
+    this.geometryPatchedNodes += changedNodes
+    this.geometryBoundsDirty = true
+    this.revision += 1
+    this.snapshotValue = {
+      ...this.snapshotValue,
+      bounds: nextBounds,
+      revision: this.revision,
+    }
+    for (const listener of this.listeners) listener()
+    return true
+  }
+
+  finalizePatchedGeometry(): void {
+    if (!this.geometryBoundsDirty) return
+    this.geometryBoundsDirty = false
+    this.revision += 1
+    this.snapshotValue = {
+      ...this.snapshotValue,
+      bounds: boundsForNodes(this.canvas.nodes),
+      revision: this.revision,
+    }
+    for (const listener of this.listeners) listener()
   }
 
   node(nodeId: string): ProjectCanvasNode | null {
@@ -182,6 +279,7 @@ export class CanvasSceneStore {
     for (const cell of this.cellsForBounds(bounds)) {
       for (const nodeId of this.spatialIndex.get(cell) ?? []) candidateIds.add(nodeId)
     }
+    this.lastQueryCandidates = candidateIds.size
     return [...candidateIds]
       .map(nodeId => this.snapshotValue.nodesById[nodeId])
       .filter((node): node is ProjectCanvasNode => Boolean(
@@ -214,13 +312,27 @@ export class CanvasSceneStore {
   private rebuildSpatialIndex(): void {
     this.spatialIndex.clear()
     this.nodeRanks.clear()
+    this.fullRebuilds += 1
     for (const [rank, node] of this.canvas.nodes.entries()) {
       this.nodeRanks.set(node.id, rank)
-      for (const cell of this.cellsForNode(node)) {
-        const ids = this.spatialIndex.get(cell) ?? new Set<string>()
-        ids.add(node.id)
-        this.spatialIndex.set(cell, ids)
-      }
+      this.addNodeToSpatialIndex(node)
+    }
+  }
+
+  private addNodeToSpatialIndex(node: ProjectCanvasNode): void {
+    for (const cell of this.cellsForNode(node)) {
+      const ids = this.spatialIndex.get(cell) ?? new Set<string>()
+      ids.add(node.id)
+      this.spatialIndex.set(cell, ids)
+    }
+  }
+
+  private removeNodeFromSpatialIndex(node: ProjectCanvasNode): void {
+    for (const cell of this.cellsForNode(node)) {
+      const ids = this.spatialIndex.get(cell)
+      if (!ids) continue
+      ids.delete(node.id)
+      if (ids.size === 0) this.spatialIndex.delete(cell)
     }
   }
 

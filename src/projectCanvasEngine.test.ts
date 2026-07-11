@@ -74,6 +74,23 @@ describe('CanvasSceneStore', () => {
       new Set(['z']),
     ).map(node => node.id)).toContain('z')
   })
+
+  it('updates node geometry and spatial cells without rebuilding the full scene', () => {
+    const store = new CanvasSceneStore(canvasWithNodes())
+    const initialRebuilds = store.getDiagnostics().fullRebuilds
+
+    store.patchNodeGeometry([{ id: 'a', x: 700, y: 100 }])
+
+    expect(store.query({ minX: -10, minY: -10, maxX: 250, maxY: 120 }).map(node => node.id))
+      .not.toContain('a')
+    expect(store.query({ minX: 650, minY: 50, maxX: 950, maxY: 250 }).map(node => node.id))
+      .toContain('a')
+    expect(store.getDiagnostics()).toMatchObject({
+      fullRebuilds: initialRebuilds,
+      geometryPatchBatches: 1,
+      geometryPatchedNodes: 1,
+    })
+  })
 })
 
 describe('CanvasSelectionManager and CanvasToolManager', () => {
