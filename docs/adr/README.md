@@ -227,3 +227,8 @@ proposed → active → superseded
 | [0168](0168-manual-json-catalog-localization.md) | Manual JSON catalog localization | active |
 | [0169](0169-upstream-reference-reimplementation-policy.md) | Use upstream Tolaria as a reference, not a merge source | active |
 | [0170](0170-upstream-workflow-and-editor-feature-adoption.md) | Adopt upstream workflow and advanced editor features as scoped Sapientia work | active |
+| [0171](0171-comment-margin-note-layer.md) | Comment margin-note layer | proposed |
+| [0172](0172-paper-comments-jsonl-contract.md) | Paper comments JSONL contract | accepted |
+| [0173](0173-project-canvas-research-organization-layer.md) | Project Canvas as a research organization layer | proposed |
+| [0174](0174-project-as-unified-canvas-workspace.md) | Project as a unified Canvas workspace | proposed |
+| [0175](0175-affine-inspired-project-canvas-engine.md) | AFFiNE-inspired Project Canvas engine boundaries | proposed |
