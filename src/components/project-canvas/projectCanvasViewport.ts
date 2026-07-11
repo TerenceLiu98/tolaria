@@ -45,10 +45,12 @@ function elementSize(element: HTMLElement): ProjectCanvasViewportSize {
 
 export function useProjectCanvasViewportSize(
   viewportRef: RefObject<HTMLDivElement | null>,
+  active = true,
 ): ProjectCanvasViewportSize {
   const [size, setSize] = useState(UNMEASURED_VIEWPORT)
 
   useEffect(() => {
+    if (!active) return
     const element = viewportRef.current
     if (!element) return
     const update = () => setSize(elementSize(element))
@@ -63,7 +65,7 @@ export function useProjectCanvasViewportSize(
     })
     observer.observe(element)
     return () => observer.disconnect()
-  }, [viewportRef])
+  }, [active, viewportRef])
 
   return size
 }

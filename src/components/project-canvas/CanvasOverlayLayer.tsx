@@ -2,6 +2,9 @@ import type { CanvasOverlayGuide, CanvasOverlayHandle, CanvasOverlayKind, Canvas
 import type { CanvasPoint } from '../../canvasSceneStore'
 import { LinkSimple, Resize } from '@phosphor-icons/react'
 import { Button } from '../ui/button'
+import type { CanvasNodeToolbarAction } from '../../canvasNodeSpecRegistry'
+import type { AppLocale } from '../../lib/i18n'
+import { CanvasContextualToolbar } from './CanvasContextualToolbar'
 
 interface CanvasOverlayLayerProps {
   selectionRect: CanvasOverlayRect | null
@@ -13,11 +16,15 @@ interface CanvasOverlayLayerProps {
   resizeLabel: (nodeId: string) => string
   snapGuides?: readonly CanvasOverlayGuide[]
   toolbarRect?: CanvasOverlayRect | null
+  toolbarActions?: readonly CanvasNodeToolbarAction[]
+  toolbarTitle?: string
+  locale: AppLocale
+  onToolbarAction?: (action: CanvasNodeToolbarAction) => void
   zIndices: Readonly<Record<CanvasOverlayKind, number>>
 }
 
 /** Screen-space overlay layer. Controls remain pixel-sized while the Canvas zooms. */
-export function CanvasOverlayLayer({ connectionHandles, connectLabel, handles, onConnectStart, onResizeStart, resizeLabel, selectionRect, snapGuides = [], toolbarRect = null, zIndices }: CanvasOverlayLayerProps) {
+export function CanvasOverlayLayer({ connectionHandles, connectLabel, handles, locale, onConnectStart, onResizeStart, onToolbarAction, resizeLabel, selectionRect, snapGuides = [], toolbarActions = [], toolbarRect = null, toolbarTitle = '', zIndices }: CanvasOverlayLayerProps) {
   if (!selectionRect && handles.length === 0 && connectionHandles.length === 0 && snapGuides.length === 0 && !toolbarRect) return null
   return (
     <div className="project-canvas-overlay-layer">
@@ -49,9 +56,10 @@ export function CanvasOverlayLayer({ connectionHandles, connectLabel, handles, o
         <div
           className="project-canvas-contextual-toolbar"
           data-testid="project-canvas-contextual-toolbar"
-          aria-hidden="true"
           style={{ left: toolbarRect.left, top: toolbarRect.top, width: toolbarRect.width, height: toolbarRect.height, zIndex: zIndices.toolbar }}
-        />
+        >
+          <CanvasContextualToolbar actions={toolbarActions} locale={locale} title={toolbarTitle} onAction={action => onToolbarAction?.(action)} />
+        </div>
       ) : null}
       {[...connectionHandles, ...handles].map(handle => (
         <Button

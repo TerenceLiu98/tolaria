@@ -110,6 +110,7 @@ export class CanvasOverlayCoordinator {
     notify = true,
     primaryNodeId: string | null = null,
     canResize: (node: ProjectCanvasNode) => boolean = () => true,
+    toolbarWidth = 0,
   ): CanvasOverlayRect | null {
     if (nodes.length === 0) {
       this.rectValue = null
@@ -131,13 +132,8 @@ export class CanvasOverlayCoordinator {
       height: Math.max(0, bottomRight.y - topLeft.y),
     }
     this.rectValue = this.clipRect(this.rectValue)
-    this.toolbarRectValue = this.rectValue
-      ? this.clipRect({
-        left: this.rectValue.left,
-        top: this.rectValue.top - 32,
-        width: Math.max(120, Math.min(240, this.rectValue.width)),
-        height: 28,
-      })
+    this.toolbarRectValue = toolbarWidth > 0
+      ? this.positionToolbar({ x: minX, y: minY }, toolbarWidth, 28, viewport, false)
       : null
     this.handlesValue = nodes.flatMap(node => {
       const nodeTopLeft = viewport.canvasToScreen({ x: node.x, y: node.y })
@@ -179,7 +175,7 @@ export class CanvasOverlayCoordinator {
 
   positionToolbar(anchor: CanvasPoint, width = 180, height = 28, viewport: CanvasViewport, notify = true): CanvasOverlayRect | null {
     const point = viewport.canvasToScreen(anchor)
-    this.toolbarRectValue = this.clipRect({ left: point.x, top: point.y, width, height })
+    this.toolbarRectValue = this.placeInClip({ left: point.x, top: point.y - height - 4, width, height })
     if (notify) this.publish()
     return this.toolbarRectValue
   }
@@ -187,6 +183,29 @@ export class CanvasOverlayCoordinator {
   dismissTop(): CanvasOverlayKind | null {
     const active = new Set(this.activeValue)
     const kind = [...OVERLAY_Z_ORDER].reverse().find(candidate => active.has(candidate))
+    if (!kind) return null
+    this.dismissKind(kind)
+    return kind
+  }
+
+  dismissKind(kind: CanvasOverlayKind): boolean {
+    if (!this.activeValue.includes(kind)) return false
+    this.activeValue = this.activeValue.filter(candidate => candidate !== kind)
+    if (kind === 'toolbar') this.toolbarRectValue = null
+    if (kind === 'snap') this.snapGuidesValue = []
+    this.publish()
+    return true
+  }
+
+  dismissOutside(point: CanvasPoint): CanvasOverlayKind | null {
+    const active = new Set(this.activeValue)
+    if (active.has('toolbar') && this.toolbarRectValue && !this.contains(this.toolbarRectValue, point)) {
+      this.activeValue = this.activeValue.filter(candidate => candidate !== 'toolbar')
+      this.toolbarRectValue = null
+      this.publish()
+      return 'toolbar'
+    }
+    const kind = (['menu', 'comment'] as const).find(candidate => active.has(candidate))
     if (!kind) return null
     this.activeValue = this.activeValue.filter(candidate => candidate !== kind)
     this.publish()
@@ -211,6 +230,23 @@ export class CanvasOverlayCoordinator {
     const top = Math.max(rect.top, this.clipValue.top)
     if (right <= left || bottom <= top) return null
     return { left, top, width: right - left, height: bottom - top }
+  }
+
+  private placeInClip(rect: CanvasOverlayRect): CanvasOverlayRect | null {
+    if (!this.clipValue) return rect
+    const width = Math.min(rect.width, this.clipValue.width)
+    const height = Math.min(rect.height, this.clipValue.height)
+    return {
+      left: Math.min(Math.max(rect.left, this.clipValue.left), this.clipValue.left + this.clipValue.width - width),
+      top: Math.min(Math.max(rect.top, this.clipValue.top), this.clipValue.top + this.clipValue.height - height),
+      width,
+      height,
+    }
+  }
+
+  private contains(rect: CanvasOverlayRect, point: CanvasPoint): boolean {
+    return point.x >= rect.left && point.x <= rect.left + rect.width
+      && point.y >= rect.top && point.y <= rect.top + rect.height
   }
 
   private isInsideClip(left: number, top: number): boolean {

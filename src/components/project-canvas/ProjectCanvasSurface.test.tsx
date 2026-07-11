@@ -268,6 +268,36 @@ describe('ProjectCanvasSurface', () => {
     await waitFor(() => expect(handTool).toHaveAttribute('aria-pressed', 'true'))
   })
 
+  it('renders NodeSpec-driven contextual actions and dispatches them through the controller', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const noteCard = (await screen.findByText('Source Note')).closest('[data-testid="project-canvas-node"]')
+    expect(noteCard).not.toBeNull()
+    fireEvent.click(within(noteCard as HTMLElement).getByRole('button', { name: 'Source' }))
+
+    expect(await screen.findByTestId('project-canvas-contextual-toolbar')).toBeInTheDocument()
+    expect(screen.getByTestId('project-canvas-toolbar-action-open')).toBeInTheDocument()
+    expect(screen.getByTestId('project-canvas-toolbar-action-connect')).toBeInTheDocument()
+    expect(screen.getByTestId('project-canvas-toolbar-action-resize')).toBeInTheDocument()
+    expect(screen.getByTestId('project-canvas-toolbar-action-delete')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('project-canvas-toolbar-action-connect'))
+    await waitFor(() => expect(screen.getByTestId('project-canvas-tool-connect')).toHaveAttribute('aria-pressed', 'true'))
+  })
+
   it('keeps the Project Overview root node non-deletable', async () => {
     const canvas = defaultProjectCanvas('projects/alpha/project.md')
     vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
@@ -332,6 +362,7 @@ describe('ProjectCanvasSurface', () => {
 
     const sourceNode = document.querySelector('[data-node-id="note"]') as HTMLElement
     fireEvent.click(within(sourceNode).getByText('Source Note'))
+    await waitFor(() => expect(screen.getByDisplayValue('Source Note')).toBeInTheDocument())
 
     expect(onNavigateWikilink).not.toHaveBeenCalled()
     expect(screen.getByDisplayValue('Source Note')).toBeInTheDocument()
@@ -342,13 +373,14 @@ describe('ProjectCanvasSurface', () => {
     expect(onNavigateWikilink).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+    await waitFor(() => expect(onNavigateWikilink).toHaveBeenCalledWith('notes/source.md'))
 
     expect(onNavigateWikilink).toHaveBeenCalledWith('notes/source.md')
 
     const paperNode = document.querySelector('[data-node-id="paper"]') as HTMLElement
     fireEvent.doubleClick(within(paperNode).getByText('Example Paper'))
 
-    expect(screen.getAllByTestId('canvas-editor-portal')).toHaveLength(1)
+    await waitFor(() => expect(screen.getAllByTestId('canvas-editor-portal')).toHaveLength(1))
     expect(screen.getByTestId('canvas-editor-portal')).toHaveTextContent('/vault/papers/example/paper.md')
     expect(onSave).toHaveBeenCalledTimes(1)
   })
@@ -508,6 +540,7 @@ describe('ProjectCanvasSurface', () => {
     const sourceNode = (await screen.findByText('Source Note')).closest('[data-node-id="note"]') as HTMLElement
     fireEvent.doubleClick(within(sourceNode).getByText('Source Note'))
     fireEvent.click(await screen.findByRole('button', { name: 'Follow linked note' }))
+    await waitFor(() => expect(screen.getByTestId('canvas-editor-portal')).toHaveTextContent('/vault/notes/linked.md'))
 
     expect(screen.getByTestId('canvas-editor-portal')).toHaveTextContent('/vault/notes/linked.md')
     expect(onNavigateWikilink).not.toHaveBeenCalled()
@@ -766,11 +799,11 @@ describe('ProjectCanvasSurface', () => {
     await waitFor(() => expect(screen.getAllByTestId('canvas-editor-portal')).toHaveLength(1))
 
     fireEvent.keyDown(viewport, { key: 'Escape' })
-    expect(screen.queryByTestId('canvas-editor-portal')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByTestId('canvas-editor-portal')).not.toBeInTheDocument())
     expect(document.querySelector('[data-node-id="note"]')).toHaveClass('project-canvas-node--selected')
 
     fireEvent.keyDown(viewport, { key: 'Escape' })
-    expect(document.querySelector('[data-node-id="note"]')).not.toHaveClass('project-canvas-node--selected')
+    await waitFor(() => expect(document.querySelector('[data-node-id="note"]')).not.toHaveClass('project-canvas-node--selected'))
   })
 
   it('adds an existing note to the canvas and links it from the selected source node', async () => {

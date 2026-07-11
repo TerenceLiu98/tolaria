@@ -199,6 +199,7 @@ describe('Canvas layers, node specs, and overlays', () => {
     expect(specs.get('overview').renderer).toBe('document')
     expect(specs.get('note').editorGeometry).toMatchObject({ width: 560, height: 420 })
     expect(specs.get('task').toolbarActions).toContain('toggle-complete')
+    expect(specs.get('task').toolbarActions).toEqual(expect.arrayContaining(['connect', 'resize', 'toggle-complete', 'delete']))
     expect(specs.get('paper_block').resolveDrop('@block[attention#b001]')).toEqual({ ref: '@block[attention#b001]' })
     expect(specs.get('image').resolveDrop('figure.png')).toEqual({ ref: 'figure.png', title: 'figure.png' })
     expect(specs.get('text').resolveDrop('plain text')).toEqual({ text: 'plain text' })
@@ -227,6 +228,102 @@ describe('Canvas layers, node specs, and overlays', () => {
       width: 10,
       height: 40,
     })
+  })
+
+  it('publishes snap guides from spatial candidates only during an active drag', async () => {
+    const initial = {
+      ...canvasWithNodes(),
+      nodes: [
+        { id: 'moving', type: 'text' as const, x: 0, y: 0, width: 100, height: 100 },
+        { id: 'target', type: 'text' as const, x: 220, y: 120, width: 100, height: 100 },
+      ],
+      edges: [],
+    }
+    const adapter = new ProjectCanvasPersistenceAdapter({
+      projectPath: initial.project,
+      vaultPath: '/vault',
+      migrateOnLoad: false,
+      deterministicWrites: false,
+      read: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas: initial }),
+      create: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas: initial }),
+      resolve: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', refs: [], diagnostics: [] }),
+      save: async (_vault, _project, canvas) => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas }),
+      viewportDebounceMs: 0,
+    })
+    const controller = new ProjectCanvasController({ persistence: adapter, migrateLoadedScene: false })
+    await controller.load()
+    controller.setViewportSize({ width: 800, height: 600 })
+    controller.selectNodes(['moving'])
+    controller.beginNodeDrag('moving', { x: 50, y: 50 })
+    controller.updatePointer({ x: 165, y: 165 })
+
+    expect(controller.getSnapshot().overlay.snapGuides).toEqual(expect.arrayContaining([
+      expect.objectContaining({ orientation: 'vertical' }),
+      expect.objectContaining({ orientation: 'horizontal' }),
+    ]))
+    expect(controller.getScene()?.nodes.find(node => node.id === 'moving')).toMatchObject({ x: 120, y: 120 })
+
+    controller.finishGesture()
+    expect(controller.getSnapshot().overlay.snapGuides).toEqual([])
+    controller.dispose()
+  })
+
+  it('snaps resize edges and restores the original geometry on cancellation', async () => {
+    const initial = {
+      ...canvasWithNodes(),
+      nodes: [
+        { id: 'moving', type: 'text' as const, x: 0, y: 0, width: 100, height: 100 },
+        { id: 'target', type: 'text' as const, x: 220, y: 120, width: 100, height: 100 },
+      ],
+      edges: [],
+    }
+    const adapter = new ProjectCanvasPersistenceAdapter({
+      projectPath: initial.project,
+      vaultPath: '/vault',
+      migrateOnLoad: false,
+      deterministicWrites: false,
+      read: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas: initial }),
+      create: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas: initial }),
+      resolve: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', refs: [], diagnostics: [] }),
+      save: async (_vault, _project, canvas) => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas }),
+      viewportDebounceMs: 0,
+    })
+    const controller = new ProjectCanvasController({ persistence: adapter, migrateLoadedScene: false })
+    await controller.load()
+    controller.setViewportSize({ width: 800, height: 600 })
+    controller.beginNodeResize('moving', { x: 100, y: 100 })
+    controller.updatePointer({ x: 219, y: 219 })
+    expect(controller.getSnapshot().overlay.snapGuides.length).toBeGreaterThan(0)
+    expect(controller.getScene()?.nodes.find(node => node.id === 'moving')).toMatchObject({ width: 220, height: 220 })
+    controller.cancelGesture()
+    expect(controller.getSnapshot().overlay.snapGuides).toEqual([])
+    expect(controller.getScene()?.nodes.find(node => node.id === 'moving')).toMatchObject({ width: 100, height: 100 })
+    controller.dispose()
+  })
+
+  it('dismisses overlay chrome without clearing selection and routes toolbar actions through the controller', async () => {
+    const initial = canvasWithNodes()
+    const adapter = new ProjectCanvasPersistenceAdapter({
+      projectPath: initial.project,
+      vaultPath: '/vault',
+      migrateOnLoad: false,
+      deterministicWrites: false,
+      read: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas: initial }),
+      create: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas: initial }),
+      resolve: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', refs: [], diagnostics: [] }),
+      save: async (_vault, _project, canvas) => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready' as const, canvas }),
+      viewportDebounceMs: 0,
+    })
+    const controller = new ProjectCanvasController({ persistence: adapter, migrateLoadedScene: false })
+    await controller.load()
+    controller.selectNodes(['a'])
+    expect(controller.getSnapshot().overlay.toolbarRect).not.toBeNull()
+    expect(controller.dismissOverlayOutside({ x: 700, y: 500 })).toBe(true)
+    expect(controller.getSnapshot().selection.primary).toEqual({ kind: 'node', id: 'a' })
+    expect(controller.getSnapshot().overlay.toolbarRect).toBeNull()
+    controller.executeNodeToolbarAction('delete', 'a')
+    expect(controller.getScene()?.nodes.some(node => node.id === 'a')).toBe(false)
+    controller.dispose()
   })
 
   it('enforces low-zoom budgets while retaining active nodes', () => {

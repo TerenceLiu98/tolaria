@@ -45,11 +45,12 @@ function safeCamera(camera: Partial<ProjectCanvasViewport>): ProjectCanvasViewpo
 
 function boundsForCamera(camera: ProjectCanvasViewport, size: CanvasViewportSize, padding: number): CanvasBounds {
   const zoom = camera.zoom
+  const effectivePadding = zoom < 0.5 ? Math.min(padding, 24) : padding
   return {
-    minX: (-padding - camera.x) / zoom,
-    minY: (-padding - camera.y) / zoom,
-    maxX: (size.width + padding - camera.x) / zoom,
-    maxY: (size.height + padding - camera.y) / zoom,
+    minX: (-effectivePadding - camera.x) / zoom,
+    minY: (-effectivePadding - camera.y) / zoom,
+    maxX: (size.width + effectivePadding - camera.x) / zoom,
+    maxY: (size.height + effectivePadding - camera.y) / zoom,
   }
 }
 
@@ -145,7 +146,7 @@ export class CanvasViewport {
   }
 
   clientToScreen(point: CanvasPoint): CanvasPoint {
-    return { x: point.x - this.originValue.x, y: point.y - this.originValue.y }
+    return { x: finite(point.x, this.originValue.x) - this.originValue.x, y: finite(point.y, this.originValue.y) - this.originValue.y }
   }
 
   clientToCanvas(point: CanvasPoint): CanvasPoint {

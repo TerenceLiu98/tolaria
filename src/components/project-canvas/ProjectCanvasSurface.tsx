@@ -15,6 +15,7 @@ import type { CreateProjectCanvasDraftNote } from '../../projectCanvasDrafts'
 import type { PaperParserProvider } from '../../paper/parserSettings'
 import { publishProjectCanvasSelection } from '../../projectCanvasSelectionStore'
 import { ProjectCanvasController, type CanvasControllerSnapshot, type CanvasNodeCreationOptions } from '../../projectCanvasController'
+import type { CanvasNodeToolbarAction } from '../../canvasNodeSpecRegistry'
 import { ProjectCanvasPersistenceAdapter } from '../../projectCanvasPersistenceAdapter'
 import { Button } from '../ui/button'
 import {
@@ -146,7 +147,7 @@ export function ProjectCanvasSurface({
     focusMode,
     setEditorHost,
   } = useProjectCanvasFocusMode({
-    canFocus: node => controllerSnapshot.specs.getForNode(node).renderer === 'document',
+    canFocus: node => controllerSnapshot.specs.getForNode(node).rendererAdapter.isDocument,
     node: focusTargetNode,
     onChange: (node, enabled) => trackProjectCanvasFocusModeChanged({ enabled, nodeType: node.type }),
   })
@@ -156,7 +157,7 @@ export function ProjectCanvasSurface({
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const suppressClickUntilRef = useRef(0)
   const openedTrackedRef = useRef(false)
-  const viewportSize = useProjectCanvasViewportSize(viewportRef)
+  const viewportSize = useProjectCanvasViewportSize(viewportRef, state !== 'loading')
 
   useEffect(() => {
     controller.setViewportSize(viewportSize)
@@ -445,6 +446,17 @@ export function ProjectCanvasSurface({
     }
   }, [])
 
+  const handleViewportWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    if (event.metaKey || event.ctrlKey) {
+      const camera = controllerSnapshot.viewport.camera
+      const nextZoom = camera.zoom * Math.pow(0.998, event.deltaY)
+      controller.zoomAtScreenPoint(controller.clientToScreen({ x: event.clientX, y: event.clientY }), nextZoom)
+      return
+    }
+    controller.panBy({ x: -event.deltaX, y: -event.deltaY })
+  }, [controller, controllerSnapshot.viewport.camera])
+
   const copySelectedNode = useCallback(() => {
     if (!selectedNodeId) return
     controller.copySelection()
@@ -462,7 +474,9 @@ export function ProjectCanvasSurface({
 
   const handleViewportPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !canvasRef.current) return
-    if (event.target !== event.currentTarget) return
+    controller.dismissOverlayOutside(controller.clientToScreen({ x: event.clientX, y: event.clientY }))
+    const target = event.target instanceof HTMLElement ? event.target : null
+    if (target?.closest('[data-node-id], button, input, textarea, select, [contenteditable="true"], .project-canvas-navigator')) return
     const point = controller.clientToScreen({ x: event.clientX, y: event.clientY })
     if (controller.getSnapshot().tool === 'hand') controller.beginGesture('pan', { point, pointerId: event.pointerId, shiftKey: event.shiftKey })
     else if (controller.getSnapshot().tool === 'frame') controller.beginGesture('group', { point, pointerId: event.pointerId, shiftKey: event.shiftKey })
@@ -471,6 +485,7 @@ export function ProjectCanvasSurface({
 
   const handleNodePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, node: ProjectCanvasNode) => {
     if (event.button !== 0) return
+    controller.dismissOverlayOutside(controller.clientToScreen({ x: event.clientX, y: event.clientY }))
     if (controller.isHandOverrideActive() || controller.getSnapshot().tool === 'hand') {
       event.preventDefault()
       event.stopPropagation()
@@ -521,6 +536,10 @@ export function ProjectCanvasSurface({
   const handleSurfaceFocusCapture = useCallback((event: React.FocusEvent<HTMLElement>) => {
     const target = event.target instanceof HTMLElement ? event.target : null
     if (target?.closest('.canvas-editor-portal')) return
+    if (target?.closest('.project-canvas-overlay-layer')) {
+      controller.setOverlayFocusOwner('overlay')
+      return
+    }
     controller.setFocusOwner('canvas')
   }, [controller])
 
@@ -547,12 +566,13 @@ export function ProjectCanvasSurface({
   const closeCanvasEditor = useCallback(() => {
     if (editingNodeId) onSave?.()
     setEditingNodeId(null)
+    controller.dismissContextualToolbar()
     setEditorHost(null)
     exitFocusMode()
-  }, [editingNodeId, exitFocusMode, onSave, setEditingNodeId, setEditorHost])
+  }, [controller, editingNodeId, exitFocusMode, onSave, setEditingNodeId, setEditorHost])
 
   const editDocumentNode = useCallback((node: ProjectCanvasNode) => {
-    if (controllerSnapshot.specs.getForNode(node).renderer !== 'document') {
+    if (!controllerSnapshot.specs.getForNode(node).rendererAdapter.isDocument) {
       handleNodeClick(node)
       return
     }
@@ -730,6 +750,20 @@ export function ProjectCanvasSurface({
     if (next) canvasRef.current = next
   }, [controller, selectedEdgeId, setSelectedEdgeId])
 
+  const handleToolbarAction = useCallback((action: CanvasNodeToolbarAction) => {
+    if (!selectedNode) return
+    if (action === 'open') {
+      editDocumentNode(selectedNode)
+      return
+    }
+    if (action === 'delete') {
+      deleteSelectedNode()
+      return
+    }
+    const next = controller.executeNodeToolbarAction(action, selectedNode.id)
+    if (next) canvasRef.current = next
+  }, [controller, deleteSelectedNode, editDocumentNode, selectedNode])
+
   const handleCanvasKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && editingNodeId) {
       event.preventDefault()
@@ -753,14 +787,15 @@ export function ProjectCanvasSurface({
         return
       }
       if (editingNodeId) {
-        controller.escape()
-        closeCanvasEditor()
+        if (controller.escape() === 'editing') closeCanvasEditor()
         return
       }
       if (addPanelOpen) {
         setAddPanelOpen(false)
         return
       }
+      const result = controller.escape()
+      if (result === 'overlay' || result === 'selection') return
       selectSingleNode(null)
       setSelectedEdgeId(null)
       return
@@ -883,7 +918,11 @@ export function ProjectCanvasSurface({
       />
       <div
         className="project-canvas-viewport"
-        data-testid="project-canvas-viewport"
+      data-testid="project-canvas-viewport"
+        data-canvas-scene-node-count={canvas.nodes.length}
+        data-canvas-visible-node-count={visibleNodes.length}
+        data-canvas-query-candidates={controller.getSceneDiagnostics()?.lastQueryCandidates ?? 0}
+        data-canvas-snapshot-revision={controllerSnapshot.revision}
         ref={viewportRef}
         tabIndex={0}
         onDragOver={handleCanvasDragOver}
@@ -892,6 +931,7 @@ export function ProjectCanvasSurface({
         onKeyUp={handleCanvasKeyUp}
         onBlur={() => controller.setSpacePressed(false)}
         onPointerDown={handleViewportPointerDown}
+        onWheel={handleViewportWheel}
       >
         <ProjectCanvasNavigator
           locale={locale}
@@ -999,8 +1039,10 @@ export function ProjectCanvasSurface({
             return translate(locale, 'projectCanvas.connectFrom', { title: node?.title ?? node?.ref ?? nodeId })
           }}
           handles={controllerSnapshot.overlay.handles}
+          locale={locale}
           onConnectStart={handleOverlayConnectStart}
           onResizeStart={handleOverlayResizeStart}
+          onToolbarAction={handleToolbarAction}
           resizeLabel={nodeId => {
             const node = canvas.nodes.find(candidate => candidate.id === nodeId)
             return translate(locale, 'projectCanvas.resizeNode', { title: node?.title ?? node?.ref ?? nodeId })
@@ -1008,6 +1050,8 @@ export function ProjectCanvasSurface({
           selectionRect={controllerSnapshot.overlay.rect}
           snapGuides={controllerSnapshot.overlay.snapGuides}
           toolbarRect={controllerSnapshot.overlay.toolbarRect}
+          toolbarActions={selectedNode ? controllerSnapshot.specs.getForNode(selectedNode).toolbarActions : []}
+          toolbarTitle={selectedNode?.title ?? selectedNode?.ref ?? translate(locale, 'projectCanvas.untitledNode')}
           zIndices={controllerSnapshot.overlay.zIndices}
         />
         {focusMode && editingEntry ? (

@@ -139,7 +139,7 @@ function boundsIncludingNode(bounds: CanvasBounds | null, node: ProjectCanvasNod
  * instances deliberately never enter this store.
  */
 export class CanvasSceneStore {
-  private static readonly SPATIAL_CELL_SIZE = 512
+  private static readonly SPATIAL_CELL_SIZE = 128
   private canvas: ProjectCanvas
   private readonly normalize: boolean
   private readonly spatialIndex = new Map<string, Set<string>>()

@@ -1,8 +1,8 @@
 import { autoLayoutCanvas } from './components/project-canvas/projectCanvasDisplay'
 import { CanvasHistoryManager, type CanvasHistoryDomain } from './canvasHistoryManager'
 import { CanvasLayerManager } from './canvasLayerManager'
-import { CanvasNodeSpecRegistry } from './canvasNodeSpecRegistry'
-import { CanvasOverlayCoordinator, type CanvasOverlayHandle } from './canvasOverlayCoordinator'
+import { CanvasNodeSpecRegistry, type CanvasNodeToolbarAction } from './canvasNodeSpecRegistry'
+import { CanvasOverlayCoordinator, type CanvasOverlayGuide, type CanvasOverlayHandle } from './canvasOverlayCoordinator'
 import { CanvasSceneStore, type CanvasNodeGeometryPatch, type CanvasPoint, type CanvasSceneDiagnostics, type CanvasSceneSnapshot } from './canvasSceneStore'
 import { CanvasSelectionManager, type CanvasSelectionSnapshot } from './canvasSelectionManager'
 import { CanvasToolManager, type CanvasGestureKind, type CanvasGestureSnapshot, type CanvasPointerInput, type CanvasTool } from './canvasToolManager'
@@ -83,6 +83,18 @@ export interface CanvasDropPayload {
   readonly ref: string
   readonly title?: string
   readonly text?: string
+}
+
+const SNAP_DISTANCE_PX = 8
+
+type AlignmentFeature = { value: number; edge: 'start' | 'center' | 'end' }
+
+function alignmentFeatures(start: number, size: number): AlignmentFeature[] {
+  return [
+    { value: start, edge: 'start' },
+    { value: start + size / 2, edge: 'center' },
+    { value: start + size, edge: 'end' },
+  ]
 }
 
 function nextId(prefix: string, ids: Iterable<string>): string {
@@ -337,11 +349,46 @@ export class ProjectCanvasController {
     this.selection.setOverlayOwnedNodes(nodeIds)
   }
 
+  dismissOverlayOutside(point: CanvasPoint): boolean {
+    return this.overlays.dismissOutside(point) !== null
+  }
+
+  dismissContextualToolbar(): void {
+    this.overlays.dismissKind('toolbar')
+  }
+
+  executeNodeToolbarAction(action: CanvasNodeToolbarAction, nodeId: string): ProjectCanvas | null {
+    const node = this.sceneStore?.node(nodeId)
+    if (!node) return this.getScene()
+    switch (action) {
+      case 'connect':
+        this.selectNodes([nodeId], nodeId)
+        this.setTool('connect')
+        return this.getScene()
+      case 'resize':
+        this.selectNodes([nodeId], nodeId)
+        return this.getScene()
+      case 'toggle-complete':
+        return this.toggleTask(nodeId)
+      case 'delete':
+        return this.deleteNodes([nodeId])
+      case 'open':
+      case 'pin':
+        return this.getScene()
+      default:
+        return this.getScene()
+    }
+  }
+
   setFocusOwner(owner: CanvasHistoryDomain): void {
     if (this.focusOwnerValue === owner && this.history.activeDomain === owner) return
     this.focusOwnerValue = owner
     this.history.setActiveDomain(owner)
     this.overlays.setFocusOwner(owner === 'document' ? 'editor' : 'canvas')
+  }
+
+  setOverlayFocusOwner(owner: 'canvas' | 'overlay' | 'editor'): void {
+    this.overlays.setFocusOwner(owner)
   }
 
   updateScene(updater: (canvas: ProjectCanvas) => ProjectCanvas): ProjectCanvas | null {
@@ -626,6 +673,7 @@ export class ProjectCanvasController {
       nodeId: input.targetId ?? null,
       additive: input.shiftKey === true,
     }
+    this.overlays.setSnapGuides([], false)
     if (effectiveKind === 'drag') this.selection.setMode('dragging')
     if (effectiveKind === 'resize') this.selection.setMode('resizing')
     if (effectiveKind === 'connect') this.selection.setMode('connecting')
@@ -712,7 +760,17 @@ export class ProjectCanvasController {
         patches.push({ id: startNode.id, x: startNode.x + dx / zoom, y: startNode.y + dy / zoom })
       }
     }
-    this.sceneStore.patchNodeGeometry(patches)
+    const snapped = this.snapGeometry(context, patches, zoom)
+    this.sceneStore.patchNodeGeometry(snapped.patches)
+    if (gesture.phase === 'active') {
+      this.overlays.setSnapGuides(snapped.guides, false)
+    } else {
+      this.overlays.setSnapGuides([], false)
+    }
+    this.updateSelectionOverlay(false)
+    this.overlays.setActive(this.activeOverlayKinds(), false)
+    this.overlays.setFocusOwner('canvas', false)
+    this.publishImmediate()
     return gesture
   }
 
@@ -722,6 +780,7 @@ export class ProjectCanvasController {
     const gesture = this.tools.getSnapshot()
     this.gestureContext = null
     this.sceneStore?.finalizePatchedGeometry()
+    this.overlays.setSnapGuides([], false)
     let result = this.getScene()
     if (context.kind === 'pan') {
       this.viewport.flush()
@@ -752,6 +811,9 @@ export class ProjectCanvasController {
     }
     this.tools.commit()
     this.selection.setMode('idle')
+    this.updateSelectionOverlay(false)
+    this.overlays.setActive(this.activeOverlayKinds(), false)
+    this.publishImmediate()
     return gesture.phase === 'pressed' && context.kind !== 'connect' ? context.before : result
   }
 
@@ -760,17 +822,26 @@ export class ProjectCanvasController {
     if (!context) return null
     this.gestureContext = null
     this.tools.cancel()
+    this.overlays.setSnapGuides([], false)
     this.selection.setMode('idle')
     this.viewport.scheduleCamera(context.startViewport)
     this.viewport.flush()
     this.sceneStore?.replace(context.before)
+    this.updateSelectionOverlay(false)
+    this.overlays.setActive(this.activeOverlayKinds(), false)
+    this.publishImmediate()
     return context.before
   }
 
-  escape(): 'gesture' | 'editing' | 'selection' | 'idle' {
+  escape(): 'gesture' | 'overlay' | 'editing' | 'selection' | 'idle' {
     if (this.gestureContext) {
       this.cancelGesture()
       return 'gesture'
+    }
+    const activeOverlay = this.overlays.getSnapshot().active
+    if (activeOverlay.some(kind => kind === 'menu' || kind === 'comment' || kind === 'toolbar')) {
+      this.overlays.dismissTop()
+      return 'overlay'
     }
     if (this.selection.getSnapshot().editingNodeId) {
       this.endEditing()
@@ -810,6 +881,11 @@ export class ProjectCanvasController {
   zoomBy(delta: number): void {
     const camera = this.viewport.getCamera()
     this.viewport.scheduleCamera({ zoom: camera.zoom + delta })
+  }
+
+  panBy(screenDelta: CanvasPoint): void {
+    const camera = this.viewport.getCamera()
+    this.viewport.scheduleCamera({ x: camera.x + screenDelta.x, y: camera.y + screenDelta.y })
   }
 
   fitToContent(): void {
@@ -922,10 +998,85 @@ export class ProjectCanvasController {
       const node = scene.node(nodeId)
       return node ? [node] : []
     })
+    const primary = selection.primary?.kind === 'node' ? scene.node(selection.primary.id) : null
+    const toolbarWidth = primary && selection.mode === 'idle'
+      ? Math.max(128, Math.min(280, this.specs.getForNode(primary).toolbarActions.length * 32 + 12))
+      : 0
     this.overlays.positionForNodes(selectedNodes, this.viewport, notify, selection.primary?.kind === 'node'
-      ? selection.primary.id
-      : null, node => this.specs.getForNode(node).canResize)
-    this.overlays.setActive(ids.size > 0 ? ['selection', 'resize', 'toolbar'] : [], notify)
+        ? selection.primary.id
+        : null, node => this.specs.getForNode(node).canResize, toolbarWidth)
+    this.overlays.setActive(this.activeOverlayKinds(), notify)
+  }
+
+  private activeOverlayKinds(): ('selection' | 'resize' | 'connection' | 'toolbar' | 'menu' | 'comment' | 'snap')[] {
+    const selection = this.selection.getSnapshot()
+    const gesture = this.tools.getSnapshot()
+    const kinds: ('selection' | 'resize' | 'connection' | 'toolbar' | 'menu' | 'comment' | 'snap')[] = []
+    if (selection.selectedNodeIds.length > 0 || selection.selectedEdgeIds.length > 0) kinds.push('selection')
+    if (gesture.phase === 'idle' && selection.mode === 'idle' && selection.selectedNodeIds.length > 0) {
+      kinds.push('resize', 'toolbar')
+    }
+    if (gesture.kind === 'connect' && gesture.phase !== 'idle') kinds.push('connection')
+    if (this.overlays.getSnapshot().snapGuides.length > 0 && gesture.phase === 'active') kinds.push('snap')
+    return kinds
+  }
+
+  private snapGeometry(
+    context: GestureContext,
+    patches: readonly CanvasNodeGeometryPatch[],
+    zoom: number,
+  ): { patches: CanvasNodeGeometryPatch[]; guides: CanvasOverlayGuide[] } {
+    if (!this.sceneStore || (context.kind !== 'drag' && context.kind !== 'resize')) return { patches: [...patches], guides: [] }
+    const movedIds = new Set(Object.keys(context.startNodes))
+    const anchorId = context.nodeId ?? Object.keys(context.startNodes)[0]
+    const anchor = patches.find(patch => patch.id === anchorId)
+    const startAnchor = anchorId ? context.startNodes[anchorId] : undefined
+    if (!anchor || !startAnchor) return { patches: [...patches], guides: [] }
+    const proposed = {
+      x: anchor.x ?? startAnchor.x,
+      y: anchor.y ?? startAnchor.y,
+      width: anchor.width ?? startAnchor.width,
+      height: anchor.height ?? startAnchor.height,
+    }
+    const tolerance = SNAP_DISTANCE_PX / Math.max(zoom, 0.01)
+    const candidateBounds = {
+      minX: proposed.x - tolerance,
+      minY: proposed.y - tolerance,
+      maxX: proposed.x + proposed.width + tolerance,
+      maxY: proposed.y + proposed.height + tolerance,
+    }
+    const candidates = this.sceneStore.query(candidateBounds).filter(candidate => !movedIds.has(candidate.id))
+    const xFeatures = context.kind === 'resize'
+      ? [{ value: proposed.x + proposed.width, edge: 'end' as const }]
+      : alignmentFeatures(proposed.x, proposed.width)
+    const yFeatures = context.kind === 'resize'
+      ? [{ value: proposed.y + proposed.height, edge: 'end' as const }]
+      : alignmentFeatures(proposed.y, proposed.height)
+    const candidateX = candidates.flatMap(candidate => alignmentFeatures(candidate.x, candidate.width).map(feature => ({ ...feature, node: candidate })))
+    const candidateY = candidates.flatMap(candidate => alignmentFeatures(candidate.y, candidate.height).map(feature => ({ ...feature, node: candidate })))
+    const closest = (moving: AlignmentFeature[], targets: Array<AlignmentFeature & { node: ProjectCanvasNode }>) => {
+      let best: { delta: number; position: number } | null = null
+      for (const source of moving) {
+        for (const target of targets) {
+          const delta = target.value - source.value
+          if (Math.abs(delta) <= tolerance && (!best || Math.abs(delta) < Math.abs(best.delta))) best = { delta, position: target.value }
+        }
+      }
+      return best
+    }
+    const x = closest(xFeatures, candidateX)
+    const y = closest(yFeatures, candidateY)
+    const dx = x?.delta ?? 0
+    const dy = y?.delta ?? 0
+    const nextPatches = patches.map(patch => ({
+      ...patch,
+      ...(context.kind === 'drag' ? { x: (patch.x ?? context.startNodes[patch.id]?.x ?? 0) + dx, y: (patch.y ?? context.startNodes[patch.id]?.y ?? 0) + dy } : {}),
+      ...(context.kind === 'resize' ? { width: (patch.width ?? startAnchor.width) + dx, height: (patch.height ?? startAnchor.height) + dy } : {}),
+    }))
+    const guides: CanvasOverlayGuide[] = []
+    if (x) guides.push({ orientation: 'vertical', position: this.viewport.canvasToScreen({ x: x.position, y: 0 }).x })
+    if (y) guides.push({ orientation: 'horizontal', position: this.viewport.canvasToScreen({ x: 0, y: y.position }).y })
+    return { patches: nextPatches, guides }
   }
 
   private selectedNodes(): ProjectCanvasNode[] {

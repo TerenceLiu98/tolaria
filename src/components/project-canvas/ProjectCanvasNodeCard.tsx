@@ -69,7 +69,7 @@ export function ProjectCanvasNodeCard({
   temporarySaving = false,
   vaultPath,
 }: ProjectCanvasNodeCardProps) {
-  const isEmbedded = spec.renderer === 'text' || spec.renderer === 'task' || spec.renderer === 'group'
+  const isEmbedded = spec.rendererAdapter.supportsInlineText
   const isStale = resolved?.state === 'stale'
   const preview = spec.preview(node, presentation)
   const title = node.title ?? entry?.title ?? resolved?.targetTitle ?? preview.title ?? node.ref ?? translate(locale, 'projectCanvas.untitledNode')

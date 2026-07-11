@@ -73,7 +73,10 @@ export function removeFixtureVaultCopy(tempVaultDir: string | null | undefined):
 
 async function installFixtureVaultInitScript({ page, vaultPath, isGitRepo, folders }: FixtureVaultPageArgs): Promise<void> {
   await page.addInitScript(({ dismissedKey, fixtureFolders, initialIsGitRepo, resolvedVaultPath }: { dismissedKey: string; fixtureFolders: FolderNode[]; initialIsGitRepo: boolean; resolvedVaultPath: string }) => {
+    const preservedCanvasState = Object.entries(localStorage)
+      .filter(([key]) => key.startsWith('tolaria:project-canvas-'))
     localStorage.clear()
+    for (const [key, value] of preservedCanvasState) localStorage.setItem(key, value)
     localStorage.setItem(dismissedKey, '1')
     let gitRepoReady = initialIsGitRepo
 

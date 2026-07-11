@@ -6,6 +6,13 @@ export type CanvasNodeSpecKey = ProjectCanvasNodeType | 'overview'
 export type CanvasNodeRenderer = 'overview' | 'document' | 'paper_block' | 'image' | 'text' | 'task' | 'group'
 export type CanvasNodeToolbarAction = 'open' | 'connect' | 'resize' | 'toggle-complete' | 'pin' | 'delete'
 
+export interface CanvasNodeRendererAdapter {
+  readonly key: CanvasNodeRenderer
+  readonly isDocument: boolean
+  readonly supportsPreview: boolean
+  readonly supportsInlineText: boolean
+}
+
 export interface CanvasNodeDropResult {
   readonly ref?: string
   readonly title?: string
@@ -23,6 +30,7 @@ export interface CanvasNodeSpec {
   readonly key: CanvasNodeSpecKey
   readonly type: ProjectCanvasNodeType
   readonly renderer: CanvasNodeRenderer
+  readonly rendererAdapter: CanvasNodeRendererAdapter
   readonly kindKey: TranslationKey
   readonly canEdit: boolean
   readonly canNavigate: boolean
@@ -40,6 +48,22 @@ export interface CanvasNodeSpec {
 }
 
 const DEFAULT_GEOMETRY: CanvasNodeGeometry = { width: 260, height: 150, minWidth: 180, minHeight: 110 }
+
+const RENDERER_ADAPTERS: Readonly<Record<CanvasNodeRenderer, CanvasNodeRendererAdapter>> = {
+  overview: { key: 'overview', isDocument: true, supportsPreview: true, supportsInlineText: false },
+  document: { key: 'document', isDocument: true, supportsPreview: true, supportsInlineText: false },
+  paper_block: { key: 'paper_block', isDocument: false, supportsPreview: true, supportsInlineText: false },
+  image: { key: 'image', isDocument: false, supportsPreview: true, supportsInlineText: false },
+  text: { key: 'text', isDocument: false, supportsPreview: false, supportsInlineText: true },
+  task: { key: 'task', isDocument: false, supportsPreview: false, supportsInlineText: true },
+  group: { key: 'group', isDocument: false, supportsPreview: false, supportsInlineText: true },
+}
+
+export class CanvasNodeRendererRegistry {
+  get(renderer: CanvasNodeRenderer): CanvasNodeRendererAdapter {
+    return RENDERER_ADAPTERS[renderer]
+  }
+}
 
 function defaultPreview(node: ProjectCanvasNode): { title: string; text?: string } {
   return { title: node.title ?? node.ref ?? 'Untitled node', text: node.text }
@@ -96,6 +120,7 @@ export class CanvasNodeSpecRegistry {
       renderer: type === 'note' || type === 'paper'
           ? 'document'
           : type,
+      rendererAdapter: RENDERER_ADAPTERS[type === 'note' || type === 'paper' ? 'document' : type],
       kindKey: `projectCanvas.node.${type}` as TranslationKey,
       canEdit: type === 'note' || type === 'paper' || type === 'text' || type === 'task' || type === 'group',
       canNavigate: type === 'note' || type === 'paper',
@@ -122,7 +147,9 @@ export class CanvasNodeSpecRegistry {
       preview: defaultPreview,
       staleLabel: node => `Stale ${node.type} reference`,
       clipboard: copyNode,
-      toolbarActions: type === 'task'
+      toolbarActions: key === 'overview'
+        ? ['open', 'connect', 'resize']
+        : type === 'task'
         ? ['connect', 'resize', 'toggle-complete', 'delete']
         : type === 'note' || type === 'paper'
           ? ['open', 'connect', 'resize', 'pin', 'delete']
