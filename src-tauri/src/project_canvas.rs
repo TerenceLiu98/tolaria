@@ -71,6 +71,8 @@ pub struct ProjectCanvasNode {
     pub text: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completed: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -217,6 +219,7 @@ fn project_overview_node(project_path: &str) -> ProjectCanvasNode {
         title: None,
         text: None,
         completed: None,
+        parent_id: None,
     }
 }
 
@@ -747,6 +750,7 @@ mod tests {
                     title: None,
                     text: None,
                     completed: None,
+                    parent_id: None,
                 },
                 ProjectCanvasNode {
                     id: "node_text".to_string(),
@@ -759,6 +763,7 @@ mod tests {
                     title: Some("Claim".to_string()),
                     text: Some("KANs need comparison".to_string()),
                     completed: None,
+                    parent_id: None,
                 },
             ],
             edges: vec![ProjectCanvasEdge {
@@ -854,6 +859,7 @@ mod tests {
             title: None,
             text: None,
             completed: None,
+            parent_id: None,
         })
         .collect::<Vec<_>>();
         let canvas = ProjectCanvas {
@@ -938,6 +944,7 @@ mod tests {
                 title: None,
                 text: None,
                 completed: None,
+                parent_id: None,
             },
             ProjectCanvasNode {
                 id: "existing_block".to_string(),
@@ -950,6 +957,7 @@ mod tests {
                 title: None,
                 text: None,
                 completed: None,
+                parent_id: None,
             },
             ProjectCanvasNode {
                 id: "missing".to_string(),
@@ -962,6 +970,7 @@ mod tests {
                 title: None,
                 text: None,
                 completed: None,
+                parent_id: None,
             },
         ];
 

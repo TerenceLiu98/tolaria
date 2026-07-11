@@ -142,6 +142,7 @@ mod tests {
                 title: Some("Claim".to_string()),
                 text: Some("Needs evidence".to_string()),
                 completed: None,
+                parent_id: None,
             },
             ProjectCanvasNode {
                 id: "node_note".to_string(),
@@ -154,6 +155,7 @@ mod tests {
                 title: None,
                 text: None,
                 completed: None,
+                parent_id: None,
             },
         ];
         canvas.edges = vec![ProjectCanvasEdge {

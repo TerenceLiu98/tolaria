@@ -29,6 +29,8 @@ export interface ProjectCanvasNode {
   title?: string
   text?: string
   completed?: boolean
+  /** Optional Canvas-only parent reference for group/frame membership. */
+  parentId?: string
 }
 
 export interface ProjectCanvasEdge {

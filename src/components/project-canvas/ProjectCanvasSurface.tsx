@@ -1,13 +1,10 @@
 import type React from 'react'
 import { ArrowCounterClockwise, ArrowClockwise, CheckSquare, Clipboard, CornersIn, CornersOut, Graph, ImageSquare, MagnifyingGlass, Minus, Plus, Square, TextT } from '@phosphor-icons/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { translate, type AppLocale } from '../../lib/i18n'
 import {
-  createProjectCanvas,
   PROJECT_OVERVIEW_NODE_ID,
-  readProjectCanvas,
   resolveProjectCanvasRefs,
-  saveProjectCanvas,
   type ProjectCanvas,
   type ProjectCanvasEdgeKind,
   type ProjectCanvasNode,
@@ -19,13 +16,14 @@ import type { AiSelectedTextContext } from '../../utils/ai-context'
 import type { CreateProjectCanvasDraftNote } from '../../projectCanvasDrafts'
 import type { PaperParserProvider } from '../../paper/parserSettings'
 import { publishProjectCanvasSelection } from '../../projectCanvasSelectionStore'
+import { ProjectCanvasController } from '../../projectCanvasController'
+import { ProjectCanvasPersistenceAdapter } from '../../projectCanvasPersistenceAdapter'
 import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
 import { Input } from '../ui/input'
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from '../ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Textarea } from '../ui/textarea'
-import { cn } from '../../lib/utils'
 import {
   trackProjectCanvasCreated,
   trackProjectCanvasEdgeCreated,
@@ -41,6 +39,9 @@ import { findEntryForProjectCanvasRef, relativeVaultPath } from './projectCanvas
 import { PROJECT_CANVAS_DRAG_MIME, readProjectCanvasDragPayload } from './projectCanvasDragData'
 import { ProjectCanvasInspector } from './ProjectCanvasInspector'
 import { CanvasEditorPortal } from './CanvasEditorPortal'
+import { CanvasDocumentLayer } from './CanvasDocumentLayer'
+import { CanvasGraphicsLayer } from './CanvasGraphicsLayer'
+import { CanvasOverlayLayer } from './CanvasOverlayLayer'
 import {
   consumeProjectCanvasNavigate,
   consumeProjectCanvasOpen,
@@ -51,29 +52,22 @@ import {
   type ProjectCanvasOpenEvent,
 } from './projectCanvasNavigation'
 import {
-  autoLayoutCanvas,
   canvasBounds,
-  canvasWithFitToView,
-  clamp,
   DEFAULT_EMBEDDED_NODE_HEIGHT,
   DEFAULT_NODE_HEIGHT,
   DEFAULT_NODE_WIDTH,
   EDGE_KINDS,
   edgeKindKey,
   nodePresentation,
-  ZOOM_MAX,
-  ZOOM_MIN,
   ZOOM_STEP,
 } from './projectCanvasDisplay'
 import { looksLikeBlockCitation, looksLikeImageRef, nodeIsEmbedded, titleFromPath } from './projectCanvasNodeModel'
 import { ProjectCanvasNodeCard } from './ProjectCanvasNodeCard'
 import { ProjectCanvasNavigator } from './ProjectCanvasNavigator'
-import { useProjectCanvasViewportSize, visibleProjectCanvasNodes } from './projectCanvasViewport'
+import { useProjectCanvasViewportSize } from './projectCanvasViewport'
 import { useProjectCanvasAiDraft } from './useProjectCanvasAiDraft'
 import './ProjectCanvasSurface.css'
 
-const MIN_NODE_WIDTH = 180
-const MIN_NODE_HEIGHT = 110
 const EDITOR_MIN_WIDTH = 560
 const EDITOR_MIN_HEIGHT = 420
 
@@ -94,42 +88,6 @@ interface ProjectCanvasSurfaceProps {
   onSelectedTextContextChange?: (context: AiSelectedTextContext | null) => void
   paperParserProvider?: PaperParserProvider
 }
-
-type CanvasOperation =
-  | {
-      kind: 'pan'
-      clientX: number
-      clientY: number
-      startViewport: ProjectCanvas['viewport']
-      moved: boolean
-    }
-  | {
-      kind: 'drag'
-      nodeId: string
-      clientX: number
-      clientY: number
-      startNode: ProjectCanvasNode
-      zoom: number
-      moved: boolean
-    }
-  | {
-      kind: 'resize'
-      nodeId: string
-      clientX: number
-      clientY: number
-      startNode: ProjectCanvasNode
-      zoom: number
-      moved: boolean
-    }
-  | {
-      kind: 'connect'
-      fromNodeId: string
-      clientX: number
-      clientY: number
-      from: { x: number; y: number }
-      to: { x: number; y: number }
-      moved: boolean
-    }
 
 type AddPanelMode = 'existing' | 'text' | 'task' | 'image' | 'block' | 'group'
 
@@ -159,23 +117,6 @@ function nextCanvasId(prefix: string, existingIds: Iterable<string>): string {
   return `${prefix}_${Date.now()}`
 }
 
-function canvasWithFocusedNode(
-  current: ProjectCanvas,
-  node: ProjectCanvasNode,
-  viewportWidth: number,
-  viewportHeight: number,
-): ProjectCanvas {
-  return {
-    ...current,
-    viewport: {
-      ...current.viewport,
-      x: viewportWidth / 2 - (node.x + node.width / 2) * current.viewport.zoom,
-      y: viewportHeight / 2 - (node.y + node.height / 2) * current.viewport.zoom,
-    },
-  }
-}
-
-
 export function ProjectCanvasSurface({
   editable = true,
   entry,
@@ -193,42 +134,77 @@ export function ProjectCanvasSurface({
   onSelectedTextContextChange,
   paperParserProvider = 'none',
 }: ProjectCanvasSurfaceProps) {
-  const [canvas, setCanvas] = useState<ProjectCanvas | null>(null)
+  const persistence = useMemo(() => new ProjectCanvasPersistenceAdapter({
+    deterministicWrites: false,
+    migrateOnLoad: false,
+    projectPath: entry.path,
+    vaultPath,
+  }), [entry.path, vaultPath])
+  const controller = useMemo(() => new ProjectCanvasController({ migrateLoadedScene: false, persistence }), [persistence])
+  const controllerSnapshot = useSyncExternalStore(
+    controller.subscribe,
+    controller.getSnapshot,
+    controller.getSnapshot,
+  )
+  const canvas = controllerSnapshot.scene
   const [refs, setRefs] = useState<ProjectCanvasResolvedRef[]>([])
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const state = controllerSnapshot.status === 'idle' ? 'loading' : controllerSnapshot.status
+  const error = controllerSnapshot.error
+  const saving = controllerSnapshot.saving
   const [addPanelOpen, setAddPanelOpen] = useState(false)
   const [addMode, setAddMode] = useState<AddPanelMode>('existing')
   const [candidateQuery, setCandidateQuery] = useState('')
   const [newCardText, setNewCardText] = useState('')
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
+  const selectedNodeId = controllerSnapshot.selection.primary?.kind === 'node'
+    ? controllerSnapshot.selection.primary.id
+    : null
+  const selectedNodeIds = useMemo(() => [...controllerSnapshot.selection.selectedNodeIds], [controllerSnapshot.selection.selectedNodeIds])
+  const selectedEdgeId = controllerSnapshot.selection.primary?.kind === 'edge'
+    ? controllerSnapshot.selection.primary.id
+    : null
+  const editingNodeId = controllerSnapshot.selection.editingNodeId
   const [editorHost, setEditorHost] = useState<HTMLElement | null>(null)
   const [focusMode, setFocusMode] = useState(false)
   const [peekNode, setPeekNode] = useState<ProjectCanvasNode | null>(null)
   const [linkFromSelected, setLinkFromSelected] = useState(true)
   const [edgeKind, setEdgeKind] = useState<ProjectCanvasEdgeKind>('related')
-  const [connectPreview, setConnectPreview] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null)
-  const [undoStack, setUndoStack] = useState<ProjectCanvas[]>([])
-  const [redoStack, setRedoStack] = useState<ProjectCanvas[]>([])
   const clipboardRef = useRef<ProjectCanvasNode | null>(null)
   const clipboardNodesRef = useRef<ProjectCanvasNode[]>([])
-  const operationRef = useRef<CanvasOperation | null>(null)
   const canvasRef = useRef<ProjectCanvas | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const resolveRequestRef = useRef(0)
   const suppressClickUntilRef = useRef(0)
   const openedTrackedRef = useRef(false)
-  const spacePressedRef = useRef(false)
   const zoomSaveTimerRef = useRef<number | null>(null)
   const viewportSize = useProjectCanvasViewportSize(viewportRef)
 
   useEffect(() => {
+    controller.setViewportSize(viewportSize)
+  }, [controller, viewportSize])
+
+  const setSelectedNodeId = useCallback((nodeId: string | null) => {
+    if (nodeId) controller.selectNodes([nodeId], nodeId)
+    else controller.clearSelection()
+  }, [controller])
+  const setSelectedNodeIds = useCallback((nodeIds: string[] | ((current: string[]) => string[])) => {
+    const current = [...controller.getSnapshot().selection.selectedNodeIds]
+    const next = typeof nodeIds === 'function' ? nodeIds(current) : nodeIds
+    controller.selectNodes(next, next.at(-1) ?? null)
+  }, [controller])
+  const setSelectedEdgeId = useCallback((edgeId: string | null) => {
+    if (edgeId) controller.selectEdge(edgeId)
+    else if (controller.getSnapshot().selection.selectedNodeIds.length === 0) controller.clearSelection()
+  }, [controller])
+  const setEditingNodeId = useCallback((nodeId: string | null) => {
+    if (nodeId) controller.beginEditing(nodeId)
+    else controller.endEditing()
+  }, [controller])
+
+  useEffect(() => {
     canvasRef.current = canvas
   }, [canvas])
+
+  useEffect(() => () => controller.dispose(), [controller])
 
   const resolveCanvas = useCallback(async (nextCanvas: ProjectCanvas) => {
     if (!vaultPath) return
@@ -243,35 +219,22 @@ export function ProjectCanvasSurface({
   }, [entry.path, vaultPath])
 
   const loadCanvas = useCallback(async () => {
-    if (!vaultPath) {
-      setState('error')
-      setError(translate(locale, 'projectCanvas.errorMissingVault'))
-      return
-    }
-    setState('loading')
-    setError(null)
     try {
-      let result = await readProjectCanvas(vaultPath, entry.path)
-      const created = result.state === 'missing' || !result.canvas
-      if (created) {
-        result = await createProjectCanvas(vaultPath, entry.path)
-        trackProjectCanvasCreated()
-      }
-      if (!result.canvas) throw new Error(translate(locale, 'projectCanvas.errorDescription'))
-      setCanvas(result.canvas)
-      setState('ready')
-      setUndoStack([])
-      setRedoStack([])
-      void resolveCanvas(result.canvas)
+      const loaded = await controller.load()
+      const nextCanvas = controller.getScene()
+      if (!nextCanvas) throw new Error(translate(locale, 'projectCanvas.errorDescription'))
+      if (loaded.created) trackProjectCanvasCreated()
+      void resolveCanvas(nextCanvas)
       if (!openedTrackedRef.current) {
         openedTrackedRef.current = true
-        trackProjectCanvasOpened({ state: created ? 'created' : 'ready' })
+        trackProjectCanvasOpened({ state: loaded.created ? 'created' : 'ready' })
       }
     } catch (loadError) {
-      setState('error')
-      setError(loadError instanceof Error ? loadError.message : String(loadError))
+      // The controller owns the error snapshot; keeping the catch here makes
+      // the async callback explicit without creating a second state machine.
+      void loadError
     }
-  }, [entry.path, locale, resolveCanvas, vaultPath])
+  }, [controller, locale, resolveCanvas])
 
   useEffect(() => {
     openedTrackedRef.current = false
@@ -292,72 +255,39 @@ export function ProjectCanvasSurface({
   }, [])
 
   const persistCanvas = useCallback(async (nextCanvas: ProjectCanvas, reason: 'create' | 'layout' | 'content') => {
-    if (!vaultPath) return
-    setSaving(true)
-    try {
-      const result = await saveProjectCanvas(vaultPath, entry.path, nextCanvas)
-      if (result.canvas) {
-        setCanvas(result.canvas)
-        canvasRef.current = result.canvas
-        void resolveCanvas(result.canvas)
-      }
-      if (reason === 'layout') trackProjectCanvasLayoutSaved()
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : String(saveError))
-      setState('error')
-    } finally {
-      setSaving(false)
-    }
-  }, [entry.path, resolveCanvas, vaultPath])
+    await controller.persist(nextCanvas, reason === 'layout' ? 'viewport' : reason === 'content' ? 'structural' : 'structural')
+    void resolveCanvas(nextCanvas)
+    if (reason === 'layout') trackProjectCanvasLayoutSaved()
+  }, [controller, resolveCanvas])
 
   const updateCanvas = useCallback((updater: (current: ProjectCanvas) => ProjectCanvas) => {
-    setCanvas(current => {
-      if (!current) return current
-      const next = updater(current)
-      canvasRef.current = next
-      return next
-    })
-  }, [])
+    const next = controller.updateScene(updater)
+    if (next) canvasRef.current = next
+  }, [controller])
 
   const persistLatestLayout = useCallback(() => {
-    const latest = canvasRef.current
+    const latest = controller.getScene()
     if (!latest) return
+    canvasRef.current = latest
     void persistCanvas(latest, 'layout')
-  }, [persistCanvas])
+  }, [controller, persistCanvas])
 
   const commitContentCanvas = useCallback((nextCanvas: ProjectCanvas, previousCanvas?: ProjectCanvas) => {
-    const previous = previousCanvas ?? canvasRef.current
-    if (previous) setUndoStack(stack => [...stack.slice(-19), previous])
-    setRedoStack([])
-    setCanvas(nextCanvas)
-    canvasRef.current = nextCanvas
-    void resolveCanvas(nextCanvas)
-    void persistCanvas(nextCanvas, 'content')
-  }, [persistCanvas, resolveCanvas])
+    void previousCanvas
+    const committed = controller.replaceScene(nextCanvas, 'Canvas transaction', 'structural')
+    if (committed) {
+      canvasRef.current = committed
+      void resolveCanvas(committed)
+    }
+  }, [controller, resolveCanvas])
 
   const restoreCanvasFromHistory = useCallback((direction: 'undo' | 'redo') => {
-    const current = canvasRef.current
-    if (!current) return
-    if (direction === 'undo') {
-      const previous = undoStack.at(-1)
-      if (!previous) return
-      setUndoStack(stack => stack.slice(0, -1))
-      setRedoStack(stack => [...stack.slice(-19), current])
-      setCanvas(previous)
-      canvasRef.current = previous
-      void resolveCanvas(previous)
-      void persistCanvas(previous, 'content')
-      return
+    const next = direction === 'undo' ? controller.undo() : controller.redo()
+    if (next) {
+      canvasRef.current = next
+      void resolveCanvas(next)
     }
-    const next = redoStack.at(-1)
-    if (!next) return
-    setRedoStack(stack => stack.slice(0, -1))
-    setUndoStack(stack => [...stack.slice(-19), current])
-    setCanvas(next)
-    canvasRef.current = next
-    void resolveCanvas(next)
-    void persistCanvas(next, 'content')
-  }, [persistCanvas, redoStack, resolveCanvas, undoStack])
+  }, [controller, resolveCanvas])
 
   const candidateEntries = useMemo(() => {
     const query = candidateQuery.trim().toLowerCase()
@@ -389,7 +319,7 @@ export function ProjectCanvasSurface({
     setSelectedNodeIds(nodeId ? [nodeId] : [])
     setSelectedEdgeId(null)
     publishProjectCanvasSelection({ projectPath: entry.path, nodeId })
-  }, [entry.path])
+  }, [entry.path, setSelectedEdgeId, setSelectedNodeId, setSelectedNodeIds])
 
   useEffect(() => {
     const intent = pendingProjectCanvasOpen(entry.path)
@@ -397,14 +327,10 @@ export function ProjectCanvasSurface({
     const node = canvas.nodes.find(candidate => candidate.id === intent.nodeId)
     if (!node) return
     consumeProjectCanvasOpen(entry.path)
-    const rect = viewportRef.current?.getBoundingClientRect()
-    const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
-    const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
-    const focused = canvasWithFocusedNode(canvas, node, viewportWidth, viewportHeight)
-    setCanvas(focused)
-    canvasRef.current = focused
+    controller.focusNode(node.id)
+    canvasRef.current = controller.getScene()
     selectSingleNode(node.id)
-  }, [canvas, entry.path, selectSingleNode])
+  }, [canvas, controller, entry.path, selectSingleNode])
 
   const toggleNodeSelection = useCallback((nodeId: string) => {
     setSelectedEdgeId(null)
@@ -413,46 +339,40 @@ export function ProjectCanvasSurface({
         ? current.filter(id => id !== nodeId)
         : [...current, nodeId]
       const primaryNodeId = next.at(-1) ?? null
-      setSelectedNodeId(primaryNodeId)
       publishProjectCanvasSelection({ projectPath: entry.path, nodeId: primaryNodeId })
       return next
     })
-  }, [entry.path])
+  }, [entry.path, setSelectedEdgeId, setSelectedNodeIds])
 
   const screenPointToCanvas = useCallback((clientX: number, clientY: number) => {
-    const viewport = canvasRef.current?.viewport ?? { x: 0, y: 0, zoom: 1 }
     const rect = viewportRef.current?.getBoundingClientRect()
     const safeClientX = Number.isFinite(clientX) ? clientX : (rect?.left ?? 0)
     const safeClientY = Number.isFinite(clientY) ? clientY : (rect?.top ?? 0)
-    return {
-      x: ((safeClientX - (rect?.left ?? 0)) - viewport.x) / viewport.zoom,
-      y: ((safeClientY - (rect?.top ?? 0)) - viewport.y) / viewport.zoom,
-    }
-  }, [])
+    return controller.screenToCanvas({
+      x: safeClientX - (rect?.left ?? 0),
+      y: safeClientY - (rect?.top ?? 0),
+    })
+  }, [controller])
 
   const canvasCenter = useCallback((width = DEFAULT_NODE_WIDTH, height = DEFAULT_NODE_HEIGHT) => {
-    const viewport = canvasRef.current?.viewport ?? { x: 0, y: 0, zoom: 1 }
     const rect = viewportRef.current?.getBoundingClientRect()
     const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
     const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
+    const point = controller.screenToCanvas({ x: viewportWidth / 2, y: viewportHeight / 2 })
     return {
-      x: (viewportWidth / 2 - viewport.x) / viewport.zoom - width / 2,
-      y: (viewportHeight / 2 - viewport.y) / viewport.zoom - height / 2,
+      x: point.x - width / 2,
+      y: point.y - height / 2,
     }
-  }, [])
+  }, [controller])
 
   const focusNode = useCallback((node: ProjectCanvasNode, persist = false) => {
     const current = canvasRef.current
     if (!current) return
-    const rect = viewportRef.current?.getBoundingClientRect()
-    const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
-    const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
-    const nextCanvas = canvasWithFocusedNode(current, node, viewportWidth, viewportHeight)
-    setCanvas(nextCanvas)
+    controller.focusNode(node.id, persist)
+    const nextCanvas = controller.getScene()
     canvasRef.current = nextCanvas
     selectSingleNode(node.id)
-    if (persist) void persistCanvas(nextCanvas, 'layout')
-  }, [persistCanvas, selectSingleNode])
+  }, [controller, selectSingleNode])
 
   const {
     discard: closeAiDraft,
@@ -512,16 +432,14 @@ export function ProjectCanvasSurface({
     const existing = current.nodes.find(node => node.ref === ref)
     if (existing) {
       const nextCanvas = withSelectedEdge(current, existing)
-      const rect = viewportRef.current?.getBoundingClientRect()
-      const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
-      const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
-      const focusedCanvas = canvasWithFocusedNode(nextCanvas, existing, viewportWidth, viewportHeight)
-      setCanvas(focusedCanvas)
-      canvasRef.current = focusedCanvas
+      const focusedCanvas = nextCanvas
+      controller.updateScene(() => focusedCanvas)
+      controller.focusNode(existing.id)
+      canvasRef.current = controller.getScene()
       selectSingleNode(existing.id)
       void resolveCanvas(focusedCanvas)
       if (focusedCanvas.edges.length > current.edges.length) {
-        void persistCanvas(focusedCanvas, 'content')
+        void controller.persist(focusedCanvas, 'structural')
       } else {
         focusNode(existing, false)
       }
@@ -541,7 +459,7 @@ export function ProjectCanvasSurface({
       title: candidate.title,
       text: candidate.snippet || undefined,
     })
-  }, [addNodeToCanvas, canvasCenter, focusNode, persistCanvas, resolveCanvas, selectSingleNode, vaultPath, withSelectedEdge])
+  }, [addNodeToCanvas, canvasCenter, controller, focusNode, resolveCanvas, selectSingleNode, vaultPath, withSelectedEdge])
 
   const handleAddEmbeddedNode = useCallback(() => {
     const current = canvasRef.current
@@ -572,32 +490,27 @@ export function ProjectCanvasSurface({
   }, [addMode, addNodeToCanvas, canvasCenter, newCardText])
 
   const handleZoom = useCallback((delta: number) => {
-    updateCanvas(current => ({
-      ...current,
-      viewport: {
-        ...current.viewport,
-        zoom: clamp(Number((current.viewport.zoom + delta).toFixed(2)), ZOOM_MIN, ZOOM_MAX),
-      },
-    }))
+    controller.zoomBy(delta)
     if (zoomSaveTimerRef.current !== null) window.clearTimeout(zoomSaveTimerRef.current)
     zoomSaveTimerRef.current = window.setTimeout(persistLatestLayout, 240)
-  }, [persistLatestLayout, updateCanvas])
+  }, [controller, persistLatestLayout])
 
   const handleFitToView = useCallback(() => {
     const rect = viewportRef.current?.getBoundingClientRect()
-    const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
-    const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
-    updateCanvas(current => canvasWithFitToView(current, viewportWidth, viewportHeight))
-    window.setTimeout(persistLatestLayout, 0)
-  }, [persistLatestLayout, updateCanvas])
+    controller.setViewportSize({
+      width: rect?.width && Number.isFinite(rect.width) ? rect.width : 760,
+      height: rect?.height && Number.isFinite(rect.height) ? rect.height : 460,
+    })
+    controller.fitToContent()
+  }, [controller])
 
   const handleAutoLayout = useCallback(() => {
     const rect = viewportRef.current?.getBoundingClientRect()
     const viewportWidth = rect?.width && Number.isFinite(rect.width) ? rect.width : 760
     const viewportHeight = rect?.height && Number.isFinite(rect.height) ? rect.height : 460
-    updateCanvas(current => canvasWithFitToView(autoLayoutCanvas(current), viewportWidth, viewportHeight))
-    window.setTimeout(persistLatestLayout, 0)
-  }, [persistLatestLayout, updateCanvas])
+    controller.setViewportSize({ width: viewportWidth, height: viewportHeight })
+    controller.autoLayout()
+  }, [controller])
 
   const addLooseNodeAtPoint = useCallback((rawValue: string, point: { x: number; y: number }) => {
     const current = canvasRef.current
@@ -708,173 +621,79 @@ export function ProjectCanvasSurface({
     }
     const nextCanvas = { ...current, nodes: [...current.nodes, ...pasted] }
     setSelectedNodeIds(pasted.map(node => node.id))
-    setSelectedNodeId(pasted.at(-1)?.id ?? null)
     setSelectedEdgeId(null)
     commitContentCanvas(nextCanvas, current)
     for (const node of pasted) trackProjectCanvasNodeAdded({ linked: false, nodeType: node.type })
-  }, [commitContentCanvas])
+  }, [commitContentCanvas, setSelectedEdgeId, setSelectedNodeIds])
 
   const handleViewportPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !canvasRef.current) return
     if (event.target !== event.currentTarget) return
-    operationRef.current = {
-      kind: 'pan',
-      clientX: event.clientX,
-      clientY: event.clientY,
-      startViewport: canvasRef.current.viewport,
-      moved: false,
-    }
-  }, [])
+    controller.beginPan({ x: event.clientX, y: event.clientY }, event.pointerId)
+  }, [controller])
 
   const handleNodePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, node: ProjectCanvasNode) => {
     if (event.button !== 0) return
-    if (spacePressedRef.current && canvasRef.current) {
+    if (controller.isHandOverrideActive() && canvasRef.current) {
       event.preventDefault()
       event.stopPropagation()
-      operationRef.current = {
-        kind: 'pan',
-        clientX: event.clientX,
-        clientY: event.clientY,
-        startViewport: canvasRef.current.viewport,
-        moved: false,
-      }
+      controller.beginPan({ x: event.clientX, y: event.clientY }, event.pointerId)
       return
     }
-    if ((event.target as HTMLElement).closest('button, input, textarea, select, [role="checkbox"]')) return
+    if ((event.target as HTMLElement).closest('button, input, textarea, select, [role="checkbox"], [contenteditable="true"]')) return
     event.stopPropagation()
-    operationRef.current = {
-      kind: 'drag',
-      nodeId: node.id,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      startNode: node,
-      zoom: canvasRef.current?.viewport.zoom ?? 1,
-      moved: false,
-    }
-  }, [])
+    controller.beginNodeDrag(node.id, { x: event.clientX, y: event.clientY }, event.pointerId)
+  }, [controller])
 
   const handleConnectPointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>, node: ProjectCanvasNode) => {
     if (event.button !== 0) return
     event.stopPropagation()
-    const from = nodeCenter(node)
-    const to = screenPointToCanvas(event.clientX, event.clientY)
     selectSingleNode(node.id)
-    setConnectPreview({ from, to })
-    operationRef.current = {
-      kind: 'connect',
-      fromNodeId: node.id,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      from,
-      to,
-      moved: false,
-    }
-  }, [screenPointToCanvas, selectSingleNode])
+    controller.beginGesture('connect', {
+      point: { x: event.clientX, y: event.clientY },
+      targetId: node.id,
+      pointerId: event.pointerId,
+    })
+  }, [controller, selectSingleNode])
 
   const handleResizePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, node: ProjectCanvasNode) => {
     if (event.button !== 0) return
     event.stopPropagation()
-    operationRef.current = {
-      kind: 'resize',
-      nodeId: node.id,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      startNode: node,
-      zoom: canvasRef.current?.viewport.zoom ?? 1,
-      moved: false,
-    }
-  }, [])
+    controller.beginNodeResize(node.id, { x: event.clientX, y: event.clientY }, event.pointerId)
+  }, [controller])
 
   useEffect(() => {
-    function handlePointerMove(event: PointerEvent) {
-      const operation = operationRef.current
-      if (!operation) return
-      const dx = event.clientX - operation.clientX
-      const dy = event.clientY - operation.clientY
-      if (Math.abs(dx) + Math.abs(dy) > 4) operation.moved = true
-
-      if (operation.kind === 'connect') {
-        const to = screenPointToCanvas(event.clientX, event.clientY)
-        operation.to = to
-        setConnectPreview({ from: operation.from, to })
-        return
-      }
-
-      if (operation.kind === 'pan') {
-        updateCanvas(current => ({
-          ...current,
-          viewport: {
-            ...current.viewport,
-            x: operation.startViewport.x + dx,
-            y: operation.startViewport.y + dy,
-          },
-        }))
-        return
-      }
-
-      const scaledDx = dx / operation.zoom
-      const scaledDy = dy / operation.zoom
-      updateCanvas(current => ({
-        ...current,
-        nodes: current.nodes.map(node => {
-          if (node.id !== operation.nodeId) return node
-          if (operation.kind === 'drag') {
-            return {
-              ...node,
-              x: operation.startNode.x + scaledDx,
-              y: operation.startNode.y + scaledDy,
-            }
-          }
-          return {
-            ...node,
-            width: Math.max(MIN_NODE_WIDTH, operation.startNode.width + scaledDx),
-            height: Math.max(MIN_NODE_HEIGHT, operation.startNode.height + scaledDy),
-          }
-        }),
-      }))
-    }
-
-    function handlePointerUp(event: PointerEvent) {
-      const operation = operationRef.current
-      if (!operation) return
-      operationRef.current = null
-      if (operation.kind === 'connect') {
-        setConnectPreview(null)
-        const targetElement = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-node-id]')
-        const targetNodeId = targetElement instanceof HTMLElement ? targetElement.dataset.nodeId : null
-        const latest = canvasRef.current
-        if (!latest || !targetNodeId || targetNodeId === operation.fromNodeId) return
-        const edgeExists = latest.edges.some(edge => edge.from === operation.fromNodeId && edge.to === targetNodeId)
-        if (edgeExists) return
-        const edge = {
-          id: nextCanvasId('edge', latest.edges.map(item => item.id)),
-          from: operation.fromNodeId,
-          to: targetNodeId,
-          kind: edgeKind,
+    return controller.attachPointerSource(
+      window,
+      event => {
+        const elementAtPoint = typeof document.elementFromPoint === 'function'
+          ? document.elementFromPoint(event.clientX, event.clientY)
+          : null
+        const targetElement = elementAtPoint?.closest('[data-node-id]')
+        return targetElement instanceof HTMLElement ? targetElement.dataset.nodeId ?? null : null
+      },
+      edgeKind,
+      ({ gesture, targetNodeId }) => {
+        if (gesture.kind === 'connect' && targetNodeId && targetNodeId !== gesture.targetId) {
+          trackProjectCanvasEdgeCreated({ kind: edgeKind })
         }
-        const nextCanvas = { ...latest, edges: [...latest.edges, edge] }
-        setSelectedEdgeId(edge.id)
-        setSelectedNodeId(null)
-        setSelectedNodeIds([])
-        commitContentCanvas(nextCanvas, latest)
-        trackProjectCanvasEdgeCreated({ kind: edgeKind })
-        return
-      }
-      if (operation.moved) {
-        suppressClickUntilRef.current = Date.now() + 250
-        persistLatestLayout()
-      }
-    }
-
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp)
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-    }
-  }, [commitContentCanvas, edgeKind, persistLatestLayout, screenPointToCanvas, updateCanvas])
+        if (gesture.phase === 'active') suppressClickUntilRef.current = Date.now() + 250
+      },
+    )
+  }, [controller, edgeKind])
 
   const refsByNodeId = useMemo(() => resolvedMap(refs), [refs])
+
+  const connectPreview = useMemo(() => {
+    const gesture = controllerSnapshot.gesture
+    if (gesture.kind !== 'connect' || !gesture.start || !gesture.current || !canvas) return null
+    const fromNode = canvas.nodes.find(node => node.id === gesture.targetId)
+    if (!fromNode) return null
+    return {
+      from: nodeCenter(fromNode),
+      to: screenPointToCanvas(gesture.current.x, gesture.current.y),
+    }
+  }, [canvas, controllerSnapshot.gesture, screenPointToCanvas])
 
   const handleNodeClick = useCallback((node: ProjectCanvasNode) => {
     if (Date.now() < suppressClickUntilRef.current) return
@@ -890,7 +709,7 @@ export function ProjectCanvasSurface({
     setEditingNodeId(null)
     setEditorHost(null)
     setFocusMode(false)
-  }, [editingNodeId, onSave])
+  }, [editingNodeId, onSave, setEditingNodeId])
 
   const changeFocusMode = useCallback((enabled: boolean) => {
     const current = canvasRef.current?.nodes.find(node => node.id === editingNodeId)
@@ -931,7 +750,7 @@ export function ProjectCanvasSurface({
       commitContentCanvas(nextCanvas, current)
     }
     setEditingNodeId(node.id)
-  }, [commitContentCanvas, editingNodeId, entries, handleNodeClick, onSave, refsByNodeId, selectSingleNode, vaultPath])
+  }, [commitContentCanvas, editingNodeId, entries, handleNodeClick, onSave, refsByNodeId, selectSingleNode, setEditingNodeId, vaultPath])
 
   const closePeekNode = useCallback(() => {
     if (!peekNode) return
@@ -941,7 +760,7 @@ export function ProjectCanvasSurface({
     setEditingNodeId(null)
     setFocusMode(false)
     selectSingleNode(null)
-  }, [editingNodeId, onSave, peekNode, selectSingleNode])
+  }, [editingNodeId, onSave, peekNode, selectSingleNode, setEditingNodeId])
 
   const pinPeekNode = useCallback(() => {
     const current = canvasRef.current
@@ -1000,7 +819,7 @@ export function ProjectCanvasSurface({
     focusNode(nextPeek, false)
     setEditingNodeId(nextPeek.id)
     trackProjectCanvasPeekOpened({ nodeType })
-  }, [canvasCenter, editDocumentNode, editingNodeId, entries, focusNode, onNavigateWikilink, onSave, peekNode, refsByNodeId, selectedNodeId, vaultPath])
+  }, [canvasCenter, editDocumentNode, editingNodeId, entries, focusNode, onNavigateWikilink, onSave, peekNode, refsByNodeId, selectedNodeId, setEditingNodeId, vaultPath])
 
   useEffect(() => {
     const navigate = (target: string) => {
@@ -1027,10 +846,8 @@ export function ProjectCanvasSurface({
   }, [selectSingleNode, toggleNodeSelection])
 
   const handleSelectEdge = useCallback((edgeId: string) => {
-    setSelectedEdgeId(edgeId)
-    setSelectedNodeId(null)
-    setSelectedNodeIds([])
-  }, [])
+    controller.selectEdge(edgeId)
+  }, [controller])
 
   const handleNodeTextChange = useCallback((nodeId: string, text: string) => {
     updateCanvas(current => ({
@@ -1062,10 +879,11 @@ export function ProjectCanvasSurface({
       ...current,
       nodes: current.nodes.map(node => node.id === selectedNodeId ? { ...node, ...patch } : node),
     }
-    setCanvas(nextCanvas)
+    if (persist) controller.replaceScene(nextCanvas, 'Update node', 'structural')
+    else controller.updateScene(() => nextCanvas)
     canvasRef.current = nextCanvas
-    if (persist) commitContentCanvas(nextCanvas, current)
-  }, [commitContentCanvas, selectedNodeId])
+    if (persist && Object.keys(patch).length === 0) void controller.persist(nextCanvas, 'structural')
+  }, [controller, selectedNodeId])
 
   const updateSelectedEdge = useCallback((patch: Partial<ProjectCanvas['edges'][number]>, persist = false) => {
     const current = canvasRef.current
@@ -1074,10 +892,11 @@ export function ProjectCanvasSurface({
       ...current,
       edges: current.edges.map(edge => edge.id === selectedEdgeId ? { ...edge, ...patch } : edge),
     }
-    setCanvas(nextCanvas)
+    if (persist) controller.replaceScene(nextCanvas, 'Update edge', 'structural')
+    else controller.updateScene(() => nextCanvas)
     canvasRef.current = nextCanvas
-    if (persist) commitContentCanvas(nextCanvas, current)
-  }, [commitContentCanvas, selectedEdgeId])
+    if (persist && Object.keys(patch).length === 0) void controller.persist(nextCanvas, 'structural')
+  }, [controller, selectedEdgeId])
 
   const deleteSelectedNode = useCallback(() => {
     const current = canvasRef.current
@@ -1099,7 +918,7 @@ export function ProjectCanvasSurface({
     setSelectedNodeId(null)
     setSelectedNodeIds([])
     commitContentCanvas(nextCanvas, current)
-  }, [commitContentCanvas, editingNodeId, onSave, selectedNodeId, selectedNodeIds])
+  }, [commitContentCanvas, editingNodeId, onSave, selectedNodeId, selectedNodeIds, setEditingNodeId, setSelectedNodeId, setSelectedNodeIds])
 
   const deleteSelectedEdge = useCallback(() => {
     const current = canvasRef.current
@@ -1110,7 +929,7 @@ export function ProjectCanvasSurface({
     }
     setSelectedEdgeId(null)
     commitContentCanvas(nextCanvas, current)
-  }, [commitContentCanvas, selectedEdgeId])
+  }, [commitContentCanvas, selectedEdgeId, setSelectedEdgeId])
 
   const handleCanvasKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && editingNodeId) {
@@ -1134,7 +953,12 @@ export function ProjectCanvasSurface({
         setAddPanelOpen(false)
         return
       }
+      if (controller.getGestureSnapshot().phase !== 'idle') {
+        controller.escape()
+        return
+      }
       if (editingNodeId) {
+        controller.escape()
         closeCanvasEditor()
         return
       }
@@ -1144,7 +968,7 @@ export function ProjectCanvasSurface({
     }
     if (event.key === ' ') {
       event.preventDefault()
-      spacePressedRef.current = true
+      controller.setSpacePressed(true)
       return
     }
     if (event.key === 'Enter' && selectedNode) {
@@ -1181,11 +1005,11 @@ export function ProjectCanvasSurface({
       else if (selectedNodeId === aiDraftNode?.id) closeAiDraft()
       else if (selectedNodeId) deleteSelectedNode()
     }
-  }, [addPanelOpen, aiDraftNode?.id, changeFocusMode, closeAiDraft, closeCanvasEditor, closePeekNode, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editDocumentNode, editingNodeId, focusMode, pasteCopiedNode, peekNode?.id, restoreCanvasFromHistory, selectSingleNode, selectedEdgeId, selectedNode, selectedNodeId])
+  }, [addPanelOpen, aiDraftNode?.id, changeFocusMode, closeAiDraft, closeCanvasEditor, closePeekNode, controller, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editDocumentNode, editingNodeId, focusMode, pasteCopiedNode, peekNode?.id, restoreCanvasFromHistory, selectSingleNode, selectedEdgeId, selectedNode, selectedNodeId, setSelectedEdgeId])
 
   const handleCanvasKeyUp = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === ' ') spacePressedRef.current = false
-  }, [])
+    if (event.key === ' ') controller.setSpacePressed(false)
+  }, [controller])
 
   if (state === 'loading') {
     return <div className="project-canvas-loading">{translate(locale, 'projectCanvas.loading')}</div>
@@ -1216,12 +1040,8 @@ export function ProjectCanvasSurface({
     : null
   const retainedNodeIds = new Set(selectedNodeIds)
   if (editingNodeId) retainedNodeIds.add(editingNodeId)
-  const visibleNodes = visibleProjectCanvasNodes(
-    canvas.nodes,
-    canvas.viewport,
-    viewportSize,
-    retainedNodeIds,
-  )
+  const visibleNodes = controller.queryVisibleNodes(retainedNodeIds)
+  const camera = controllerSnapshot.viewport.camera
 
   return (
     <section className="project-canvas-surface" data-testid="project-canvas-surface">
@@ -1246,7 +1066,7 @@ export function ProjectCanvasSurface({
         onDrop={handleCanvasDrop}
         onKeyDown={handleCanvasKeyDown}
         onKeyUp={handleCanvasKeyUp}
-        onBlur={() => { spacePressedRef.current = false }}
+        onBlur={() => controller.setSpacePressed(false)}
         onPointerDown={handleViewportPointerDown}
       >
         <ProjectCanvasNavigator
@@ -1261,48 +1081,17 @@ export function ProjectCanvasSurface({
         <div
           className="project-canvas-world"
           style={{
-            transform: `translate(${canvas.viewport.x}px, ${canvas.viewport.y}px) scale(${canvas.viewport.zoom})`,
+            transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,
           }}
         >
-          <svg
-            className="project-canvas-edges"
-            style={{ left: svgMinX, top: svgMinY, width: svgWidth, height: svgHeight }}
-            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-            aria-hidden="true"
-          >
-            {canvas.edges.map(edge => {
-              const from = canvas.nodes.find(node => node.id === edge.from)
-              const to = canvas.nodes.find(node => node.id === edge.to)
-              if (!from || !to) return null
-              const fromCenter = nodeCenter(from)
-              const toCenter = nodeCenter(to)
-              return (
-                <line
-                  key={edge.id}
-                  className={cn('project-canvas-edge', edge.id === selectedEdgeId && 'project-canvas-edge--selected')}
-                  data-testid="project-canvas-edge"
-                  x1={fromCenter.x - svgMinX}
-                  y1={fromCenter.y - svgMinY}
-                  x2={toCenter.x - svgMinX}
-                  y2={toCenter.y - svgMinY}
-                  onPointerDown={(event) => {
-                    event.stopPropagation()
-                    handleSelectEdge(edge.id)
-                  }}
-                />
-              )
-            })}
-            {connectPreview ? (
-              <line
-                className="project-canvas-edge project-canvas-edge--preview"
-                x1={connectPreview.from.x - svgMinX}
-                y1={connectPreview.from.y - svgMinY}
-                x2={connectPreview.to.x - svgMinX}
-                y2={connectPreview.to.y - svgMinY}
-              />
-            ) : null}
-          </svg>
-          {visibleNodes.map((node) => {
+          <CanvasGraphicsLayer
+            bounds={{ minX: svgMinX, minY: svgMinY, width: svgWidth, height: svgHeight }}
+            canvas={canvas}
+            connectPreview={connectPreview}
+            onSelectEdge={handleSelectEdge}
+            selectedEdgeId={selectedEdgeId}
+          />
+          <CanvasDocumentLayer nodes={visibleNodes} renderNode={(node) => {
             const nodeEntry = findEntryForProjectCanvasRef(entries, node.ref, refsByNodeId.get(node.id)?.targetPath, vaultPath)
             return (
               <ProjectCanvasNodeCard
@@ -1314,7 +1103,7 @@ export function ProjectCanvasSurface({
                 locale={locale}
                 resolved={refsByNodeId.get(node.id)}
                 selected={selectedNodeIds.includes(node.id)}
-                presentation={nodePresentation(canvas.viewport.zoom, selectedNodeIds.includes(node.id))}
+                presentation={nodePresentation(camera.zoom, selectedNodeIds.includes(node.id))}
                 vaultPath={vaultPath}
                 onClick={(event) => handleSelectNode(node, event)}
                 onDoubleClick={() => editDocumentNode(node)}
@@ -1328,7 +1117,7 @@ export function ProjectCanvasSurface({
                 onTextChange={(text) => handleNodeTextChange(node.id, text)}
               />
             )
-          })}
+          }} />
           {peekNode ? (
             <ProjectCanvasNodeCard
               node={peekNode}
@@ -1382,6 +1171,7 @@ export function ProjectCanvasSurface({
             />
           ) : null}
         </div>
+        <CanvasOverlayLayer selectionRect={controllerSnapshot.overlay.rect} />
         {focusMode && editingEntry ? (
           <section
             className="project-canvas-focus-mode"
@@ -1463,7 +1253,7 @@ export function ProjectCanvasSurface({
             size="icon-sm"
             variant="outline"
             onClick={() => restoreCanvasFromHistory('undo')}
-            disabled={undoStack.length === 0}
+            disabled={!controllerSnapshot.canUndo}
             aria-label={translate(locale, 'projectCanvas.undo')}
           >
             <ArrowCounterClockwise size={14} />
@@ -1473,7 +1263,7 @@ export function ProjectCanvasSurface({
             size="icon-sm"
             variant="outline"
             onClick={() => restoreCanvasFromHistory('redo')}
-            disabled={redoStack.length === 0}
+            disabled={!controllerSnapshot.canRedo}
             aria-label={translate(locale, 'projectCanvas.redo')}
           >
             <ArrowClockwise size={14} />
@@ -1581,7 +1371,7 @@ export function ProjectCanvasSurface({
             <Minus size={14} />
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={handleFitToView}>
-            {Math.round(canvas.viewport.zoom * 100)}%
+            {Math.round(camera.zoom * 100)}%
           </Button>
           <Button type="button" size="icon-sm" variant="outline" onClick={() => handleZoom(ZOOM_STEP)} aria-label={translate(locale, 'projectCanvas.zoomIn')}>
             <Plus size={14} />

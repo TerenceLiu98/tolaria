@@ -1181,3 +1181,24 @@ Features that work on both platforms without changes:
 **Capabilities:** `src-tauri/capabilities/default.json` targets desktop; `mobile.json` targets iOS/Android with a minimal permission set.
 
 **Detailed feasibility report:** `docs/IPAD-PROTOTYPE.md`
+
+### ADR 0175 Canvas engine
+
+The Project Canvas UI is an application shell over a headless engine. `ProjectCanvasController` is the only mutation boundary for loaded Canvas state and exposes a stable external-store snapshot for React:
+
+```text
+ProjectWorkspaceSurface
+└── ProjectCanvasSurface (composition/subscriptions/dispatch)
+    └── ProjectCanvasController
+        ├── CanvasSceneStore        normalized layout + spatial index
+        ├── CanvasViewport           camera, transforms, fit, culling bounds
+        ├── CanvasSelectionManager   selection/editing/gesture ownership
+        ├── CanvasToolManager        explicit pointer state machines
+        ├── CanvasHistoryManager     bounded Canvas transactions
+        ├── CanvasLayerManager       graphics/document/overlay budgets
+        ├── CanvasOverlayCoordinator screen-space placement and dismissal
+        ├── CanvasNodeSpecRegistry    node behavior registration
+        └── ProjectCanvasPersistenceAdapter
+```
+
+`CanvasSceneStore` remains body-free: Markdown, Paper sidecars, comments, BlockNote documents, and rendered previews never enter Canvas JSON. `CanvasViewport` distinguishes rendering overscan from exact hit-testing bounds and batches camera changes through animation frames. The React surface uses `CanvasGraphicsLayer`, `CanvasDocumentLayer`, and `CanvasOverlayLayer`; only the active `CanvasEditorPortal` mounts a live document editor. Structural commands persist promptly, viewport writes are debounced, and Canvas history remains separate from BlockNote document history.

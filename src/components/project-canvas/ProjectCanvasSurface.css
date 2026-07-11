@@ -790,6 +790,14 @@
   content: "";
 }
 
+.project-canvas-selection-overlay {
+  position: absolute;
+  z-index: 4;
+  border: 1px solid color-mix(in srgb, var(--primary) 70%, transparent);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
 .project-workspace-surface {
   display: flex;
   min-height: 0;
