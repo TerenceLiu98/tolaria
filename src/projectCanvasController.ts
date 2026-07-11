@@ -3,7 +3,7 @@ import { CanvasHistoryManager, type CanvasHistoryDomain } from './canvasHistoryM
 import { CanvasLayerManager } from './canvasLayerManager'
 import { CanvasNodeSpecRegistry } from './canvasNodeSpecRegistry'
 import { CanvasOverlayCoordinator, type CanvasOverlayHandle } from './canvasOverlayCoordinator'
-import { CanvasSceneStore, type CanvasPoint, type CanvasSceneDiagnostics, type CanvasSceneSnapshot } from './canvasSceneStore'
+import { CanvasSceneStore, type CanvasNodeGeometryPatch, type CanvasPoint, type CanvasSceneDiagnostics, type CanvasSceneSnapshot } from './canvasSceneStore'
 import { CanvasSelectionManager, type CanvasSelectionSnapshot } from './canvasSelectionManager'
 import { CanvasToolManager, type CanvasGestureKind, type CanvasGestureSnapshot, type CanvasPointerInput, type CanvasTool } from './canvasToolManager'
 import { CanvasViewport, type CanvasViewportSize, type CanvasViewportSnapshot } from './canvasViewport'
@@ -596,20 +596,21 @@ export class ProjectCanvasController {
       return gesture
     }
     const zoom = context.startViewport.zoom
-    const patches = Object.values(context.startNodes).flatMap(startNode => {
+    const patches: CanvasNodeGeometryPatch[] = []
+    for (const startNode of Object.values(context.startNodes)) {
       if (context.kind === 'resize' && startNode.id === context.nodeId) {
         const geometry = this.specs.getForNode(startNode).geometry
-        return [{
+        patches.push({
           id: startNode.id,
           width: Math.max(geometry.minWidth, startNode.width + dx / zoom),
           height: Math.max(geometry.minHeight, startNode.height + dy / zoom),
-        }]
+        })
+        continue
       }
       if (context.kind === 'drag') {
-        return [{ id: startNode.id, x: startNode.x + dx / zoom, y: startNode.y + dy / zoom }]
+        patches.push({ id: startNode.id, x: startNode.x + dx / zoom, y: startNode.y + dy / zoom })
       }
-      return []
-    })
+    }
     this.sceneStore.patchNodeGeometry(patches)
     return gesture
   }
@@ -792,13 +793,14 @@ export class ProjectCanvasController {
   private updateSelectionOverlay(notify = true): void {
     const scene = this.sceneStore
     if (!scene) return
+    const selection = this.selection.getSnapshot()
     const ids = new Set(this.selection.getSnapshot().selectedNodeIds)
     const selectedNodes = [...ids].flatMap(nodeId => {
       const node = scene.node(nodeId)
       return node ? [node] : []
     })
-    this.overlays.positionForNodes(selectedNodes, this.viewport, notify, this.selection.getSnapshot().primary?.kind === 'node'
-      ? this.selection.getSnapshot().primary.id
+    this.overlays.positionForNodes(selectedNodes, this.viewport, notify, selection.primary?.kind === 'node'
+      ? selection.primary.id
       : null)
     this.overlays.setActive(ids.size > 0 ? ['selection', 'resize', 'toolbar'] : [], notify)
   }

@@ -228,7 +228,8 @@ export class CanvasSceneStore {
     const nodesById = this.snapshotValue.nodesById as Record<string, ProjectCanvasNode>
     for (const patch of patches) {
       const rank = this.nodeRanks.get(patch.id)
-      const current = rank === undefined ? undefined : this.canvas.nodes[rank]
+      if (rank === undefined) continue
+      const current = this.canvas.nodes[rank]
       if (!current) continue
       const next = {
         ...current,

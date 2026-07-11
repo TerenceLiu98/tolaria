@@ -1,6 +1,6 @@
 import type { ProjectCanvasNode, ProjectCanvasNodeType } from './projectCanvas'
 
-export type CanvasNodePresentation = 'overview' | 'preview' | 'edit'
+export type CanvasNodePresentation = 'overview' | 'preview' | 'card' | 'edit'
 export type CanvasNodeSpecKey = ProjectCanvasNodeType | 'overview'
 
 export interface CanvasNodeGeometry {
