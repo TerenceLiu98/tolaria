@@ -8,8 +8,8 @@ describe('CanvasGraphicsLayer', () => {
     const onSelectEdge = vi.fn()
     const commands: CanvasGraphicsCommandBatch = {
       connectors: [
-        { edgeId: 'edge-a', from: { x: 10, y: 20 }, to: { x: 110, y: 120 }, selected: false },
-        { edgeId: 'edge-b', from: { x: 30, y: 40 }, to: { x: 130, y: 140 }, selected: true },
+        { edgeId: 'edge-a', from: { x: 10, y: 20 }, fromAnchorId: 'right', to: { x: 110, y: 120 }, toAnchorId: 'left', selected: false },
+        { edgeId: 'edge-b', from: { x: 30, y: 40 }, fromAnchorId: 'right', to: { x: 130, y: 140 }, toAnchorId: 'left', selected: true },
       ],
       preview: { from: { x: 50, y: 60 }, to: { x: 150, y: 160 } },
     }

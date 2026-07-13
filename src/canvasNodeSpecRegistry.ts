@@ -25,6 +25,14 @@ export interface CanvasNodeGeometry {
   minHeight: number
 }
 
+export type CanvasConnectionSide = 'top' | 'right' | 'bottom' | 'left'
+
+export interface CanvasConnectionAnchor {
+  readonly id: CanvasConnectionSide
+  readonly side: CanvasConnectionSide
+  readonly point: { readonly x: number; readonly y: number }
+}
+
 export interface CanvasNodeSpec {
   readonly key: CanvasNodeSpecKey
   readonly type: ProjectCanvasNodeType
@@ -40,6 +48,7 @@ export interface CanvasNodeSpec {
   readonly referenceMode: 'none' | 'readonly' | 'editable'
   readonly inspectorFields: readonly ('title' | 'reference' | 'text' | 'completed' | 'edge')[]
   readonly toolbarActions: readonly CanvasNodeToolbarAction[]
+  readonly connectionAnchors: (node: ProjectCanvasNode) => readonly CanvasConnectionAnchor[]
   readonly preview: (node: ProjectCanvasNode, presentation: CanvasNodePresentation) => { title: string; text?: string }
   readonly staleLabel: (node: ProjectCanvasNode) => string
   readonly clipboard: (node: ProjectCanvasNode) => ProjectCanvasNode
@@ -91,12 +100,25 @@ function rejectDrop(): null {
   return null
 }
 
-type CanvasNodeSpecDefinition = Omit<CanvasNodeSpec, 'clipboard' | 'preview' | 'staleLabel'>
+export function cardinalConnectionAnchors(node: ProjectCanvasNode): readonly CanvasConnectionAnchor[] {
+  const centerX = node.x + node.width / 2
+  const centerY = node.y + node.height / 2
+  return [
+    { id: 'top', side: 'top', point: { x: centerX, y: node.y } },
+    { id: 'right', side: 'right', point: { x: node.x + node.width, y: centerY } },
+    { id: 'bottom', side: 'bottom', point: { x: centerX, y: node.y + node.height } },
+    { id: 'left', side: 'left', point: { x: node.x, y: centerY } },
+  ]
+}
+
+type CanvasNodeSpecDefinition = Omit<CanvasNodeSpec, 'clipboard' | 'connectionAnchors' | 'preview' | 'staleLabel'>
+  & Partial<Pick<CanvasNodeSpec, 'connectionAnchors'>>
 
 function defineSpec(definition: CanvasNodeSpecDefinition): CanvasNodeSpec {
   return {
     ...definition,
     clipboard: copyNode,
+    connectionAnchors: definition.connectionAnchors ?? cardinalConnectionAnchors,
     preview: defaultPreview,
     staleLabel: node => `Stale ${node.type} reference`,
   }

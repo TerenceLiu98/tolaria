@@ -1,7 +1,7 @@
 import { autoLayoutCanvas } from './components/project-canvas/projectCanvasDisplay'
 import { CanvasHistoryManager, type CanvasHistoryDomain } from './canvasHistoryManager'
 import { CanvasLayerManager } from './canvasLayerManager'
-import { buildCanvasGraphicsCommandBatch, type CanvasGraphicsCommandBatch } from './canvasGraphicsCommands'
+import { buildCanvasGraphicsCommandBatch, connectionAnchorToward, type CanvasGraphicsCommandBatch } from './canvasGraphicsCommands'
 import { CanvasNodeSpecRegistry, type CanvasNodeToolbarAction } from './canvasNodeSpecRegistry'
 import { CanvasOverlayCoordinator, type CanvasOverlayGuide, type CanvasOverlayHandle } from './canvasOverlayCoordinator'
 import { CanvasSceneStore, type CanvasNodeGeometryPatch, type CanvasPoint, type CanvasSceneDiagnostics, type CanvasSceneSnapshot } from './canvasSceneStore'
@@ -330,11 +330,21 @@ export class ProjectCanvasController {
       : null
     const preview = fromNode && gesture.current
       ? {
-          from: { x: fromNode.x + fromNode.width / 2, y: fromNode.y + fromNode.height / 2 },
+          from: connectionAnchorToward(
+            fromNode,
+            this.viewport.screenToCanvas(gesture.current),
+            node => this.specs.getForNode(node).connectionAnchors(node),
+          ).point,
           to: this.viewport.screenToCanvas(gesture.current),
         }
       : null
-    return buildCanvasGraphicsCommandBatch(scene.getSnapshot(), edges, selectedEdgeIds, preview)
+    return buildCanvasGraphicsCommandBatch(
+      scene.getSnapshot(),
+      edges,
+      selectedEdgeIds,
+      preview,
+      node => this.specs.getForNode(node).connectionAnchors(node),
+    )
   }
 
   setTool(tool: CanvasTool): void {

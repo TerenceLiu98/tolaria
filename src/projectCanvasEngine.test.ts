@@ -145,9 +145,11 @@ describe('CanvasSceneStore', () => {
 
     expect(batch.connectors).toEqual([{
       edgeId: 'edge-1',
-      from: { x: 50, y: 40 },
+      from: { x: 100, y: 40 },
+      fromAnchorId: 'right',
       selected: true,
-      to: { x: 250, y: 140 },
+      to: { x: 200, y: 140 },
+      toAnchorId: 'left',
     }])
   })
   it('keeps 1,000-node viewport queries bounded', () => {
@@ -281,6 +283,13 @@ describe('Canvas layers, node specs, and overlays', () => {
     expect(specs.get('note').editorGeometry).toMatchObject({ width: 560, height: 420 })
     expect(specs.get('task').toolbarActions).toContain('toggle-complete')
     expect(specs.get('task').toolbarActions).toEqual(expect.arrayContaining(['connect', 'resize', 'toggle-complete', 'delete']))
+    expect(specs.get('task').connectionAnchors({ id: 'task', type: 'task', x: 10, y: 20, width: 100, height: 80 }))
+      .toEqual([
+        { id: 'top', side: 'top', point: { x: 60, y: 20 } },
+        { id: 'right', side: 'right', point: { x: 110, y: 60 } },
+        { id: 'bottom', side: 'bottom', point: { x: 60, y: 100 } },
+        { id: 'left', side: 'left', point: { x: 10, y: 60 } },
+      ])
     expect(specs.get('paper_block').resolveDrop('@block[attention#b001]')).toEqual({ ref: '@block[attention#b001]' })
     expect(specs.get('image').resolveDrop('figure.png')).toEqual({ ref: 'figure.png', title: 'figure.png' })
     expect(specs.get('text').resolveDrop('plain text')).toEqual({ text: 'plain text' })
@@ -533,6 +542,13 @@ describe('ProjectCanvasController', () => {
     expect(controller.queryVisibleGraphics().connectors.at(-1)?.edgeId).toBe('edge-998')
     controller.selectNodes(['node-999'])
     expect(controller.queryVisibleGraphics().connectors.at(-1)?.edgeId).toBe('edge-998')
+    controller.beginConnection('node-0', { x: 50, y: 40 })
+    controller.updatePointer({ x: 400, y: 40 })
+    expect(controller.queryVisibleGraphics().preview).toEqual({
+      from: { x: 100, y: 40 },
+      to: { x: 400, y: 40 },
+    })
+    controller.cancelGesture()
     controller.dispose()
   })
 
