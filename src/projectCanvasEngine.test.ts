@@ -7,6 +7,7 @@ import { CanvasSceneStore } from './canvasSceneStore'
 import { CanvasSelectionManager } from './canvasSelectionManager'
 import { CanvasToolManager } from './canvasToolManager'
 import { CanvasViewport } from './canvasViewport'
+import { buildCanvasGraphicsCommandBatch } from './canvasGraphicsCommands'
 import { defaultProjectCanvas, type ProjectCanvas, type ProjectCanvasReadResult, type ProjectCanvasResolveResult } from './projectCanvas'
 import { ProjectCanvasController } from './projectCanvasController'
 import { ProjectCanvasPersistenceAdapter } from './projectCanvasPersistenceAdapter'
@@ -69,6 +70,86 @@ describe('CanvasViewport', () => {
 })
 
 describe('CanvasSceneStore', () => {
+  it('queries visible connectors through spatial candidates and retains selected edges', () => {
+    const nodes = Array.from({ length: 1_000 }, (_, index) => ({
+      id: `node-${index}`,
+      type: 'text' as const,
+      x: (index % 100) * 200,
+      y: Math.floor(index / 100) * 200,
+      width: 100,
+      height: 80,
+    }))
+    const edges = nodes.slice(1).map((node, index) => ({
+      id: `edge-${index}`,
+      from: nodes[index].id,
+      to: node.id,
+      kind: 'related' as const,
+    }))
+    const store = new CanvasSceneStore({
+      ...defaultProjectCanvas('Projects/demo/project.md'),
+      nodes,
+      edges,
+    }, { normalize: false })
+
+    const visible = store.queryEdges({ minX: 0, minY: 0, maxX: 450, maxY: 300 })
+    expect(visible.map(edge => edge.id)).toEqual([
+      'edge-0',
+      'edge-1',
+      'edge-2',
+      'edge-99',
+      'edge-100',
+      'edge-101',
+      'edge-102',
+    ])
+    expect(store.getDiagnostics().lastEdgeQueryCandidates).toBeLessThan(20)
+
+    const retained = store.queryEdges(
+      { minX: 0, minY: 0, maxX: 450, maxY: 300 },
+      new Set(['edge-998']),
+    )
+    expect(retained.at(-1)?.id).toBe('edge-998')
+    expect(store.incidentEdgeIds(new Set(['node-999']))).toEqual(['edge-998'])
+  })
+
+  it('updates connector spatial cells incrementally with pointer geometry', () => {
+    const store = new CanvasSceneStore({
+      ...defaultProjectCanvas('Projects/demo/project.md'),
+      nodes: [
+        { id: 'a', type: 'text', x: 0, y: 0, width: 100, height: 80 },
+        { id: 'b', type: 'text', x: 200, y: 0, width: 100, height: 80 },
+      ],
+      edges: [{ id: 'edge-1', from: 'a', to: 'b', kind: 'related' }],
+    }, { normalize: false })
+
+    expect(store.queryEdges({ minX: 0, minY: 0, maxX: 300, maxY: 100 })).toHaveLength(1)
+    store.patchNodeGeometry([{ id: 'a', x: 5_000 }, { id: 'b', x: 5_200 }])
+    expect(store.queryEdges({ minX: 0, minY: 0, maxX: 300, maxY: 100 })).toHaveLength(0)
+    expect(store.queryEdges({ minX: 5_000, minY: 0, maxX: 5_300, maxY: 100 })).toHaveLength(1)
+    expect(store.getDiagnostics().fullRebuilds).toBe(1)
+  })
+
+  it('builds bounded graphics command batches without renderer-specific state', () => {
+    const store = new CanvasSceneStore({
+      ...defaultProjectCanvas('Projects/demo/project.md'),
+      nodes: [
+        { id: 'a', type: 'text', x: 0, y: 0, width: 100, height: 80 },
+        { id: 'b', type: 'text', x: 200, y: 100, width: 100, height: 80 },
+      ],
+      edges: [{ id: 'edge-1', from: 'a', to: 'b', kind: 'related' }],
+    }, { normalize: false })
+    const batch = buildCanvasGraphicsCommandBatch(
+      store.getSnapshot(),
+      store.queryEdges({ minX: 0, minY: 0, maxX: 400, maxY: 300 }),
+      new Set(['edge-1']),
+    )
+
+    expect(batch.connectors).toEqual([{
+      edgeId: 'edge-1',
+      from: { x: 50, y: 40 },
+      selected: true,
+      to: { x: 250, y: 140 },
+    }])
+  })
   it('keeps 1,000-node viewport queries bounded', () => {
     const nodes = Array.from({ length: 1000 }, (_, index) => ({
       id: `node-${index}`,
@@ -413,6 +494,48 @@ describe('ProjectCanvasPersistenceAdapter', () => {
 })
 
 describe('ProjectCanvasController', () => {
+  it('publishes indexed visible graphics and retains an offscreen selected connector', async () => {
+    const nodes = Array.from({ length: 1_000 }, (_, index) => ({
+      id: `node-${index}`,
+      type: 'text' as const,
+      x: (index % 100) * 200,
+      y: Math.floor(index / 100) * 200,
+      width: 100,
+      height: 80,
+    }))
+    const initial = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes,
+      edges: nodes.slice(1).map((node, index) => ({
+        id: `edge-${index}`,
+        from: nodes[index].id,
+        to: node.id,
+        kind: 'related' as const,
+      })),
+    }
+    const persistence = new ProjectCanvasPersistenceAdapter({
+      projectPath: initial.project,
+      vaultPath: '/vault',
+      deterministicWrites: false,
+      read: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready', canvas: initial }),
+      create: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready', canvas: initial }),
+      resolve: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', refs: [], diagnostics: [] }),
+      save: async (_vault, _project, canvas) => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready', canvas }),
+      viewportDebounceMs: 0,
+    })
+    const controller = new ProjectCanvasController({ persistence, migrateLoadedScene: false, viewportOverscan: 0 })
+    await controller.load()
+    controller.setViewportSize({ width: 500, height: 300 })
+
+    expect(controller.queryVisibleGraphics().connectors.length).toBeLessThan(20)
+    expect(controller.getSceneDiagnostics()?.lastEdgeQueryCandidates).toBeLessThan(20)
+    controller.selectEdge('edge-998')
+    expect(controller.queryVisibleGraphics().connectors.at(-1)?.edgeId).toBe('edge-998')
+    controller.selectNodes(['node-999'])
+    expect(controller.queryVisibleGraphics().connectors.at(-1)?.edgeId).toBe('edge-998')
+    controller.dispose()
+  })
+
   it('uses actual focus ownership for undo and preserves Canvas history across editor focus transitions', async () => {
     const initial = canvasWithNodes()
     const persistence = new ProjectCanvasPersistenceAdapter({

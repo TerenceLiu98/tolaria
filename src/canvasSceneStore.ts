@@ -53,6 +53,7 @@ export interface CanvasSceneDiagnostics {
   readonly geometryPatchBatches: number
   readonly geometryPatchedNodes: number
   readonly lastQueryCandidates: number
+  readonly lastEdgeQueryCandidates: number
 }
 
 function boundsForNodes(nodes: readonly ProjectCanvasNode[]): CanvasBounds | null {
@@ -122,6 +123,34 @@ function intersectsBounds(node: ProjectCanvasNode, bounds: CanvasBounds): boolea
     && node.y <= bounds.maxY
 }
 
+function pointInBounds(point: CanvasPoint, bounds: CanvasBounds): boolean {
+  return point.x >= bounds.minX
+    && point.x <= bounds.maxX
+    && point.y >= bounds.minY
+    && point.y <= bounds.maxY
+}
+
+function segmentIntersectsBounds(from: CanvasPoint, to: CanvasPoint, bounds: CanvasBounds): boolean {
+  if (pointInBounds(from, bounds) || pointInBounds(to, bounds)) return true
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const p = [-dx, dx, -dy, dy]
+  const q = [from.x - bounds.minX, bounds.maxX - from.x, from.y - bounds.minY, bounds.maxY - from.y]
+  let min = 0
+  let max = 1
+  for (let index = 0; index < p.length; index += 1) {
+    if (p[index] === 0) {
+      if (q[index] < 0) return false
+      continue
+    }
+    const ratio = q[index] / p[index]
+    if (p[index] < 0) min = Math.max(min, ratio)
+    else max = Math.min(max, ratio)
+    if (min > max) return false
+  }
+  return true
+}
+
 function boundsIncludingNode(bounds: CanvasBounds | null, node: ProjectCanvasNode): CanvasBounds {
   if (!bounds) {
     return { minX: node.x, minY: node.y, maxX: node.x + node.width, maxY: node.y + node.height }
@@ -140,15 +169,21 @@ function boundsIncludingNode(bounds: CanvasBounds | null, node: ProjectCanvasNod
  */
 export class CanvasSceneStore {
   private static readonly SPATIAL_CELL_SIZE = 128
+  private static readonly EDGE_SPATIAL_CELL_SIZE = 512
   private canvas: ProjectCanvas
   private readonly normalize: boolean
   private readonly spatialIndex = new Map<string, Set<string>>()
+  private readonly edgeSpatialIndex = new Map<string, Set<string>>()
+  private readonly edgeCellsById = new Map<string, readonly string[]>()
   private readonly nodeRanks = new Map<string, number>()
+  private readonly edgeRanks = new Map<string, number>()
   private readonly connectedNodeIdsByNode = new Map<string, Set<string>>()
+  private readonly incidentEdgeIdsByNode = new Map<string, Set<string>>()
   private fullRebuilds = 0
   private geometryPatchBatches = 0
   private geometryPatchedNodes = 0
   private lastQueryCandidates = 0
+  private lastEdgeQueryCandidates = 0
   private geometryBoundsDirty = false
   private revision = 0
   private snapshotValue: CanvasSceneSnapshot
@@ -184,6 +219,7 @@ export class CanvasSceneStore {
       geometryPatchBatches: this.geometryPatchBatches,
       geometryPatchedNodes: this.geometryPatchedNodes,
       lastQueryCandidates: this.lastQueryCandidates,
+      lastEdgeQueryCandidates: this.lastEdgeQueryCandidates,
     }
   }
 
@@ -226,6 +262,11 @@ export class CanvasSceneStore {
     let changedNodes = 0
     let nextBounds = this.snapshotValue.bounds
     const nodesById = this.snapshotValue.nodesById as Record<string, ProjectCanvasNode>
+    const affectedEdgeIds = new Set<string>()
+    for (const patch of patches) {
+      for (const edgeId of this.incidentEdgeIdsByNode.get(patch.id) ?? []) affectedEdgeIds.add(edgeId)
+    }
+    for (const edgeId of affectedEdgeIds) this.removeEdgeFromSpatialIndex(this.snapshotValue.edgesById[edgeId])
     for (const patch of patches) {
       const rank = this.nodeRanks.get(patch.id)
       if (rank === undefined) continue
@@ -251,7 +292,11 @@ export class CanvasSceneStore {
       nextBounds = boundsIncludingNode(nextBounds, next)
       changedNodes += 1
     }
-    if (changedNodes === 0) return false
+    if (changedNodes === 0) {
+      for (const edgeId of affectedEdgeIds) this.addEdgeToSpatialIndex(this.snapshotValue.edgesById[edgeId])
+      return false
+    }
+    for (const edgeId of affectedEdgeIds) this.addEdgeToSpatialIndex(this.snapshotValue.edgesById[edgeId])
     this.geometryPatchBatches += 1
     this.geometryPatchedNodes += changedNodes
     this.geometryBoundsDirty = true
@@ -303,6 +348,29 @@ export class CanvasSceneStore {
     return [...connected]
   }
 
+  incidentEdgeIds(nodeIds: ReadonlySet<string>): string[] {
+    const incident = new Set<string>()
+    for (const nodeId of nodeIds) {
+      for (const edgeId of this.incidentEdgeIdsByNode.get(nodeId) ?? []) incident.add(edgeId)
+    }
+    return [...incident]
+  }
+
+  queryEdges(bounds: CanvasBounds, retainedEdgeIds: ReadonlySet<string> = new Set()): ProjectCanvasEdge[] {
+    const candidateIds = new Set<string>(retainedEdgeIds)
+    for (const cell of this.cellsForBounds(bounds, CanvasSceneStore.EDGE_SPATIAL_CELL_SIZE)) {
+      for (const edgeId of this.edgeSpatialIndex.get(cell) ?? []) candidateIds.add(edgeId)
+    }
+    this.lastEdgeQueryCandidates = candidateIds.size
+    return [...candidateIds]
+      .map(edgeId => this.snapshotValue.edgesById[edgeId])
+      .filter((edge): edge is ProjectCanvasEdge => Boolean(
+        edge && (retainedEdgeIds.has(edge.id) || this.edgeIntersectsBounds(edge, bounds)),
+      ))
+      .sort((left, right) => (this.edgeRanks.get(left.id) ?? 0) - (this.edgeRanks.get(right.id) ?? 0))
+      .map(edge => ({ ...edge }))
+  }
+
   query(bounds: CanvasBounds, retainedNodeIds: ReadonlySet<string> = new Set()): ProjectCanvasNode[] {
     const candidateIds = new Set<string>(retainedNodeIds)
     for (const cell of this.cellsForBounds(bounds)) {
@@ -340,21 +408,72 @@ export class CanvasSceneStore {
 
   private rebuildSpatialIndex(): void {
     this.spatialIndex.clear()
+    this.edgeSpatialIndex.clear()
+    this.edgeCellsById.clear()
     this.nodeRanks.clear()
+    this.edgeRanks.clear()
     this.connectedNodeIdsByNode.clear()
+    this.incidentEdgeIdsByNode.clear()
     this.fullRebuilds += 1
     for (const [rank, node] of this.canvas.nodes.entries()) {
       this.nodeRanks.set(node.id, rank)
       this.addNodeToSpatialIndex(node)
     }
-    for (const edge of this.canvas.edges) {
+    for (const [rank, edge] of this.canvas.edges.entries()) {
+      this.edgeRanks.set(edge.id, rank)
       const from = this.connectedNodeIdsByNode.get(edge.from) ?? new Set<string>()
       from.add(edge.to)
       this.connectedNodeIdsByNode.set(edge.from, from)
       const to = this.connectedNodeIdsByNode.get(edge.to) ?? new Set<string>()
       to.add(edge.from)
       this.connectedNodeIdsByNode.set(edge.to, to)
+      const fromEdges = this.incidentEdgeIdsByNode.get(edge.from) ?? new Set<string>()
+      fromEdges.add(edge.id)
+      this.incidentEdgeIdsByNode.set(edge.from, fromEdges)
+      const toEdges = this.incidentEdgeIdsByNode.get(edge.to) ?? new Set<string>()
+      toEdges.add(edge.id)
+      this.incidentEdgeIdsByNode.set(edge.to, toEdges)
+      this.addEdgeToSpatialIndex(edge)
     }
+  }
+
+  private edgePoints(edge: ProjectCanvasEdge | undefined): { from: CanvasPoint; to: CanvasPoint } | null {
+    if (!edge) return null
+    const fromNode = this.snapshotValue.nodesById[edge.from]
+    const toNode = this.snapshotValue.nodesById[edge.to]
+    if (!fromNode || !toNode) return null
+    return {
+      from: { x: fromNode.x + fromNode.width / 2, y: fromNode.y + fromNode.height / 2 },
+      to: { x: toNode.x + toNode.width / 2, y: toNode.y + toNode.height / 2 },
+    }
+  }
+
+  private addEdgeToSpatialIndex(edge: ProjectCanvasEdge | undefined): void {
+    const points = this.edgePoints(edge)
+    if (!edge || !points) return
+    const cells = this.cellsForSegment(points.from, points.to, CanvasSceneStore.EDGE_SPATIAL_CELL_SIZE)
+    this.edgeCellsById.set(edge.id, cells)
+    for (const cell of cells) {
+      const ids = this.edgeSpatialIndex.get(cell) ?? new Set<string>()
+      ids.add(edge.id)
+      this.edgeSpatialIndex.set(cell, ids)
+    }
+  }
+
+  private removeEdgeFromSpatialIndex(edge: ProjectCanvasEdge | undefined): void {
+    if (!edge) return
+    for (const cell of this.edgeCellsById.get(edge.id) ?? []) {
+      const ids = this.edgeSpatialIndex.get(cell)
+      if (!ids) continue
+      ids.delete(edge.id)
+      if (ids.size === 0) this.edgeSpatialIndex.delete(cell)
+    }
+    this.edgeCellsById.delete(edge.id)
+  }
+
+  private edgeIntersectsBounds(edge: ProjectCanvasEdge, bounds: CanvasBounds): boolean {
+    const points = this.edgePoints(edge)
+    return points ? segmentIntersectsBounds(points.from, points.to, bounds) : false
   }
 
   private addNodeToSpatialIndex(node: ProjectCanvasNode): void {
@@ -380,11 +499,10 @@ export class CanvasSceneStore {
       minY: node.y,
       maxX: node.x + node.width,
       maxY: node.y + node.height,
-    })
+    }, CanvasSceneStore.SPATIAL_CELL_SIZE)
   }
 
-  private cellsForBounds(bounds: CanvasBounds): string[] {
-    const size = CanvasSceneStore.SPATIAL_CELL_SIZE
+  private cellsForBounds(bounds: CanvasBounds, size = CanvasSceneStore.SPATIAL_CELL_SIZE): string[] {
     const minX = Math.floor(bounds.minX / size)
     const minY = Math.floor(bounds.minY / size)
     const maxX = Math.floor(bounds.maxX / size)
@@ -392,6 +510,33 @@ export class CanvasSceneStore {
     const cells: string[] = []
     for (let x = minX; x <= maxX; x += 1) {
       for (let y = minY; y <= maxY; y += 1) cells.push(`${x}:${y}`)
+    }
+    return cells
+  }
+
+  private cellsForSegment(from: CanvasPoint, to: CanvasPoint, size: number): string[] {
+    let x = Math.floor(from.x / size)
+    let y = Math.floor(from.y / size)
+    const endX = Math.floor(to.x / size)
+    const endY = Math.floor(to.y / size)
+    const stepX = Math.sign(to.x - from.x)
+    const stepY = Math.sign(to.y - from.y)
+    const deltaX = stepX === 0 ? Number.POSITIVE_INFINITY : size / Math.abs(to.x - from.x)
+    const deltaY = stepY === 0 ? Number.POSITIVE_INFINITY : size / Math.abs(to.y - from.y)
+    const nextX = stepX > 0 ? (x + 1) * size : x * size
+    const nextY = stepY > 0 ? (y + 1) * size : y * size
+    let maxX = stepX === 0 ? Number.POSITIVE_INFINITY : (nextX - from.x) / (to.x - from.x)
+    let maxY = stepY === 0 ? Number.POSITIVE_INFINITY : (nextY - from.y) / (to.y - from.y)
+    const cells = [`${x}:${y}`]
+    while (x !== endX || y !== endY) {
+      if (maxX < maxY) {
+        x += stepX
+        maxX += deltaX
+      } else {
+        y += stepY
+        maxY += deltaY
+      }
+      cells.push(`${x}:${y}`)
     }
     return cells
   }

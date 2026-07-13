@@ -452,6 +452,13 @@
   stroke: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
   stroke-linecap: round;
   stroke-width: 1.8;
+  pointer-events: none;
+}
+
+.project-canvas-edge-hit-region {
+  stroke: transparent;
+  stroke-linecap: round;
+  stroke-width: 12;
   pointer-events: stroke;
 }
 

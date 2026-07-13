@@ -1,57 +1,28 @@
-import type React from 'react'
-import type { ProjectCanvas, ProjectCanvasEdge } from '../../projectCanvas'
-import { cn } from '../../lib/utils'
+import type { CanvasConnectorCommand, CanvasGraphicsCommandBatch } from '../../canvasGraphicsCommands'
 
 interface CanvasGraphicsLayerProps {
-  canvas: ProjectCanvas
-  selectedEdgeId: string | null
   bounds: { minX: number; minY: number; width: number; height: number }
-  connectPreview: { from: { x: number; y: number }; to: { x: number; y: number } } | null
+  commands: CanvasGraphicsCommandBatch
   onSelectEdge: (edgeId: string) => void
 }
 
-function center(node: ProjectCanvas['nodes'][number]) {
-  return { x: node.x + node.width / 2, y: node.y + node.height / 2 }
-}
-
-function edgeLine(
-  edge: ProjectCanvasEdge,
-  nodesById: ReadonlyMap<string, ProjectCanvas['nodes'][number]>,
+function connectorPath(
+  connectors: readonly CanvasConnectorCommand[],
   bounds: CanvasGraphicsLayerProps['bounds'],
-  selected: boolean,
-  onSelectEdge: (edgeId: string) => void,
-): React.ReactNode {
-  const from = nodesById.get(edge.from)
-  const to = nodesById.get(edge.to)
-  if (!from || !to) return null
-  const fromPoint = center(from)
-  const toPoint = center(to)
-  return (
-    <line
-      key={edge.id}
-      className={cn('project-canvas-edge', selected && 'project-canvas-edge--selected')}
-      data-testid="project-canvas-edge"
-      x1={fromPoint.x - bounds.minX}
-      y1={fromPoint.y - bounds.minY}
-      x2={toPoint.x - bounds.minX}
-      y2={toPoint.y - bounds.minY}
-      onPointerDown={(event) => {
-        event.stopPropagation()
-        onSelectEdge(edge.id)
-      }}
-    />
-  )
+): string {
+  return connectors
+    .map(command => `M ${command.from.x - bounds.minX} ${command.from.y - bounds.minY} L ${command.to.x - bounds.minX} ${command.to.y - bounds.minY}`)
+    .join(' ')
 }
 
-/** Graphics-only layer. It can swap SVG for Canvas2D without changing tools. */
+/** Executes renderer-agnostic graphics commands; SVG remains a replaceable backend. */
 export function CanvasGraphicsLayer({
   bounds,
-  canvas,
-  connectPreview,
+  commands,
   onSelectEdge,
-  selectedEdgeId,
 }: CanvasGraphicsLayerProps) {
-  const nodesById = new Map(canvas.nodes.map(node => [node.id, node]))
+  const regular = commands.connectors.filter(command => !command.selected)
+  const selected = commands.connectors.filter(command => command.selected)
   return (
     <svg
       className="project-canvas-edges"
@@ -59,14 +30,31 @@ export function CanvasGraphicsLayer({
       viewBox={`0 0 ${bounds.width} ${bounds.height}`}
       aria-hidden="true"
     >
-      {canvas.edges.map(edge => edgeLine(edge, nodesById, bounds, edge.id === selectedEdgeId, onSelectEdge))}
-      {connectPreview ? (
+      {regular.length > 0 ? <path className="project-canvas-edge" d={connectorPath(regular, bounds)} /> : null}
+      {selected.length > 0 ? <path className="project-canvas-edge project-canvas-edge--selected" d={connectorPath(selected, bounds)} /> : null}
+      {commands.connectors.map(command => (
+        <line
+          key={command.edgeId}
+          className="project-canvas-edge-hit-region"
+          data-testid="project-canvas-edge"
+          data-edge-id={command.edgeId}
+          x1={command.from.x - bounds.minX}
+          y1={command.from.y - bounds.minY}
+          x2={command.to.x - bounds.minX}
+          y2={command.to.y - bounds.minY}
+          onPointerDown={(event) => {
+            event.stopPropagation()
+            onSelectEdge(command.edgeId)
+          }}
+        />
+      ))}
+      {commands.preview ? (
         <line
           className="project-canvas-edge project-canvas-edge--preview"
-          x1={connectPreview.from.x - bounds.minX}
-          y1={connectPreview.from.y - bounds.minY}
-          x2={connectPreview.to.x - bounds.minX}
-          y2={connectPreview.to.y - bounds.minY}
+          x1={commands.preview.from.x - bounds.minX}
+          y1={commands.preview.from.y - bounds.minY}
+          x2={commands.preview.to.x - bounds.minX}
+          y2={commands.preview.to.y - bounds.minY}
         />
       ) : null}
     </svg>

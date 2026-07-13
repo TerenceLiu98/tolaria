@@ -1,6 +1,7 @@
 import { autoLayoutCanvas } from './components/project-canvas/projectCanvasDisplay'
 import { CanvasHistoryManager, type CanvasHistoryDomain } from './canvasHistoryManager'
 import { CanvasLayerManager } from './canvasLayerManager'
+import { buildCanvasGraphicsCommandBatch, type CanvasGraphicsCommandBatch } from './canvasGraphicsCommands'
 import { CanvasNodeSpecRegistry, type CanvasNodeToolbarAction } from './canvasNodeSpecRegistry'
 import { CanvasOverlayCoordinator, type CanvasOverlayGuide, type CanvasOverlayHandle } from './canvasOverlayCoordinator'
 import { CanvasSceneStore, type CanvasNodeGeometryPatch, type CanvasPoint, type CanvasSceneDiagnostics, type CanvasSceneSnapshot } from './canvasSceneStore'
@@ -304,6 +305,36 @@ export class ProjectCanvasController {
     for (const nodeId of selection.overlayOwnedNodeIds) retained.add(nodeId)
     for (const nodeId of scene.connectedNodeIds(retained)) retained.add(nodeId)
     return this.layers.filterNodes(scene.query(viewport.renderBounds, retained), viewport.camera.zoom, retained)
+  }
+
+  queryVisibleGraphics(): CanvasGraphicsCommandBatch {
+    const scene = this.sceneStore
+    if (!scene) return { connectors: [], preview: null }
+    const viewport = this.viewport.getSnapshot()
+    const selection = this.selection.getSnapshot()
+    const selectedEdgeIds = new Set(selection.selectedEdgeIds)
+    const retainedNodeIds = new Set(selection.selectedNodeIds)
+    if (selection.editingNodeId) retainedNodeIds.add(selection.editingNodeId)
+    for (const nodeId of selection.overlayOwnedNodeIds) retainedNodeIds.add(nodeId)
+    const gesture = this.tools.getSnapshot()
+    if (gesture.targetId) retainedNodeIds.add(gesture.targetId)
+    const retainedEdgeIds = new Set([
+      ...selectedEdgeIds,
+      ...scene.incidentEdgeIds(retainedNodeIds),
+    ])
+    const edges = viewport.size.width <= 0 || viewport.size.height <= 0
+      ? scene.edges()
+      : scene.queryEdges(viewport.renderBounds, retainedEdgeIds)
+    const fromNode = gesture.kind === 'connect' && gesture.targetId
+      ? scene.getSnapshot().nodesById[gesture.targetId]
+      : null
+    const preview = fromNode && gesture.current
+      ? {
+          from: { x: fromNode.x + fromNode.width / 2, y: fromNode.y + fromNode.height / 2 },
+          to: this.viewport.screenToCanvas(gesture.current),
+        }
+      : null
+    return buildCanvasGraphicsCommandBatch(scene.getSnapshot(), edges, selectedEdgeIds, preview)
   }
 
   setTool(tool: CanvasTool): void {

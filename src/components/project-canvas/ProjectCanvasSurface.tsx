@@ -80,13 +80,6 @@ function resolvedMap(refs: CanvasControllerSnapshot['refs']): Map<string, Canvas
   return new Map(refs.map(item => [item.nodeId, item]))
 }
 
-function nodeCenter(node: ProjectCanvasNode) {
-  return {
-    x: node.x + node.width / 2,
-    y: node.y + node.height / 2,
-  }
-}
-
 function candidateEntryType(entry: VaultEntry): ProjectCanvasNodeType | null {
   if (entry.isA === 'Paper') return 'paper'
   if (entry.isA === 'Note') return 'note'
@@ -543,17 +536,6 @@ export function ProjectCanvasSurface({
     controller.setFocusOwner('canvas')
   }, [controller])
 
-  const connectPreview = useMemo(() => {
-    const gesture = controllerSnapshot.gesture
-    if (gesture.kind !== 'connect' || !gesture.start || !gesture.current || !canvas) return null
-    const fromNode = canvas.nodes.find(node => node.id === gesture.targetId)
-    if (!fromNode) return null
-    return {
-      from: nodeCenter(fromNode),
-      to: controller.screenToCanvas(gesture.current),
-    }
-  }, [canvas, controller, controllerSnapshot.gesture])
-
   const handleNodeClick = useCallback((node: ProjectCanvasNode) => {
     if (Date.now() < suppressClickUntilRef.current) return
     if (!controllerSnapshot.specs.getForNode(node).canNavigate) return
@@ -870,6 +852,7 @@ export function ProjectCanvasSurface({
   const retainedNodeIds = new Set(selectedNodeIds)
   if (editingNodeId) retainedNodeIds.add(editingNodeId)
   const visibleNodes = controller.queryVisibleNodes(retainedNodeIds)
+  const graphicsCommands = controller.queryVisibleGraphics()
   const connectionHandles = controller.getConnectionHandles(visibleNodes.filter(node => !selectedNodeIds.includes(node.id)))
   const camera = controllerSnapshot.viewport.camera
 
@@ -950,10 +933,8 @@ export function ProjectCanvasSurface({
         >
           <CanvasGraphicsLayer
             bounds={graphicsBounds}
-            canvas={canvas}
-            connectPreview={connectPreview}
+            commands={graphicsCommands}
             onSelectEdge={handleSelectEdge}
-            selectedEdgeId={selectedEdgeId}
           />
           <CanvasDocumentLayer nodes={visibleNodes} renderNode={(node) => {
             const nodeEntry = findEntryForProjectCanvasRef(entries, node.ref, refsByNodeId.get(node.id)?.targetPath, vaultPath)
