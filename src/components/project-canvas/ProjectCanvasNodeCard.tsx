@@ -6,13 +6,13 @@ import { cn } from '../../lib/utils'
 import type { ProjectCanvasNode, ProjectCanvasResolvedRef } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
 import { Button } from '../ui/button'
-import { Checkbox } from '../ui/checkbox'
-import { Textarea } from '../ui/textarea'
-import { boundedSnippet, paperSubtitle } from './projectCanvasEntryPreview'
+import { paperSubtitle } from './projectCanvasEntryPreview'
 import { type ProjectCanvasNodePresentation } from './projectCanvasDisplay'
-import { imageSourceForNode } from './projectCanvasNodeModel'
-import { ProjectDocumentPreview } from './ProjectDocumentPreview'
 import { MarkdownContent } from '../MarkdownContent'
+import {
+  ProjectCanvasNodeRendererRegistry,
+  projectCanvasNodeRendererRegistry,
+} from './ProjectCanvasNodeRenderer'
 
 export type ProjectCanvasTemporaryNodeKind = 'peek' | 'ai_draft'
 
@@ -34,6 +34,7 @@ interface ProjectCanvasNodeCardProps {
   onTextChange: (text: string) => void
   onToggleTask: () => void
   presentation: ProjectCanvasNodePresentation
+  rendererRegistry?: ProjectCanvasNodeRendererRegistry
   resolved?: ProjectCanvasResolvedRef
   selected: boolean
   temporary?: boolean
@@ -60,6 +61,7 @@ export function ProjectCanvasNodeCard({
   onTextChange,
   onToggleTask,
   presentation,
+  rendererRegistry = projectCanvasNodeRendererRegistry,
   spec,
   resolved,
   selected,
@@ -69,15 +71,10 @@ export function ProjectCanvasNodeCard({
   temporarySaving = false,
   vaultPath,
 }: ProjectCanvasNodeCardProps) {
-  const isEmbedded = spec.rendererAdapter.supportsInlineText
   const isStale = resolved?.state === 'stale'
   const preview = spec.preview(node, presentation)
   const title = node.title ?? entry?.title ?? resolved?.targetTitle ?? preview.title ?? node.ref ?? translate(locale, 'projectCanvas.untitledNode')
   const subtitle = entry?.isA === 'Paper' ? paperSubtitle(entry) : null
-  const snippet = spec.renderer === 'paper_block'
-    ? boundedSnippet(preview.text ?? resolved?.message ?? null)
-    : boundedSnippet(preview.text ?? entry?.snippet ?? null)
-  const imageSource = spec.renderer === 'image' ? imageSourceForNode(node, vaultPath) : null
 
   return (
     <article
@@ -147,44 +144,13 @@ export function ProjectCanvasNodeCard({
           <div className="project-canvas-node__draft-preview">
             <MarkdownContent content={node.text} locale={locale} onWikilinkClick={onNavigateWikilink} />
           </div>
-        ) : editing ? (
-          <div className="project-canvas-node__editor-host" ref={editorHostRef} />
-        ) : entry && spec.renderer === 'document' ? (
-          <ProjectDocumentPreview active={presentation === 'preview'} entry={entry} locale={locale} onNavigateWikilink={onNavigateWikilink} />
-        ) : null}
-        {spec.renderer === 'task' ? (
-          <label className="project-canvas-node__task">
-            <Checkbox checked={node.completed === true} onCheckedChange={onToggleTask} />
-            <Textarea
-              className="project-canvas-node__textarea"
-              value={node.text ?? ''}
-              onChange={(event) => onTextChange(event.target.value)}
-              onBlur={onTextBlur}
-              placeholder={translate(locale, 'projectCanvas.textPlaceholder')}
-            />
-          </label>
-        ) : spec.renderer === 'image' ? (
-          <div className="project-canvas-node__image-frame">
-            {imageSource ? (
-              <img src={imageSource} alt={title} className="project-canvas-node__image" loading="lazy" decoding="async" />
-            ) : (
-              <div className="project-canvas-node__image-empty">{translate(locale, 'projectCanvas.imageMissing')}</div>
-            )}
-          </div>
-        ) : isEmbedded ? (
-          <Textarea
-            className="project-canvas-node__textarea"
-            value={node.text ?? ''}
-            onChange={(event) => onTextChange(event.target.value)}
-            onBlur={onTextBlur}
-            placeholder={translate(locale, 'projectCanvas.textPlaceholder')}
-          />
-        ) : snippet && presentation === 'card' ? (
-          <div className="project-canvas-node__snippet">{snippet}</div>
-        ) : null}
+        ) : rendererRegistry.render(spec, {
+          editing, editorHostRef, entry, locale, node, onNavigateWikilink, onTextBlur,
+          onTextChange, onToggleTask, presentation, resolved, spec, title, vaultPath,
+        })}
         {isStale && resolved?.message ? <div className="project-canvas-node__message">{resolved.message}</div> : null}
         {temporaryError ? <div className="project-canvas-node__message project-canvas-node__message--error">{temporaryError}</div> : null}
-        {!isEmbedded && node.ref && presentation !== 'overview' ? (
+        {spec.rendererAdapter.showsReferenceFooter && node.ref && presentation !== 'overview' ? (
           <div className="project-canvas-node__footer"><span>{node.ref}</span></div>
         ) : null}
       </div>

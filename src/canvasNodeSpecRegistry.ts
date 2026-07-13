@@ -9,8 +9,7 @@ export type CanvasNodeToolbarAction = 'open' | 'connect' | 'resize' | 'toggle-co
 export interface CanvasNodeRendererAdapter {
   readonly key: CanvasNodeRenderer
   readonly isDocument: boolean
-  readonly supportsPreview: boolean
-  readonly supportsInlineText: boolean
+  readonly showsReferenceFooter: boolean
 }
 
 export interface CanvasNodeDropResult {
@@ -29,7 +28,6 @@ export interface CanvasNodeGeometry {
 export interface CanvasNodeSpec {
   readonly key: CanvasNodeSpecKey
   readonly type: ProjectCanvasNodeType
-  readonly renderer: CanvasNodeRenderer
   readonly rendererAdapter: CanvasNodeRendererAdapter
   readonly kindKey: TranslationKey
   readonly canEdit: boolean
@@ -39,6 +37,7 @@ export interface CanvasNodeSpec {
   readonly supportsChildren: boolean
   readonly canResize: boolean
   readonly acceptsDrop: boolean
+  readonly referenceMode: 'none' | 'readonly' | 'editable'
   readonly inspectorFields: readonly ('title' | 'reference' | 'text' | 'completed' | 'edge')[]
   readonly toolbarActions: readonly CanvasNodeToolbarAction[]
   readonly preview: (node: ProjectCanvasNode, presentation: CanvasNodePresentation) => { title: string; text?: string }
@@ -50,19 +49,13 @@ export interface CanvasNodeSpec {
 const DEFAULT_GEOMETRY: CanvasNodeGeometry = { width: 260, height: 150, minWidth: 180, minHeight: 110 }
 
 const RENDERER_ADAPTERS: Readonly<Record<CanvasNodeRenderer, CanvasNodeRendererAdapter>> = {
-  overview: { key: 'overview', isDocument: true, supportsPreview: true, supportsInlineText: false },
-  document: { key: 'document', isDocument: true, supportsPreview: true, supportsInlineText: false },
-  paper_block: { key: 'paper_block', isDocument: false, supportsPreview: true, supportsInlineText: false },
-  image: { key: 'image', isDocument: false, supportsPreview: true, supportsInlineText: false },
-  text: { key: 'text', isDocument: false, supportsPreview: false, supportsInlineText: true },
-  task: { key: 'task', isDocument: false, supportsPreview: false, supportsInlineText: true },
-  group: { key: 'group', isDocument: false, supportsPreview: false, supportsInlineText: true },
-}
-
-export class CanvasNodeRendererRegistry {
-  get(renderer: CanvasNodeRenderer): CanvasNodeRendererAdapter {
-    return RENDERER_ADAPTERS[renderer]
-  }
+  overview: { key: 'overview', isDocument: true, showsReferenceFooter: true },
+  document: { key: 'document', isDocument: true, showsReferenceFooter: true },
+  paper_block: { key: 'paper_block', isDocument: false, showsReferenceFooter: true },
+  image: { key: 'image', isDocument: false, showsReferenceFooter: true },
+  text: { key: 'text', isDocument: false, showsReferenceFooter: false },
+  task: { key: 'task', isDocument: false, showsReferenceFooter: false },
+  group: { key: 'group', isDocument: false, showsReferenceFooter: false },
 }
 
 function defaultPreview(node: ProjectCanvasNode): { title: string; text?: string } {
@@ -77,15 +70,36 @@ function titleFromDropValue(value: string): string {
   return value.trim().replace(/\\/g, '/').split('/').filter(Boolean).at(-1) ?? value.trim()
 }
 
-function resolveDropFor(type: ProjectCanvasNodeType, value: string): CanvasNodeDropResult | null {
+function resolveCitationDrop(value: string): CanvasNodeDropResult | null {
   const trimmed = value.trim()
-  if (!trimmed) return null
-  if (type === 'paper_block') return /^@block\[[^\]#]+#[^\]]+\]$/u.test(trimmed) ? { ref: trimmed } : null
-  if (type === 'image') return /\.(avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/iu.test(trimmed)
+  return /^@block\[[^\]#]+#[^\]]+\]$/u.test(trimmed) ? { ref: trimmed } : null
+}
+
+function resolveImageDrop(value: string): CanvasNodeDropResult | null {
+  const trimmed = value.trim()
+  return /\.(avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/iu.test(trimmed)
     ? { ref: trimmed, title: titleFromDropValue(trimmed) }
     : null
-  if (type === 'text' || type === 'task' || type === 'group') return { text: trimmed }
+}
+
+function resolveTextDrop(value: string): CanvasNodeDropResult | null {
+  const trimmed = value.trim()
+  return trimmed ? { text: trimmed } : null
+}
+
+function rejectDrop(): null {
   return null
+}
+
+type CanvasNodeSpecDefinition = Omit<CanvasNodeSpec, 'clipboard' | 'preview' | 'staleLabel'>
+
+function defineSpec(definition: CanvasNodeSpecDefinition): CanvasNodeSpec {
+  return {
+    ...definition,
+    clipboard: copyNode,
+    preview: defaultPreview,
+    staleLabel: node => `Stale ${node.type} reference`,
+  }
 }
 
 export class CanvasNodeSpecRegistry {
@@ -113,49 +127,64 @@ export class CanvasNodeSpecRegistry {
   }
 
   static defaults(): CanvasNodeSpec[] {
-    const types: ProjectCanvasNodeType[] = ['note', 'paper', 'paper_block', 'image', 'text', 'task', 'group']
-    const makeSpec = (type: ProjectCanvasNodeType, key: CanvasNodeSpecKey = type): CanvasNodeSpec => ({
-      key,
-      type,
-      renderer: type === 'note' || type === 'paper'
-          ? 'document'
-          : type,
-      rendererAdapter: RENDERER_ADAPTERS[type === 'note' || type === 'paper' ? 'document' : type],
-      kindKey: `projectCanvas.node.${type}` as TranslationKey,
-      canEdit: type === 'note' || type === 'paper' || type === 'text' || type === 'task' || type === 'group',
-      canNavigate: type === 'note' || type === 'paper',
-      geometry: type === 'group'
-        ? { width: 320, height: 190, minWidth: 240, minHeight: 140 }
-        : type === 'image'
-          ? { width: 300, height: 210, minWidth: 220, minHeight: 150 }
-          : type === 'paper_block'
-            ? { width: 260, height: 160, minWidth: 180, minHeight: 110 }
-            : { ...DEFAULT_GEOMETRY },
-      editorGeometry: type === 'note' || type === 'paper'
-        ? { width: 560, height: 420, minWidth: 560, minHeight: 420 }
-        : undefined,
-      supportsChildren: type === 'group',
-      canResize: true,
-      acceptsDrop: type === 'group' || type === 'image' || type === 'paper_block',
-      inspectorFields: type === 'image' || type === 'paper_block'
-        ? ['title', 'reference']
-        : type === 'task'
-          ? ['title', 'text', 'completed']
-          : type === 'group'
-            ? ['title']
-            : ['title', 'reference', 'text'],
-      preview: defaultPreview,
-      staleLabel: node => `Stale ${node.type} reference`,
-      clipboard: copyNode,
-      toolbarActions: key === 'overview'
-        ? ['open', 'connect', 'resize']
-        : type === 'task'
-        ? ['connect', 'resize', 'toggle-complete', 'delete']
-        : type === 'note' || type === 'paper'
-          ? ['open', 'connect', 'resize', 'pin', 'delete']
-          : ['connect', 'resize', 'delete'],
-      resolveDrop: value => resolveDropFor(type, value),
-    })
-    return [makeSpec('note', 'overview'), ...types.filter(type => type !== 'note').map(type => makeSpec(type)), makeSpec('note')]
+    const documentGeometry = { width: 560, height: 420, minWidth: 560, minHeight: 420 }
+    return [
+      defineSpec({
+        acceptsDrop: false, canEdit: true, canNavigate: true, canResize: true,
+        editorGeometry: documentGeometry, geometry: { ...DEFAULT_GEOMETRY },
+        inspectorFields: ['title', 'reference', 'text'], key: 'overview', kindKey: 'projectCanvas.node.note',
+        referenceMode: 'readonly', rendererAdapter: RENDERER_ADAPTERS.overview, resolveDrop: rejectDrop,
+        supportsChildren: false, toolbarActions: ['open', 'connect', 'resize'], type: 'note',
+      }),
+      defineSpec({
+        acceptsDrop: false, canEdit: true, canNavigate: true, canResize: true,
+        editorGeometry: documentGeometry, geometry: { ...DEFAULT_GEOMETRY },
+        inspectorFields: ['title', 'reference', 'text'], key: 'note', kindKey: 'projectCanvas.node.note',
+        referenceMode: 'readonly', rendererAdapter: RENDERER_ADAPTERS.document, resolveDrop: rejectDrop,
+        supportsChildren: false, toolbarActions: ['open', 'connect', 'resize', 'pin', 'delete'], type: 'note',
+      }),
+      defineSpec({
+        acceptsDrop: false, canEdit: true, canNavigate: true, canResize: true,
+        editorGeometry: documentGeometry, geometry: { ...DEFAULT_GEOMETRY },
+        inspectorFields: ['title', 'reference', 'text'], key: 'paper', kindKey: 'projectCanvas.node.paper',
+        referenceMode: 'readonly', rendererAdapter: RENDERER_ADAPTERS.document, resolveDrop: rejectDrop,
+        supportsChildren: false, toolbarActions: ['open', 'connect', 'resize', 'pin', 'delete'], type: 'paper',
+      }),
+      defineSpec({
+        acceptsDrop: true, canEdit: false, canNavigate: false, canResize: true,
+        geometry: { width: 260, height: 160, minWidth: 180, minHeight: 110 },
+        inspectorFields: ['title', 'reference'], key: 'paper_block', kindKey: 'projectCanvas.node.paper_block',
+        referenceMode: 'readonly', rendererAdapter: RENDERER_ADAPTERS.paper_block, resolveDrop: resolveCitationDrop,
+        supportsChildren: false, toolbarActions: ['connect', 'resize', 'delete'], type: 'paper_block',
+      }),
+      defineSpec({
+        acceptsDrop: true, canEdit: false, canNavigate: false, canResize: true,
+        geometry: { width: 300, height: 210, minWidth: 220, minHeight: 150 },
+        inspectorFields: ['title', 'reference'], key: 'image', kindKey: 'projectCanvas.node.image',
+        referenceMode: 'editable', rendererAdapter: RENDERER_ADAPTERS.image, resolveDrop: resolveImageDrop,
+        supportsChildren: false, toolbarActions: ['connect', 'resize', 'delete'], type: 'image',
+      }),
+      defineSpec({
+        acceptsDrop: false, canEdit: true, canNavigate: false, canResize: true,
+        geometry: { ...DEFAULT_GEOMETRY }, inspectorFields: ['title', 'text'], key: 'text',
+        kindKey: 'projectCanvas.node.text', referenceMode: 'none', rendererAdapter: RENDERER_ADAPTERS.text,
+        resolveDrop: resolveTextDrop, supportsChildren: false,
+        toolbarActions: ['connect', 'resize', 'delete'], type: 'text',
+      }),
+      defineSpec({
+        acceptsDrop: false, canEdit: true, canNavigate: false, canResize: true,
+        geometry: { ...DEFAULT_GEOMETRY }, inspectorFields: ['title', 'text', 'completed'], key: 'task',
+        kindKey: 'projectCanvas.node.task', referenceMode: 'none', rendererAdapter: RENDERER_ADAPTERS.task,
+        resolveDrop: resolveTextDrop, supportsChildren: false,
+        toolbarActions: ['connect', 'resize', 'toggle-complete', 'delete'], type: 'task',
+      }),
+      defineSpec({
+        acceptsDrop: true, canEdit: true, canNavigate: false, canResize: true,
+        geometry: { width: 320, height: 190, minWidth: 240, minHeight: 140 },
+        inspectorFields: ['title'], key: 'group', kindKey: 'projectCanvas.node.group',
+        referenceMode: 'none', rendererAdapter: RENDERER_ADAPTERS.group, resolveDrop: resolveTextDrop,
+        supportsChildren: true, toolbarActions: ['connect', 'resize', 'delete'], type: 'group',
+      }),
+    ]
   }
 }

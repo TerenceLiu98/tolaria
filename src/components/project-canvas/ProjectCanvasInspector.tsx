@@ -139,7 +139,7 @@ function ProjectCanvasNodeInspector({
           onBlur={() => onNodeChange({}, true)}
         />
       </label>
-      {node.ref && spec?.inspectorFields.includes('reference') && spec.renderer !== 'image' ? (
+      {node.ref && spec?.referenceMode === 'readonly' ? (
         <label className="project-canvas-inspector__field">
           <span>{translate(locale, 'projectCanvas.inspectorReference')}</span>
           <Input value={node.ref} readOnly />
@@ -164,7 +164,7 @@ function ProjectCanvasNodeInspector({
           />
         </label>
       ) : null}
-      {spec?.renderer === 'image' && spec.inspectorFields.includes('reference') ? (
+      {spec?.referenceMode === 'editable' ? (
         <label className="project-canvas-inspector__field">
           <span>{translate(locale, 'projectCanvas.imagePath')}</span>
           <Input
