@@ -1228,6 +1228,8 @@
   "projectCanvas.inspectorNote": "Note",
   "projectCanvas.edgeNotePlaceholder": "Add relationship context...",
   "projectCanvas.openNode": "Open",
+  "projectCanvas.enterGroup": "그룹으로 들어가기",
+  "projectCanvas.exitGroup": "그룹에서 나가기",
   "projectCanvas.enterFocusMode": "집중 모드 시작",
   "projectCanvas.exitFocusMode": "집중 모드 종료",
   "projectCanvas.peekLabel": "임시 미리보기",

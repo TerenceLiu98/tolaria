@@ -24,6 +24,7 @@ import {
   trackProjectCanvasEdgeReconnected,
   trackProjectCanvasEdgeRoutingChanged,
   trackProjectCanvasFocusModeChanged,
+  trackProjectCanvasGroupFocusChanged,
   trackProjectCanvasNavigatorFocused,
   trackProjectCanvasNodeAdded,
   trackProjectCanvasOpened,
@@ -54,6 +55,7 @@ import {
 } from './projectCanvasDisplay'
 import { ProjectCanvasNodeCard } from './ProjectCanvasNodeCard'
 import { ProjectCanvasNavigator } from './ProjectCanvasNavigator'
+import { ProjectCanvasGroupFocusBar } from './ProjectCanvasGroupFocusBar'
 import { ProjectCanvasToolbar, type ProjectCanvasAddPanelMode } from './ProjectCanvasToolbar'
 import { useProjectCanvasViewportSize } from './projectCanvasViewport'
 import { useProjectCanvasAiDraft } from './useProjectCanvasAiDraft'
@@ -762,9 +764,26 @@ export function ProjectCanvasSurface({
       deleteSelectedNode()
       return
     }
+    if (action === 'enter-group') {
+      trackProjectCanvasGroupFocusChanged({ action: 'enter' })
+    }
     const next = controller.executeNodeToolbarAction(action, selectedNode.id)
     if (next) canvasRef.current = next
   }, [controller, deleteSelectedNode, editDocumentNode, selectedNode])
+
+  const handleNodeDoubleClick = useCallback((node: ProjectCanvasNode) => {
+    if (controllerSnapshot.specs.getForNode(node).supportsChildren) {
+      controller.enterGroup(node.id)
+      trackProjectCanvasGroupFocusChanged({ action: 'enter' })
+      return
+    }
+    editDocumentNode(node)
+  }, [controller, controllerSnapshot.specs, editDocumentNode])
+
+  const exitActiveGroup = useCallback(() => {
+    controller.exitGroup()
+    trackProjectCanvasGroupFocusChanged({ action: 'exit' })
+  }, [controller])
 
   const alignSelectedNodes = useCallback((alignment: CanvasAlignment) => {
     const next = controller.alignSelection(alignment)
@@ -818,7 +837,7 @@ export function ProjectCanvasSurface({
         return
       }
       const result = controller.escape()
-      if (result === 'overlay' || result === 'selection') return
+      if (result === 'overlay' || result === 'selection' || result === 'group') return
       selectSingleNode(null)
       setSelectedEdgeId(null)
       return
@@ -973,6 +992,10 @@ export function ProjectCanvasSurface({
           selectedNodeId={selectedNodeId}
           onFocusNode={handleNavigatorFocus}
         />
+        {controllerSnapshot.selection.activeGroupId ? (() => {
+          const group = canvas.nodes.find(node => node.id === controllerSnapshot.selection.activeGroupId)
+          return group ? <ProjectCanvasGroupFocusBar group={group} locale={locale} onExit={exitActiveGroup} /> : null
+        })() : null}
         <div
           className="project-canvas-world"
           style={{
@@ -1000,7 +1023,7 @@ export function ProjectCanvasSurface({
                 presentation={nodePresentation(camera.zoom, selectedNodeIds.includes(node.id))}
                 vaultPath={vaultPath}
                 onClick={(event) => handleSelectNode(node, event)}
-                onDoubleClick={() => editDocumentNode(node)}
+                onDoubleClick={() => handleNodeDoubleClick(node)}
                 onNavigateWikilink={handleCanvasNavigate}
                 onPointerDown={(event) => handleNodePointerDown(event, node)}
                 onSelect={(event) => handleSelectNode(node, event)}

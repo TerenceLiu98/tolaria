@@ -22,6 +22,7 @@ vi.mock('../../lib/productAnalytics', () => ({
   trackProjectCanvasEdgeReconnected: vi.fn(),
   trackProjectCanvasEdgeRoutingChanged: vi.fn(),
   trackProjectCanvasFocusModeChanged: vi.fn(),
+  trackProjectCanvasGroupFocusChanged: vi.fn(),
   trackProjectCanvasPeekOpened: vi.fn(),
   trackProjectCanvasPeekPinned: vi.fn(),
   trackProjectCanvasLayoutSaved: vi.fn(),
@@ -300,6 +301,42 @@ describe('ProjectCanvasSurface', () => {
 
     fireEvent.click(screen.getByTestId('project-canvas-toolbar-action-connect'))
     await waitFor(() => expect(screen.getByTestId('project-canvas-tool-connect')).toHaveAttribute('aria-pressed', 'true'))
+  })
+
+  it('enters and exits a group through NodeSpec actions, double click, and Escape', async () => {
+    const canvas: ProjectCanvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [
+        { id: 'group', type: 'group', x: 20, y: 20, width: 420, height: 260, title: 'Methods frame' },
+        { id: 'child', type: 'text', parentId: 'group', x: 70, y: 80, width: 180, height: 100, text: 'Inside' },
+      ],
+      edges: [],
+    }
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const groupCard = (await screen.findByText('Methods frame')).closest('[data-testid="project-canvas-node"]')
+    fireEvent.click(within(groupCard as HTMLElement).getByRole('button', { name: 'Source' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Enter group' }))
+    expect(screen.getByTestId('project-canvas-group-focus')).toHaveTextContent('Methods frame')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Exit group' }))
+    expect(screen.queryByTestId('project-canvas-group-focus')).not.toBeInTheDocument()
+
+    fireEvent.doubleClick(groupCard as HTMLElement)
+    expect(screen.getByTestId('project-canvas-group-focus')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByTestId('project-canvas-viewport'), { key: 'Escape' })
+    expect(screen.queryByTestId('project-canvas-group-focus')).not.toBeInTheDocument()
   })
 
   it('keeps the Project Overview root node non-deletable', async () => {

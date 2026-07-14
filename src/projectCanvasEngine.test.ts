@@ -933,6 +933,54 @@ describe('ProjectCanvasController', () => {
     controller.dispose()
   })
 
+  it('focuses nested groups and reparents a completed drag as one transaction', async () => {
+    const initial: ProjectCanvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [
+        { id: 'outer', type: 'group', x: 0, y: 0, width: 600, height: 440, title: 'Outer' },
+        { id: 'inner', type: 'group', parentId: 'outer', x: 80, y: 80, width: 320, height: 220, title: 'Inner' },
+        { id: 'loose', type: 'text', x: 700, y: 80, width: 100, height: 80, text: 'Loose' },
+      ],
+      edges: [],
+    }
+    const controller = await loadedController(initial)
+    controller.setViewportSize({ width: 1_000, height: 700 })
+
+    controller.enterGroup('outer')
+    expect(controller.getSnapshot().selection.activeGroupId).toBe('outer')
+    const created = controller.createNode({ type: 'text', text: 'Nested by default' })
+    const createdNode = created?.nodes.find(node => node.text === 'Nested by default')
+    expect(createdNode?.parentId).toBe('outer')
+    controller.undo()
+    controller.enterGroup('inner')
+    controller.exitGroup()
+    expect(controller.getSnapshot().selection.activeGroupId).toBe('outer')
+    controller.enterGroup('inner')
+    controller.escape()
+    expect(controller.getSnapshot().selection.activeGroupId).toBe('outer')
+
+    controller.clearSelection()
+    controller.beginNodeDrag('loose', { x: 750, y: 120 })
+    controller.updatePointer({ x: 220, y: 160 })
+    controller.finishGesture()
+
+    expect(controller.getScene()?.nodes.find(node => node.id === 'loose')).toMatchObject({
+      parentId: 'inner',
+      x: 170,
+      y: 120,
+    })
+    expect(controller.getSnapshot().selection.activeGroupId).toBe('inner')
+    expect(controller.undo()?.nodes.find(node => node.id === 'loose')).toMatchObject({ x: 700, y: 80 })
+    expect(controller.getSnapshot().canUndo).toBe(false)
+
+    controller.clearSelection()
+    controller.beginNodeDrag('outer', { x: 20, y: 20 })
+    controller.updatePointer({ x: 180, y: 140 })
+    controller.finishGesture()
+    expect(controller.getScene()?.nodes.find(node => node.id === 'outer')?.parentId).toBeUndefined()
+    controller.dispose()
+  })
+
   it('routes scene mutations through transactions, supports cancellation, and persists structural changes', async () => {
     const saved: ProjectCanvas[] = []
     const initial = canvasWithNodes()

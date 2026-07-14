@@ -436,6 +436,9 @@ export class ProjectCanvasController {
       case 'resize':
         this.selectNodes([nodeId], nodeId)
         return this.getScene()
+      case 'enter-group':
+        this.enterGroup(nodeId)
+        return this.getScene()
       case 'toggle-complete':
         return this.toggleTask(nodeId)
       case 'delete':
@@ -574,7 +577,9 @@ export class ProjectCanvasController {
   }
 
   createNode(options: CanvasNodeCreationOptions): ProjectCanvas | null {
-    return this.addNode(this.buildNode(options), options)
+    const node = this.buildNode(options)
+    const parentId = this.selection.getSnapshot().activeGroupId ?? undefined
+    return this.addNode(parentId ? { ...node, parentId } : node, options)
   }
 
   createPeekNode(type: ProjectCanvasNode['type'], ref: string, title?: string, sourceNodeId?: string): ProjectCanvasNode | null {
@@ -725,12 +730,14 @@ export class ProjectCanvasController {
   enterGroup(groupId: string): void {
     if (this.sceneStore?.node(groupId)?.type !== 'group') return
     this.selection.setActiveGroup(groupId)
+    this.clearSelection()
   }
 
   exitGroup(): void {
     const activeGroupId = this.selection.getSnapshot().activeGroupId
     const parentId = activeGroupId ? this.sceneStore?.node(activeGroupId)?.parentId ?? null : null
     this.selection.setActiveGroup(parentId)
+    this.clearSelection()
   }
 
   reparentNodes(nodeIds: readonly string[], parentGroupId: string | null): ProjectCanvas | null {
@@ -1045,7 +1052,23 @@ export class ProjectCanvasController {
       this.selectNodes(ids, ids.at(-1) ?? null, context.additive)
       if (context.kind === 'group') result = this.groupSelection()
     } else if (context.kind === 'drag') {
-      result = this.commitGesture('Drag nodes', context.before)
+      const parentGroupId = gesture.phase === 'active' && gesture.current
+        ? this.reparentTargetAt(gesture.current, context)
+        : null
+      if (parentGroupId) {
+        const movingIds = new Set(Object.keys(context.startNodes))
+        const rootMovingIds = new Set(Object.values(context.startNodes)
+          .filter(node => !node.parentId || !movingIds.has(node.parentId))
+          .map(node => node.id))
+        this.sceneStore?.update(canvas => ({
+          ...canvas,
+          nodes: canvas.nodes.map(node => rootMovingIds.has(node.id)
+            ? { ...node, parentId: parentGroupId }
+            : node),
+        }))
+        this.selection.setActiveGroup(parentGroupId)
+      }
+      result = this.commitGesture(parentGroupId ? 'Move nodes into group' : 'Drag nodes', context.before)
     } else if (context.kind === 'resize') {
       result = this.commitGesture('Resize node', context.before)
     }
@@ -1073,7 +1096,7 @@ export class ProjectCanvasController {
     return context.before
   }
 
-  escape(): 'gesture' | 'overlay' | 'editing' | 'selection' | 'idle' {
+  escape(): 'gesture' | 'overlay' | 'editing' | 'selection' | 'group' | 'idle' {
     if (this.gestureContext) {
       this.cancelGesture()
       return 'gesture'
@@ -1090,6 +1113,10 @@ export class ProjectCanvasController {
     if (this.selection.getSnapshot().primary) {
       this.clearSelection()
       return 'selection'
+    }
+    if (this.selection.getSnapshot().activeGroupId) {
+      this.exitGroup()
+      return 'group'
     }
     return 'idle'
   }
@@ -1326,6 +1353,45 @@ export class ProjectCanvasController {
       const node = scene.node(nodeId)
       return node ? [node] : []
     })
+  }
+
+  private reparentTargetAt(point: CanvasPoint, context: GestureContext): string | null {
+    if (!this.sceneStore) return null
+    const scene = this.sceneStore.getSnapshot()
+    const canvasPoint = this.viewport.screenToCanvas(point)
+    const movingIds = new Set(Object.keys(context.startNodes))
+    const candidates = this.sceneStore.query({
+      minX: canvasPoint.x,
+      minY: canvasPoint.y,
+      maxX: canvasPoint.x,
+      maxY: canvasPoint.y,
+    }).filter(node => node.type === 'group' && !movingIds.has(node.id))
+    const validCandidates = candidates.filter(candidate => {
+      let ancestorId: string | undefined = candidate.id
+      const visited = new Set<string>()
+      while (ancestorId) {
+        if (movingIds.has(ancestorId) || visited.has(ancestorId)) return false
+        visited.add(ancestorId)
+        ancestorId = scene.nodesById[ancestorId]?.parentId
+      }
+      return true
+    })
+    const depth = (node: ProjectCanvasNode): number => {
+      let value = 0
+      let parentId = node.parentId
+      const visited = new Set<string>()
+      while (parentId && !visited.has(parentId)) {
+        visited.add(parentId)
+        value += 1
+        parentId = scene.nodesById[parentId]?.parentId
+      }
+      return value
+    }
+    return validCandidates.sort((left, right) => (
+      depth(right) - depth(left)
+      || left.width * left.height - right.width * right.height
+      || compareProjectCanvasNodes(right, left)
+    ))[0]?.id ?? null
   }
 
   private makeSnapshot(): CanvasControllerSnapshot {

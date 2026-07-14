@@ -4,7 +4,7 @@ import type { TranslationKey } from './lib/i18n'
 export type CanvasNodePresentation = 'overview' | 'preview' | 'card' | 'edit'
 export type CanvasNodeSpecKey = ProjectCanvasNodeType | 'overview'
 export type CanvasNodeRenderer = 'overview' | 'document' | 'paper_block' | 'image' | 'text' | 'task' | 'group'
-export type CanvasNodeToolbarAction = 'open' | 'connect' | 'resize' | 'toggle-complete' | 'pin' | 'delete'
+export type CanvasNodeToolbarAction = 'open' | 'enter-group' | 'connect' | 'resize' | 'toggle-complete' | 'pin' | 'delete'
 
 export interface CanvasNodeRendererAdapter {
   readonly key: CanvasNodeRenderer
@@ -205,7 +205,7 @@ export class CanvasNodeSpecRegistry {
         geometry: { width: 320, height: 190, minWidth: 240, minHeight: 140 },
         inspectorFields: ['title'], key: 'group', kindKey: 'projectCanvas.node.group',
         referenceMode: 'none', rendererAdapter: RENDERER_ADAPTERS.group, resolveDrop: resolveTextDrop,
-        supportsChildren: true, toolbarActions: ['connect', 'resize', 'delete'], type: 'group',
+        supportsChildren: true, toolbarActions: ['enter-group', 'connect', 'resize', 'delete'], type: 'group',
       }),
     ]
   }

@@ -1228,6 +1228,8 @@
   "projectCanvas.inspectorNote": "Note",
   "projectCanvas.edgeNotePlaceholder": "Add relationship context...",
   "projectCanvas.openNode": "Open",
+  "projectCanvas.enterGroup": "グループに入る",
+  "projectCanvas.exitGroup": "グループから出る",
   "projectCanvas.enterFocusMode": "フォーカスモードに入る",
   "projectCanvas.exitFocusMode": "フォーカスモードを終了",
   "projectCanvas.peekLabel": "一時プレビュー",

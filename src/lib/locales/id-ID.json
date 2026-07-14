@@ -1228,6 +1228,8 @@
   "projectCanvas.inspectorNote": "Note",
   "projectCanvas.edgeNotePlaceholder": "Add relationship context...",
   "projectCanvas.openNode": "Open",
+  "projectCanvas.enterGroup": "Masuk ke grup",
+  "projectCanvas.exitGroup": "Keluar dari grup",
   "projectCanvas.enterFocusMode": "Masuk mode fokus",
   "projectCanvas.exitFocusMode": "Keluar dari mode fokus",
   "projectCanvas.peekLabel": "Pratinjau",

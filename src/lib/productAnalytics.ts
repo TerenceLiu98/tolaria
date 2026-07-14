@@ -185,6 +185,10 @@ export function trackProjectCanvasNavigatorFocused(params: { nodeType: ProjectCa
   trackEvent('project_canvas_navigator_focused', { node_type: params.nodeType })
 }
 
+export function trackProjectCanvasGroupFocusChanged(params: { action: 'enter' | 'exit' }): void {
+  trackEvent('project_canvas_group_focus_changed', params)
+}
+
 export function trackProjectCanvasAiDraftOpened(): void {
   trackEvent('project_canvas_ai_draft_opened')
 }

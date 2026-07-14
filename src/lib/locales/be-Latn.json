@@ -1228,6 +1228,8 @@
   "projectCanvas.inspectorNote": "Note",
   "projectCanvas.edgeNotePlaceholder": "Add relationship context...",
   "projectCanvas.openNode": "Open",
+  "projectCanvas.enterGroup": "Uvajści ŭ hrupu",
+  "projectCanvas.exitGroup": "Vyjści z hrupy",
   "projectCanvas.enterFocusMode": "Uvajści ŭ režym fokusu",
   "projectCanvas.exitFocusMode": "Vyjści z režymu fokusu",
   "projectCanvas.peekLabel": "Pieradhlad",

@@ -1228,6 +1228,8 @@
   "projectCanvas.inspectorNote": "Note",
   "projectCanvas.edgeNotePlaceholder": "Add relationship context...",
   "projectCanvas.openNode": "Open",
+  "projectCanvas.enterGroup": "进入组",
+  "projectCanvas.exitGroup": "退出组",
   "projectCanvas.enterFocusMode": "进入专注模式",
   "projectCanvas.exitFocusMode": "退出专注模式",
   "projectCanvas.peekLabel": "临时预览",

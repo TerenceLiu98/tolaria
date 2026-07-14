@@ -408,6 +408,26 @@
   color: var(--accent-foreground);
 }
 
+.project-canvas-group-focus {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 19;
+  max-width: min(360px, calc(100% - 240px));
+  transform: translateX(-50%);
+}
+
+.project-canvas-group-focus button {
+  max-width: 100%;
+  box-shadow: var(--shadow-md);
+}
+
+.project-canvas-group-focus span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 760px) {
   .project-canvas-navigator {
     display: none;

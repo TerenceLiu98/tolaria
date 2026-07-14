@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Check, LinkSimple, PushPin, Resize, Trash } from '@phosphor-icons/react'
+import { ArrowSquareOut, Check, CornersIn, LinkSimple, PushPin, Resize, Trash } from '@phosphor-icons/react'
 import type { CanvasNodeToolbarAction } from '../../canvasNodeSpecRegistry'
 import { translate, type AppLocale } from '../../lib/i18n'
 import { Button } from '../ui/button'
@@ -13,6 +13,7 @@ interface CanvasContextualToolbarProps {
 function actionLabel(action: CanvasNodeToolbarAction, locale: AppLocale, title: string): string {
   switch (action) {
     case 'open': return translate(locale, 'projectCanvas.openNode')
+    case 'enter-group': return translate(locale, 'projectCanvas.enterGroup')
     case 'connect': return translate(locale, 'projectCanvas.connectTool')
     case 'resize': return translate(locale, 'projectCanvas.resizeNode', { title })
     case 'toggle-complete': return translate(locale, 'projectCanvas.taskCompleted')
@@ -24,6 +25,7 @@ function actionLabel(action: CanvasNodeToolbarAction, locale: AppLocale, title: 
 function actionIcon(action: CanvasNodeToolbarAction) {
   switch (action) {
     case 'open': return <ArrowSquareOut size={13} />
+    case 'enter-group': return <CornersIn size={13} />
     case 'connect': return <LinkSimple size={13} />
     case 'resize': return <Resize size={13} />
     case 'toggle-complete': return <Check size={13} />
