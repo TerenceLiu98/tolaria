@@ -817,6 +817,77 @@ describe('ProjectCanvasController', () => {
     controller.dispose()
   })
 
+  it('reparents nested groups without cycles and promotes children when a group is removed', async () => {
+    const initial: ProjectCanvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [
+        { id: 'outer', type: 'group', x: 0, y: 0, width: 600, height: 500 },
+        { id: 'inner', type: 'group', parentId: 'outer', x: 40, y: 60, width: 420, height: 320 },
+        { id: 'a', type: 'text', parentId: 'inner', x: 80, y: 110, width: 100, height: 80 },
+        { id: 'b', type: 'task', parentId: 'inner', x: 240, y: 110, width: 100, height: 80 },
+        { id: 'outside', type: 'text', x: 700, y: 100, width: 100, height: 80 },
+      ],
+      edges: [{ id: 'edge_ab', from: 'a', to: 'b', kind: 'related' }],
+    }
+    const controller = await loadedController(initial)
+
+    controller.enterGroup('inner')
+    expect(controller.getSnapshot().selection.activeGroupId).toBe('inner')
+    controller.exitGroup()
+    expect(controller.getSnapshot().selection.activeGroupId).toBe('outer')
+
+    const beforeCycle = controller.getScene()
+    expect(controller.reparentNodes(['outer'], 'inner')).toEqual(beforeCycle)
+    expect(controller.getScene()?.nodes.find(node => node.id === 'outer')?.parentId).toBeUndefined()
+
+    controller.reparentNodes(['outside'], 'inner')
+    expect(controller.getScene()?.nodes.find(node => node.id === 'outside')?.parentId).toBe('inner')
+    expect(controller.undo()?.nodes.find(node => node.id === 'outside')?.parentId).toBeUndefined()
+
+    controller.deleteNodes(['inner'])
+    expect(controller.getScene()?.nodes.filter(node => ['a', 'b'].includes(node.id)).map(node => node.parentId))
+      .toEqual(['outer', 'outer'])
+    controller.dispose()
+  })
+
+  it('copies and pastes a group subtree with remapped edges as one history transaction', async () => {
+    const initial: ProjectCanvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [
+        { id: 'outer', type: 'group', x: 0, y: 0, width: 600, height: 500 },
+        { id: 'inner', type: 'group', parentId: 'outer', x: 40, y: 60, width: 420, height: 320 },
+        { id: 'a', type: 'text', parentId: 'inner', x: 80, y: 110, width: 100, height: 80, text: 'A' },
+        { id: 'b', type: 'task', parentId: 'inner', x: 240, y: 110, width: 100, height: 80, text: 'B' },
+      ],
+      edges: [{ id: 'edge_ab', from: 'a', to: 'b', kind: 'supports', routing: 'curved' }],
+    }
+    const controller = await loadedController(initial)
+    const beforePaste = controller.getScene()!
+    controller.selectNodes(['inner'])
+    controller.copySelection()
+    const pasted = controller.pasteSelection(32)
+    const originalIds = new Set(beforePaste.nodes.map(node => node.id))
+    const pastedNodes = pasted?.nodes.filter(node => !originalIds.has(node.id)) ?? []
+
+    expect(pastedNodes).toHaveLength(3)
+    const pastedGroup = pastedNodes.find(node => node.type === 'group')
+    expect(pastedGroup?.parentId).toBeUndefined()
+    const pastedChildren = pastedNodes.filter(node => node.type !== 'group')
+    expect(pastedChildren.map(node => node.parentId)).toEqual([pastedGroup?.id, pastedGroup?.id])
+    const pastedEdge = pasted?.edges.find(edge => edge.id !== 'edge_ab')
+    expect(pastedEdge).toMatchObject({
+      kind: 'supports',
+      routing: 'curved',
+    })
+    expect(new Set([pastedEdge?.from, pastedEdge?.to])).toEqual(new Set(pastedChildren.map(node => node.id)))
+
+    const undone = controller.undo()
+    expect(undone?.nodes).toEqual(beforePaste.nodes)
+    expect(undone?.edges).toEqual(beforePaste.edges)
+    expect(controller.getSnapshot().canUndo).toBe(false)
+    controller.dispose()
+  })
+
   it('routes scene mutations through transactions, supports cancellation, and persists structural changes', async () => {
     const saved: ProjectCanvas[] = []
     const initial = canvasWithNodes()

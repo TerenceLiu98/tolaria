@@ -154,11 +154,32 @@ export function normalizeProjectCanvas(canvas: ProjectCanvas, projectPath: strin
 export function validateProjectCanvas(canvas: ProjectCanvas): string[] {
   const errors: string[] = []
   const nodeIds = new Set<string>()
+  const nodesById = new Map<string, ProjectCanvasNode>()
   const edgeIds = new Set<string>()
   for (const node of canvas.nodes) {
     if (!node.id.trim()) errors.push('Project Canvas node id cannot be empty')
     if (nodeIds.has(node.id)) errors.push(`Project Canvas node id is duplicated: ${node.id}`)
     nodeIds.add(node.id)
+    if (!nodesById.has(node.id)) nodesById.set(node.id, node)
+  }
+  for (const node of canvas.nodes) {
+    if (!node.parentId) continue
+    const parent = nodesById.get(node.parentId)
+    if (!parent) errors.push(`Project Canvas node ${node.id} references missing parent group ${node.parentId}`)
+    else if (parent.type !== 'group') errors.push(`Project Canvas node ${node.id} references non-group parent ${node.parentId}`)
+  }
+  for (const node of canvas.nodes) {
+    if (node.type !== 'group') continue
+    const visited = new Set<string>()
+    let current: ProjectCanvasNode | undefined = node
+    while (current) {
+      if (visited.has(current.id)) {
+        errors.push(`Project Canvas group hierarchy contains a cycle at ${node.id}`)
+        break
+      }
+      visited.add(current.id)
+      current = current.parentId ? nodesById.get(current.parentId) : undefined
+    }
   }
   for (const edge of canvas.edges) {
     if (!edge.id.trim()) errors.push('Project Canvas edge id cannot be empty')

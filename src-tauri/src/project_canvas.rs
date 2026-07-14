@@ -685,12 +685,50 @@ fn stale_kind_for_node(node: &ProjectCanvasNode) -> String {
 
 pub fn validate_project_canvas(canvas: &ProjectCanvas) -> Result<(), String> {
     let mut node_ids = HashSet::new();
+    let mut nodes_by_id = HashMap::new();
     for node in &canvas.nodes {
         if node.id.trim().is_empty() {
             return Err("Project Canvas node id cannot be empty".to_string());
         }
         if !node_ids.insert(node.id.as_str()) {
             return Err(format!("Project Canvas node id is duplicated: {}", node.id));
+        }
+        nodes_by_id.insert(node.id.as_str(), node);
+    }
+    for node in &canvas.nodes {
+        let Some(parent_id) = node.parent_id.as_deref() else {
+            continue;
+        };
+        let parent = nodes_by_id.get(parent_id).ok_or_else(|| {
+            format!(
+                "Project Canvas node {} references missing parent group {}",
+                node.id, parent_id
+            )
+        })?;
+        if parent.node_type != ProjectCanvasNodeType::Group {
+            return Err(format!(
+                "Project Canvas node {} references non-group parent {}",
+                node.id, parent_id
+            ));
+        }
+    }
+    for node in &canvas.nodes {
+        if node.node_type != ProjectCanvasNodeType::Group {
+            continue;
+        }
+        let mut visited = HashSet::new();
+        let mut current = Some(node);
+        while let Some(candidate) = current {
+            if !visited.insert(candidate.id.as_str()) {
+                return Err(format!(
+                    "Project Canvas group hierarchy contains a cycle at {}",
+                    node.id
+                ));
+            }
+            current = candidate
+                .parent_id
+                .as_deref()
+                .and_then(|parent_id| nodes_by_id.get(parent_id).copied());
         }
     }
 
@@ -791,6 +829,22 @@ mod tests {
         normalize_project_canvas(canvas, project_path)
     }
 
+    fn group_node(id: &str, parent_id: Option<&str>) -> ProjectCanvasNode {
+        ProjectCanvasNode {
+            id: id.to_string(),
+            node_type: ProjectCanvasNodeType::Group,
+            ref_target: None,
+            x: 0.0,
+            y: 0.0,
+            width: 320.0,
+            height: 190.0,
+            title: None,
+            text: None,
+            completed: None,
+            parent_id: parent_id.map(str::to_string),
+        }
+    }
+
     #[test]
     fn discovers_canonical_and_adjacent_canvas_paths() {
         let dir = TempDir::new().unwrap();
@@ -820,6 +874,42 @@ mod tests {
         let migrated = normalize_project_canvas(legacy, project_path);
         assert_eq!(migrated.nodes.len(), 1);
         assert_eq!(migrated.nodes[0].id, PROJECT_OVERVIEW_NODE_ID);
+    }
+
+    #[test]
+    fn rejects_invalid_and_cyclic_group_hierarchy() {
+        let project_path = "projects/alpha/project.md";
+        let mut missing_parent = sample_canvas(project_path);
+        missing_parent
+            .nodes
+            .iter_mut()
+            .find(|node| node.id == "node_note")
+            .unwrap()
+            .parent_id = Some("missing".to_string());
+        assert_eq!(
+            validate_project_canvas(&missing_parent).unwrap_err(),
+            "Project Canvas node node_note references missing parent group missing"
+        );
+
+        let mut non_group_parent = sample_canvas(project_path);
+        non_group_parent
+            .nodes
+            .iter_mut()
+            .find(|node| node.id == "node_text")
+            .unwrap()
+            .parent_id = Some("node_note".to_string());
+        assert_eq!(
+            validate_project_canvas(&non_group_parent).unwrap_err(),
+            "Project Canvas node node_text references non-group parent node_note"
+        );
+
+        let mut cyclic = sample_canvas(project_path);
+        cyclic.nodes.push(group_node("outer", Some("inner")));
+        cyclic.nodes.push(group_node("inner", Some("outer")));
+        assert_eq!(
+            validate_project_canvas(&cyclic).unwrap_err(),
+            "Project Canvas group hierarchy contains a cycle at outer"
+        );
     }
 
     #[test]

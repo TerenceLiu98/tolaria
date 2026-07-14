@@ -12,6 +12,7 @@ import { ProjectCanvasPersistenceAdapter, type ProjectCanvasPersistenceReason } 
 import {
   normalizeProjectCanvas,
   type ProjectCanvas,
+  type ProjectCanvasEdge,
   type ProjectCanvasEdgeKind,
   type ProjectCanvasNode,
   type ProjectCanvasRefDiagnostic,
@@ -62,6 +63,11 @@ interface GestureContext {
   nodeId: string | null
   endpoint: CanvasGestureEndpoint | null
   additive: boolean
+}
+
+interface CanvasClipboardGraph {
+  readonly nodes: readonly ProjectCanvasNode[]
+  readonly edges: readonly ProjectCanvasEdge[]
 }
 
 export interface CanvasAddNodeOptions {
@@ -130,7 +136,7 @@ export class ProjectCanvasController {
   private revision = 0
   private snapshotValue: CanvasControllerSnapshot
   private gestureContext: GestureContext | null = null
-  private clipboard: ProjectCanvasNode[] = []
+  private clipboard: CanvasClipboardGraph = { nodes: [], edges: [] }
   private readonly transientNodeEdits = new Map<string, ProjectCanvas>()
   private readonly transientEdgeEdits = new Map<string, ProjectCanvas>()
   private refsValue: ProjectCanvasResolvedRef[] = []
@@ -627,7 +633,13 @@ export class ProjectCanvasController {
     if (deletable.size === 0) return this.getScene()
     return this.commitScene('Delete Canvas membership', canvas => ({
       ...canvas,
-      nodes: canvas.nodes.filter(node => !deletable.has(node.id)),
+      nodes: canvas.nodes.filter(node => !deletable.has(node.id)).map(node => {
+        let parentId = node.parentId
+        while (parentId && deletable.has(parentId)) {
+          parentId = canvas.nodes.find(candidate => candidate.id === parentId)?.parentId
+        }
+        return parentId === node.parentId ? node : { ...node, parentId }
+      }),
       edges: canvas.edges.filter(edge => !deletable.has(edge.from) && !deletable.has(edge.to)),
     }))
   }
@@ -668,13 +680,24 @@ export class ProjectCanvasController {
   groupSelection(title = 'Group'): ProjectCanvas | null {
     const current = this.getScene()
     const selectedIds = new Set(this.selection.getSnapshot().selectedNodeIds)
-    const selected = current?.nodes.filter(node => selectedIds.has(node.id) && node.type !== 'group') ?? []
+    const selected = current?.nodes.filter(node => {
+      if (!selectedIds.has(node.id) || node.id === 'project_overview') return false
+      let parentId = node.parentId
+      while (parentId) {
+        if (selectedIds.has(parentId)) return false
+        parentId = current.nodes.find(candidate => candidate.id === parentId)?.parentId
+      }
+      return true
+    }) ?? []
     if (!current || selected.length === 0) return current
     const minX = Math.min(...selected.map(node => node.x)) - 24
     const minY = Math.min(...selected.map(node => node.y)) - 36
     const maxX = Math.max(...selected.map(node => node.x + node.width)) + 24
     const maxY = Math.max(...selected.map(node => node.y + node.height)) + 24
     const groupId = nextId('group', current.nodes.map(node => node.id))
+    const sharedParentId = selected.every(node => node.parentId === selected[0].parentId)
+      ? selected[0].parentId
+      : undefined
     const group: ProjectCanvasNode = {
       id: groupId,
       type: 'group',
@@ -683,33 +706,103 @@ export class ProjectCanvasController {
       y: minY,
       width: Math.max(240, maxX - minX),
       height: Math.max(140, maxY - minY),
+      parentId: sharedParentId,
     }
+    const groupedIds = new Set(selected.map(node => node.id))
     const result = this.commitScene('Group nodes', canvas => ({
       ...canvas,
-      nodes: [group, ...canvas.nodes.map(node => selectedIds.has(node.id) ? { ...node, parentId: groupId } : node)],
+      nodes: [group, ...canvas.nodes.map(node => groupedIds.has(node.id) ? { ...node, parentId: groupId } : node)],
     }))
     this.selection.setActiveGroup(groupId)
     this.selectNodes([groupId], groupId)
     return result
   }
 
+  enterGroup(groupId: string): void {
+    if (this.sceneStore?.node(groupId)?.type !== 'group') return
+    this.selection.setActiveGroup(groupId)
+  }
+
+  exitGroup(): void {
+    const activeGroupId = this.selection.getSnapshot().activeGroupId
+    const parentId = activeGroupId ? this.sceneStore?.node(activeGroupId)?.parentId ?? null : null
+    this.selection.setActiveGroup(parentId)
+  }
+
+  reparentNodes(nodeIds: readonly string[], parentGroupId: string | null): ProjectCanvas | null {
+    const current = this.getScene()
+    if (!current) return null
+    const movingIds = new Set(nodeIds.filter(nodeId => nodeId !== 'project_overview'))
+    if (movingIds.size === 0) return current
+    if (parentGroupId) {
+      const parent = current.nodes.find(node => node.id === parentGroupId)
+      if (!parent || parent.type !== 'group') return current
+      let ancestorId: string | undefined = parent.id
+      while (ancestorId) {
+        if (movingIds.has(ancestorId)) return current
+        ancestorId = current.nodes.find(node => node.id === ancestorId)?.parentId
+      }
+    }
+    const existingIds = new Set(current.nodes.map(node => node.id))
+    const validIds = new Set([...movingIds].filter(nodeId => existingIds.has(nodeId)))
+    if (validIds.size === 0) return current
+    const result = this.commitScene('Reparent nodes', canvas => ({
+      ...canvas,
+      nodes: canvas.nodes.map(node => validIds.has(node.id)
+        ? { ...node, parentId: parentGroupId ?? undefined }
+        : node),
+    }))
+    this.selection.setActiveGroup(parentGroupId)
+    return result
+  }
+
   copySelection(): void {
     const scene = this.sceneStore
     if (!scene) return
-    const ids = new Set(this.selection.getSnapshot().selectedNodeIds)
-    this.clipboard = scene.nodes().filter(node => ids.has(node.id)).map(node => ({ ...node }))
+    const ids = new Set(this.selection.getSnapshot().selectedNodeIds.filter(nodeId => nodeId !== 'project_overview'))
+    const pending = [...ids]
+    while (pending.length > 0) {
+      const nodeId = pending.pop()!
+      for (const childId of scene.getSnapshot().groups[nodeId] ?? []) {
+        if (ids.has(childId)) continue
+        ids.add(childId)
+        pending.push(childId)
+      }
+    }
+    this.clipboard = {
+      nodes: scene.nodes().filter(node => ids.has(node.id)).map(node => this.specs.getForNode(node).clipboard(node)),
+      edges: scene.edges().filter(edge => ids.has(edge.from) && ids.has(edge.to)).map(edge => ({ ...edge })),
+    }
   }
 
   pasteSelection(offset = 28): ProjectCanvas | null {
-    if (!this.sceneStore || this.clipboard.length === 0) return this.getScene()
-    const pasted = this.clipboard.map((node, index) => ({
+    if (!this.sceneStore || this.clipboard.nodes.length === 0) return this.getScene()
+    const usedNodeIds = new Set(this.sceneStore.getSnapshot().nodeOrder)
+    const nodeIdMap = new Map<string, string>()
+    for (const node of this.clipboard.nodes) {
+      const id = nextId(node.type, usedNodeIds)
+      usedNodeIds.add(id)
+      nodeIdMap.set(node.id, id)
+    }
+    const pastedNodes = this.clipboard.nodes.map(node => ({
       ...node,
-      id: nextId(node.type, [...this.sceneStore!.getSnapshot().nodeOrder, ...this.clipboard.map(item => `${item.id}_${index}`)]),
+      id: nodeIdMap.get(node.id)!,
+      parentId: node.parentId ? nodeIdMap.get(node.parentId) : undefined,
       x: node.x + offset,
       y: node.y + offset,
     }))
-    const result = this.commitScene('Paste nodes', canvas => ({ ...canvas, nodes: [...canvas.nodes, ...pasted] }))
-    this.selectNodes(pasted.map(node => node.id), pasted.at(-1)?.id ?? null)
+    const usedEdgeIds = new Set(this.sceneStore.getSnapshot().edgeOrder)
+    const pastedEdges = this.clipboard.edges.map(edge => {
+      const id = nextId('edge', usedEdgeIds)
+      usedEdgeIds.add(id)
+      return { ...edge, id, from: nodeIdMap.get(edge.from)!, to: nodeIdMap.get(edge.to)! }
+    })
+    const result = this.commitScene('Paste nodes', canvas => ({
+      ...canvas,
+      nodes: [...canvas.nodes, ...pastedNodes],
+      edges: [...canvas.edges, ...pastedEdges],
+    }))
+    this.selectNodes(pastedNodes.map(node => node.id), pastedNodes.at(-1)?.id ?? null)
     return result
   }
 

@@ -136,16 +136,37 @@ describe('projectCanvas', () => {
       'Project Canvas edge edge_1 references missing source node missing',
     ])
   })
+
+  it('rejects missing, non-group, and cyclic Canvas parent references', () => {
+    const canvas: ProjectCanvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [
+        node('outer', 'group', { parentId: 'inner' }),
+        node('inner', 'group', { parentId: 'outer' }),
+        node('plain', 'text'),
+        node('missing-child', 'text', { parentId: 'missing' }),
+        node('non-group-child', 'task', { parentId: 'plain' }),
+      ],
+    }
+
+    expect(validateProjectCanvas(canvas)).toEqual(expect.arrayContaining([
+      'Project Canvas node missing-child references missing parent group missing',
+      'Project Canvas node non-group-child references non-group parent plain',
+      'Project Canvas group hierarchy contains a cycle at inner',
+      'Project Canvas group hierarchy contains a cycle at outer',
+    ]))
+  })
 })
 
 function node(
   id: string,
   type: ProjectCanvasNodeType,
-  options: { ref?: string } = {},
+  options: { parentId?: string; ref?: string } = {},
 ) {
   return {
     height: 120,
     id,
+    parentId: options.parentId,
     ref: options.ref,
     title: undefined,
     text: undefined,

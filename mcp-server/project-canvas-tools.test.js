@@ -148,6 +148,31 @@ describe('Project Canvas MCP tools', () => {
       () => readProjectCanvas(vaultPath, { projectId: 'agent-research' }),
       /unsupported connector routing/,
     )
+
+    const invalidParent = canvasFixture()
+    invalidParent.nodes[0].parentId = 'missing'
+    await writeFile(
+      path.join(vaultPath, 'projects/agents/project.canvas.json'),
+      JSON.stringify(invalidParent, null, 2),
+    )
+    await assert.rejects(
+      () => readProjectCanvas(vaultPath, { projectId: 'agent-research' }),
+      /missing parent group/,
+    )
+
+    const cyclicGroups = canvasFixture()
+    cyclicGroups.nodes.push(
+      { id: 'outer', type: 'group', parentId: 'inner', x: 0, y: 500, width: 500, height: 300 },
+      { id: 'inner', type: 'group', parentId: 'outer', x: 30, y: 540, width: 400, height: 220 },
+    )
+    await writeFile(
+      path.join(vaultPath, 'projects/agents/project.canvas.json'),
+      JSON.stringify(cyclicGroups, null, 2),
+    )
+    await assert.rejects(
+      () => readProjectCanvas(vaultPath, { projectId: 'agent-research' }),
+      /group hierarchy contains a cycle/,
+    )
   })
 })
 

@@ -62,6 +62,23 @@ export function validateCanvas(canvas) {
   if (nodeIds.size !== canvas.nodes.length || canvas.nodes.some(node => !NODE_TYPES.has(node.type))) {
     throw new Error('Project Canvas contains invalid or duplicate nodes')
   }
+  const nodesById = new Map(canvas.nodes.map(node => [node.id, node]))
+  for (const node of canvas.nodes) {
+    if (!node.parentId) continue
+    const parent = nodesById.get(node.parentId)
+    if (!parent) throw new Error(`Project Canvas node ${node.id} references missing parent group ${node.parentId}`)
+    if (parent.type !== 'group') throw new Error(`Project Canvas node ${node.id} references non-group parent ${node.parentId}`)
+  }
+  for (const node of canvas.nodes) {
+    if (node.type !== 'group') continue
+    const visited = new Set()
+    let current = node
+    while (current) {
+      if (visited.has(current.id)) throw new Error(`Project Canvas group hierarchy contains a cycle at ${node.id}`)
+      visited.add(current.id)
+      current = current.parentId ? nodesById.get(current.parentId) : null
+    }
+  }
   if (canvas.edges.some(edge => !nodeIds.has(edge.from) || !nodeIds.has(edge.to))) {
     throw new Error('Project Canvas contains an edge with a missing endpoint')
   }
