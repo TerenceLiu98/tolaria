@@ -864,6 +864,13 @@
   box-shadow: 0 6px 16px color-mix(in srgb, var(--foreground) 14%, transparent);
 }
 
+.project-canvas-overlay-handle--reconnect {
+  width: 20px;
+  height: 20px;
+  border-color: color-mix(in srgb, var(--primary) 60%, var(--border));
+  color: var(--primary);
+}
+
 .project-workspace-surface {
   display: flex;
   min-height: 0;

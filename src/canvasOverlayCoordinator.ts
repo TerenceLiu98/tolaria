@@ -1,4 +1,6 @@
+import type { CanvasConnectorCommand } from './canvasGraphicsCommands'
 import type { CanvasPoint } from './canvasSceneStore'
+import type { CanvasGestureEndpoint } from './canvasToolManager'
 import type { CanvasViewport } from './canvasViewport'
 import type { ProjectCanvasNode } from './projectCanvas'
 
@@ -12,12 +14,22 @@ export interface CanvasOverlayRect {
   height: number
 }
 
-export interface CanvasOverlayHandle {
+export interface CanvasOverlayNodeHandle {
   readonly kind: 'resize' | 'connect'
   readonly nodeId: string
   readonly left: number
   readonly top: number
 }
+
+export interface CanvasOverlayEdgeHandle {
+  readonly kind: 'reconnect'
+  readonly edgeId: string
+  readonly endpoint: CanvasGestureEndpoint
+  readonly left: number
+  readonly top: number
+}
+
+export type CanvasOverlayHandle = CanvasOverlayNodeHandle | CanvasOverlayEdgeHandle
 
 export interface CanvasOverlayGuide {
   readonly orientation: 'horizontal' | 'vertical'
@@ -171,6 +183,17 @@ export class CanvasOverlayCoordinator {
         top: topLeft.y + (bottomRight.y - topLeft.y) / 2,
       }
     }).filter(handle => this.isInsideClip(handle.left, handle.top))
+  }
+
+  edgeEndpointHandles(connectors: readonly CanvasConnectorCommand[], viewport: CanvasViewport): CanvasOverlayHandle[] {
+    return connectors.filter(connector => connector.selected).flatMap((connector) => {
+      const from = viewport.canvasToScreen(connector.from)
+      const to = viewport.canvasToScreen(connector.to)
+      return [
+        { kind: 'reconnect' as const, edgeId: connector.edgeId, endpoint: 'from' as const, left: from.x, top: from.y },
+        { kind: 'reconnect' as const, edgeId: connector.edgeId, endpoint: 'to' as const, left: to.x, top: to.y },
+      ].filter(handle => this.isInsideClip(handle.left, handle.top))
+    })
   }
 
   positionToolbar(anchor: CanvasPoint, width = 180, height = 28, viewport: CanvasViewport, notify = true): CanvasOverlayRect | null {

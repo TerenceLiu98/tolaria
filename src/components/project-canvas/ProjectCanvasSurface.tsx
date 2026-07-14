@@ -21,6 +21,7 @@ import { Button } from '../ui/button'
 import {
   trackProjectCanvasCreated,
   trackProjectCanvasEdgeCreated,
+  trackProjectCanvasEdgeReconnected,
   trackProjectCanvasFocusModeChanged,
   trackProjectCanvasNavigatorFocused,
   trackProjectCanvasNodeAdded,
@@ -504,6 +505,10 @@ export function ProjectCanvasSurface({
     controller.beginNodeResize(nodeId, controller.clientToScreen(point))
   }, [controller])
 
+  const handleOverlayReconnectStart = useCallback((edgeId: string, endpoint: 'from' | 'to', point: { x: number; y: number }, pointerId?: number) => {
+    controller.beginEdgeReconnect(edgeId, endpoint, controller.clientToScreen(point), pointerId)
+  }, [controller])
+
   useEffect(() => {
     return controller.attachPointerSource(
       window,
@@ -515,9 +520,12 @@ export function ProjectCanvasSurface({
         return targetElement instanceof HTMLElement ? targetElement.dataset.nodeId ?? null : null
       },
       edgeKind,
-      ({ gesture, targetNodeId }) => {
-        if (gesture.kind === 'connect' && targetNodeId && targetNodeId !== gesture.targetId) {
+      ({ gesture, sceneChanged, targetNodeId }) => {
+        if (gesture.kind === 'connect' && targetNodeId && targetNodeId !== gesture.targetId && sceneChanged) {
           trackProjectCanvasEdgeCreated({ kind: edgeKind })
+        }
+        if (gesture.kind === 'reconnect' && gesture.endpoint && sceneChanged) {
+          trackProjectCanvasEdgeReconnected({ endpoint: gesture.endpoint })
         }
         if (gesture.phase === 'active') suppressClickUntilRef.current = Date.now() + 250
       },
@@ -854,6 +862,7 @@ export function ProjectCanvasSurface({
   const visibleNodes = controller.queryVisibleNodes(retainedNodeIds)
   const graphicsCommands = controller.queryVisibleGraphics()
   const connectionHandles = controller.getConnectionHandles(visibleNodes.filter(node => !selectedNodeIds.includes(node.id)))
+  const edgeEndpointHandles = controller.getEdgeEndpointHandles(graphicsCommands.connectors)
   const camera = controllerSnapshot.viewport.camera
 
   return (
@@ -1019,14 +1028,22 @@ export function ProjectCanvasSurface({
             const node = canvas.nodes.find(candidate => candidate.id === nodeId)
             return translate(locale, 'projectCanvas.connectFrom', { title: node?.title ?? node?.ref ?? nodeId })
           }}
+          edgeEndpointHandles={edgeEndpointHandles}
           handles={controllerSnapshot.overlay.handles}
           locale={locale}
           onConnectStart={handleOverlayConnectStart}
+          onReconnectStart={handleOverlayReconnectStart}
           onResizeStart={handleOverlayResizeStart}
           onToolbarAction={handleToolbarAction}
           resizeLabel={nodeId => {
             const node = canvas.nodes.find(candidate => candidate.id === nodeId)
             return translate(locale, 'projectCanvas.resizeNode', { title: node?.title ?? node?.ref ?? nodeId })
+          }}
+          reconnectLabel={(edgeId, endpoint) => {
+            const edge = canvas.edges.find(candidate => candidate.id === edgeId)
+            const nodeId = edge?.[endpoint] ?? edgeId
+            const node = canvas.nodes.find(candidate => candidate.id === nodeId)
+            return translate(locale, 'projectCanvas.connectFrom', { title: node?.title ?? node?.ref ?? nodeId })
           }}
           selectionRect={controllerSnapshot.overlay.rect}
           snapGuides={controllerSnapshot.overlay.snapGuides}

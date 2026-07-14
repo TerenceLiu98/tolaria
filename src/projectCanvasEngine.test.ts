@@ -27,6 +27,22 @@ function changed(canvas: ProjectCanvas, nodeId: string, x: number): ProjectCanva
   return { ...canvas, nodes: canvas.nodes.map(node => node.id === nodeId ? { ...node, x } : node) }
 }
 
+async function loadedController(initial: ProjectCanvas): Promise<ProjectCanvasController> {
+  const persistence = new ProjectCanvasPersistenceAdapter({
+    projectPath: initial.project,
+    vaultPath: '/vault',
+    deterministicWrites: false,
+    read: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready', canvas: initial }),
+    create: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready', canvas: initial }),
+    resolve: async () => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', refs: [], diagnostics: [] }),
+    save: async (_vault, _project, canvas) => ({ projectPath: initial.project, canvasPath: 'projects/alpha/project.canvas.json', state: 'ready', canvas }),
+    viewportDebounceMs: 0,
+  })
+  const controller = new ProjectCanvasController({ persistence, migrateLoadedScene: false })
+  await controller.load()
+  return controller
+}
+
 describe('CanvasViewport', () => {
   beforeEach(() => {
     vi.useRealTimers()
@@ -252,6 +268,15 @@ describe('CanvasSelectionManager and CanvasToolManager', () => {
     expect(tools.getSnapshot().phase).toBe('active')
     expect(tools.commit().phase).toBe('committed')
     expect(tools.getSnapshot().phase).toBe('idle')
+
+    tools.setSpacePressed(false)
+    tools.begin('reconnect', { point: { x: 10, y: 20 }, targetId: 'edge-1', endpoint: 'to' })
+    expect(tools.getSnapshot()).toMatchObject({
+      kind: 'reconnect',
+      targetId: 'edge-1',
+      endpoint: 'to',
+      phase: 'pressed',
+    })
   })
 })
 
@@ -312,6 +337,17 @@ describe('Canvas layers, node specs, and overlays', () => {
       expect.objectContaining({ kind: 'connect', nodeId: 'a', left: 60, top: 40 }),
       expect.objectContaining({ kind: 'resize', nodeId: 'a', left: 60, top: 60 }),
     ]))
+    expect(overlays.edgeEndpointHandles([{
+      edgeId: 'edge-1',
+      from: { x: 100, y: 40 },
+      fromAnchorId: 'right',
+      selected: true,
+      to: { x: 300, y: 40 },
+      toAnchorId: 'left',
+    }], viewport)).toEqual([
+      { kind: 'reconnect', edgeId: 'edge-1', endpoint: 'from', left: 60, top: 40 },
+      { kind: 'reconnect', edgeId: 'edge-1', endpoint: 'to', left: 160, top: 40 },
+    ])
     expect(overlays.positionForNodes([{ id: 'offscreen', type: 'text', x: -100, y: 0, width: 100, height: 80 }], viewport)).toEqual({
       left: 0,
       top: 20,
@@ -503,6 +539,65 @@ describe('ProjectCanvasPersistenceAdapter', () => {
 })
 
 describe('ProjectCanvasController', () => {
+  it('reconnects either connector endpoint as one cancellable history transaction', async () => {
+    const initial: ProjectCanvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [
+        { id: 'a', type: 'text', x: 0, y: 0, width: 100, height: 80 },
+        { id: 'b', type: 'text', x: 300, y: 0, width: 100, height: 80 },
+        { id: 'c', type: 'text', x: 300, y: 200, width: 100, height: 80 },
+      ],
+      edges: [{ id: 'edge-1', from: 'a', to: 'b', kind: 'related' }],
+    }
+    const controller = await loadedController(initial)
+    controller.setViewportSize({ width: 800, height: 600 })
+    controller.selectEdge('edge-1')
+
+    controller.beginEdgeReconnect('edge-1', 'to', { x: 300, y: 40 })
+    controller.updatePointer({ x: 350, y: 240 })
+    expect(controller.queryVisibleGraphics()).toMatchObject({
+      connectors: [],
+      preview: { from: { x: 100, y: 40 }, to: { x: 350, y: 240 } },
+    })
+    controller.finishGesture('c')
+    expect(controller.getScene()?.edges).toEqual([
+      { id: 'edge-1', from: 'a', to: 'c', kind: 'related' },
+    ])
+    expect(controller.undo()?.edges).toEqual(initial.edges)
+    expect(controller.getSnapshot().canUndo).toBe(false)
+
+    controller.beginEdgeReconnect('edge-1', 'from', { x: 100, y: 40 })
+    controller.updatePointer({ x: 500, y: 500 })
+    controller.cancelGesture()
+    expect(controller.getScene()?.edges).toEqual(initial.edges)
+    expect(controller.getSnapshot().canUndo).toBe(false)
+    controller.dispose()
+  })
+
+  it('rejects self and duplicate reconnection targets without recording history', async () => {
+    const initial: ProjectCanvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [
+        { id: 'a', type: 'text', x: 0, y: 0, width: 100, height: 80 },
+        { id: 'b', type: 'text', x: 300, y: 0, width: 100, height: 80 },
+        { id: 'c', type: 'text', x: 600, y: 0, width: 100, height: 80 },
+      ],
+      edges: [
+        { id: 'edge-1', from: 'a', to: 'b', kind: 'related' },
+        { id: 'edge-2', from: 'c', to: 'b', kind: 'related' },
+      ],
+    }
+    const controller = await loadedController(initial)
+    controller.beginEdgeReconnect('edge-1', 'from', { x: 100, y: 40 })
+    controller.finishGesture('b')
+    controller.beginEdgeReconnect('edge-1', 'from', { x: 100, y: 40 })
+    controller.finishGesture('c')
+
+    expect(controller.getScene()?.edges).toEqual(initial.edges)
+    expect(controller.getSnapshot().canUndo).toBe(false)
+    controller.dispose()
+  })
+
   it('publishes indexed visible graphics and retains an offscreen selected connector', async () => {
     const nodes = Array.from({ length: 1_000 }, (_, index) => ({
       id: `node-${index}`,

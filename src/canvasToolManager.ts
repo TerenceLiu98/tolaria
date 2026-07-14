@@ -1,7 +1,8 @@
 import type { CanvasPoint } from './canvasSceneStore'
 
 export type CanvasTool = 'select' | 'hand' | 'connect' | 'frame'
-export type CanvasGestureKind = 'pan' | 'drag' | 'resize' | 'connect' | 'marquee' | 'group'
+export type CanvasGestureKind = 'pan' | 'drag' | 'resize' | 'connect' | 'reconnect' | 'marquee' | 'group'
+export type CanvasGestureEndpoint = 'from' | 'to'
 export type CanvasGesturePhase = 'idle' | 'pressed' | 'active' | 'committed' | 'cancelled'
 
 export interface CanvasGestureSnapshot {
@@ -11,6 +12,7 @@ export interface CanvasGestureSnapshot {
   readonly current: CanvasPoint | null
   readonly pointerId: number | null
   readonly targetId: string | null
+  readonly endpoint: CanvasGestureEndpoint | null
   readonly revision: number
 }
 
@@ -18,6 +20,7 @@ export interface CanvasPointerInput {
   point: CanvasPoint
   pointerId?: number
   targetId?: string | null
+  endpoint?: CanvasGestureEndpoint | null
   shiftKey?: boolean
   spaceOverride?: boolean
 }
@@ -32,6 +35,7 @@ export class CanvasToolManager {
     current: null,
     pointerId: null,
     targetId: null,
+    endpoint: null,
     revision: 0,
   }
   private readonly listeners = new Set<() => void>()
@@ -74,6 +78,7 @@ export class CanvasToolManager {
       current: { ...input.point },
       pointerId: input.pointerId ?? null,
       targetId: input.targetId ?? null,
+      endpoint: input.endpoint ?? null,
       revision: this.gestureValue.revision + 1,
     }
     this.publish()
@@ -118,6 +123,7 @@ export class CanvasToolManager {
       current: null,
       pointerId: null,
       targetId: null,
+      endpoint: null,
       revision: this.gestureValue.revision + 1,
     }
     this.publish()

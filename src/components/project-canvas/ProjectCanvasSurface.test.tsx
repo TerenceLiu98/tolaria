@@ -8,6 +8,7 @@ import {
   type ProjectCanvasResolveResult,
 } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
+import { trackProjectCanvasEdgeReconnected } from '../../lib/productAnalytics'
 import { ProjectCanvasSurface } from './ProjectCanvasSurface'
 import { PROJECT_CANVAS_DRAG_MIME } from './projectCanvasDragData'
 import { requestProjectCanvasDraft, requestProjectCanvasNavigate } from './projectCanvasNavigation'
@@ -18,6 +19,7 @@ vi.mock('../../lib/productAnalytics', () => ({
   trackProjectCanvasAiDraftPinned: vi.fn(),
   trackProjectCanvasCreated: vi.fn(),
   trackProjectCanvasEdgeCreated: vi.fn(),
+  trackProjectCanvasEdgeReconnected: vi.fn(),
   trackProjectCanvasFocusModeChanged: vi.fn(),
   trackProjectCanvasPeekOpened: vi.fn(),
   trackProjectCanvasPeekPinned: vi.fn(),
@@ -1301,6 +1303,65 @@ describe('ProjectCanvasSurface', () => {
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
     const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
     expect(savedCanvas?.edges).toEqual([])
+  })
+
+  it('reconnects a selected edge endpoint with a pointer gesture and cancels with Escape', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(trackProjectCanvasEdgeReconnected).mockClear()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await screen.findByText('Source Note')
+    fireEvent.pointerDown(screen.getByTestId('project-canvas-edge'), { button: 0 })
+    let endpointHandles = screen.getAllByTestId('project-canvas-reconnect-handle')
+    expect(endpointHandles).toHaveLength(2)
+
+    fireEvent.pointerDown(endpointHandles[1], { button: 0, clientX: 100, clientY: 100, pointerId: 3 })
+    fireEvent.pointerMove(window, { clientX: 500, clientY: 300, pointerId: 3 })
+    fireEvent.keyDown(screen.getByTestId('project-canvas-viewport'), { key: 'Escape' })
+    expect(projectCanvas.saveProjectCanvas).not.toHaveBeenCalled()
+    expect(trackProjectCanvasEdgeReconnected).not.toHaveBeenCalled()
+
+    endpointHandles = screen.getAllByTestId('project-canvas-reconnect-handle')
+    fireEvent.pointerDown(endpointHandles[1], { button: 0, clientX: 100, clientY: 100, pointerId: 4 })
+    fireEvent.pointerMove(window, { clientX: 450, clientY: 260, pointerId: 4 })
+    fireEvent.pointerCancel(window, { pointerId: 4 })
+    expect(projectCanvas.saveProjectCanvas).not.toHaveBeenCalled()
+
+    const taskCard = screen.getByText('Read methods').closest('[data-testid="project-canvas-node"]')
+    expect(taskCard).not.toBeNull()
+    const originalElementFromPoint = document.elementFromPoint
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => taskCard as Element),
+    })
+    endpointHandles = screen.getAllByTestId('project-canvas-reconnect-handle')
+    fireEvent.pointerDown(endpointHandles[1], { button: 0, clientX: 100, clientY: 100, pointerId: 5 })
+    fireEvent.pointerMove(window, { clientX: 500, clientY: 300, pointerId: 5 })
+    fireEvent.pointerUp(window, { clientX: 500, clientY: 300, pointerId: 5 })
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(1))
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.edges).toEqual([
+      { id: 'edge_1', from: 'block', to: 'task', kind: 'supports' },
+    ])
+    expect(trackProjectCanvasEdgeReconnected).toHaveBeenCalledWith({ endpoint: 'to' })
+
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: originalElementFromPoint,
+    })
   })
 
   it('persists fit-to-view and auto layout actions', async () => {

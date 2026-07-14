@@ -198,6 +198,10 @@ export function trackProjectCanvasEdgeCreated(params: { kind: ProjectCanvasEdgeK
   trackEvent('project_canvas_edge_created', { kind: params.kind })
 }
 
+export function trackProjectCanvasEdgeReconnected(params: { endpoint: 'from' | 'to' }): void {
+  trackEvent('project_canvas_edge_reconnected', { endpoint: params.endpoint })
+}
+
 export function trackProjectCanvasExternalNodeAdded(params: {
   createdCanvas: AnalyticsBoolean
   duplicate: AnalyticsBoolean

@@ -1,12 +1,12 @@
 import { autoLayoutCanvas } from './components/project-canvas/projectCanvasDisplay'
 import { CanvasHistoryManager, type CanvasHistoryDomain } from './canvasHistoryManager'
 import { CanvasLayerManager } from './canvasLayerManager'
-import { buildCanvasGraphicsCommandBatch, connectionAnchorToward, type CanvasGraphicsCommandBatch } from './canvasGraphicsCommands'
+import { buildCanvasGraphicsCommandBatch, connectionAnchorToward, type CanvasConnectorCommand, type CanvasGraphicsCommandBatch } from './canvasGraphicsCommands'
 import { CanvasNodeSpecRegistry, type CanvasNodeToolbarAction } from './canvasNodeSpecRegistry'
 import { CanvasOverlayCoordinator, type CanvasOverlayGuide, type CanvasOverlayHandle } from './canvasOverlayCoordinator'
 import { CanvasSceneStore, type CanvasNodeGeometryPatch, type CanvasPoint, type CanvasSceneDiagnostics, type CanvasSceneSnapshot } from './canvasSceneStore'
 import { CanvasSelectionManager, type CanvasSelectionSnapshot } from './canvasSelectionManager'
-import { CanvasToolManager, type CanvasGestureKind, type CanvasGestureSnapshot, type CanvasPointerInput, type CanvasTool } from './canvasToolManager'
+import { CanvasToolManager, type CanvasGestureEndpoint, type CanvasGestureKind, type CanvasGestureSnapshot, type CanvasPointerInput, type CanvasTool } from './canvasToolManager'
 import { CanvasViewport, type CanvasViewportSize, type CanvasViewportSnapshot } from './canvasViewport'
 import { ProjectCanvasPersistenceAdapter, type ProjectCanvasPersistenceReason } from './projectCanvasPersistenceAdapter'
 import {
@@ -49,8 +49,8 @@ export interface CanvasControllerOptions {
 }
 
 export interface CanvasPointerEventSource {
-  addEventListener(type: 'pointermove' | 'pointerup', listener: (event: PointerEvent) => void): void
-  removeEventListener(type: 'pointermove' | 'pointerup', listener: (event: PointerEvent) => void): void
+  addEventListener(type: 'pointercancel' | 'pointermove' | 'pointerup', listener: (event: PointerEvent) => void): void
+  removeEventListener(type: 'pointercancel' | 'pointermove' | 'pointerup', listener: (event: PointerEvent) => void): void
 }
 
 interface GestureContext {
@@ -60,6 +60,7 @@ interface GestureContext {
   startViewport: ProjectCanvas['viewport']
   startNodes: Readonly<Record<string, ProjectCanvasNode>>
   nodeId: string | null
+  endpoint: CanvasGestureEndpoint | null
   additive: boolean
 }
 
@@ -283,6 +284,10 @@ export class ProjectCanvasController {
     return this.overlays.connectionHandlesForNodes(nodes, this.viewport)
   }
 
+  getEdgeEndpointHandles(connectors: readonly CanvasConnectorCommand[]): CanvasOverlayHandle[] {
+    return this.overlays.edgeEndpointHandles(connectors, this.viewport)
+  }
+
   queryVisibleNodes(retainedNodeIds: ReadonlySet<string> = new Set()): ProjectCanvasNode[] {
     const scene = this.sceneStore
     if (!scene) return []
@@ -328,23 +333,34 @@ export class ProjectCanvasController {
     const fromNode = gesture.kind === 'connect' && gesture.targetId
       ? scene.getSnapshot().nodesById[gesture.targetId]
       : null
-    const preview = fromNode && gesture.current
+    const pointerCanvas = gesture.current ? this.viewport.screenToCanvas(gesture.current) : null
+    const preview = fromNode && pointerCanvas
       ? {
           from: connectionAnchorToward(
             fromNode,
-            this.viewport.screenToCanvas(gesture.current),
+            pointerCanvas,
             node => this.specs.getForNode(node).connectionAnchors(node),
           ).point,
-          to: this.viewport.screenToCanvas(gesture.current),
+          to: pointerCanvas,
         }
       : null
-    return buildCanvasGraphicsCommandBatch(
+    const batch = buildCanvasGraphicsCommandBatch(
       scene.getSnapshot(),
       edges,
       selectedEdgeIds,
       preview,
       node => this.specs.getForNode(node).connectionAnchors(node),
     )
+    if (gesture.kind !== 'reconnect' || !gesture.targetId || !gesture.endpoint || !pointerCanvas) return batch
+    const reconnecting = batch.connectors.find(command => command.edgeId === gesture.targetId)
+    if (!reconnecting) return batch
+    return {
+      connectors: batch.connectors.filter(command => command.edgeId !== gesture.targetId),
+      preview: {
+        from: gesture.endpoint === 'from' ? reconnecting.to : reconnecting.from,
+        to: pointerCanvas,
+      },
+    }
   }
 
   setTool(tool: CanvasTool): void {
@@ -635,13 +651,16 @@ export class ProjectCanvasController {
     return result
   }
 
-  reconnectEdge(edgeId: string, toNodeId: string): ProjectCanvas | null {
+  reconnectEdge(edgeId: string, endpoint: CanvasGestureEndpoint, nodeId: string): ProjectCanvas | null {
     const current = this.getScene()
     const edge = current?.edges.find(item => item.id === edgeId)
-    if (!current || !edge || edge.to === toNodeId || !current.nodes.some(node => node.id === toNodeId)) return current
+    if (!current || !edge || !current.nodes.some(node => node.id === nodeId)) return current
+    const nextEdge = endpoint === 'from' ? { ...edge, from: nodeId } : { ...edge, to: nodeId }
+    if (nextEdge.from === nextEdge.to || (nextEdge.from === edge.from && nextEdge.to === edge.to)) return current
+    if (current.edges.some(item => item.id !== edgeId && item.from === nextEdge.from && item.to === nextEdge.to)) return current
     return this.commitScene('Reconnect edge', canvas => ({
       ...canvas,
-      edges: canvas.edges.map(item => item.id === edgeId ? { ...item, to: toNodeId } : item),
+      edges: canvas.edges.map(item => item.id === edgeId ? nextEdge : item),
     }))
   }
 
@@ -712,12 +731,13 @@ export class ProjectCanvasController {
       startViewport: { ...scene.viewport },
       startNodes,
       nodeId: input.targetId ?? null,
+      endpoint: input.endpoint ?? null,
       additive: input.shiftKey === true,
     }
     this.overlays.setSnapGuides([], false)
     if (effectiveKind === 'drag') this.selection.setMode('dragging')
     if (effectiveKind === 'resize') this.selection.setMode('resizing')
-    if (effectiveKind === 'connect') this.selection.setMode('connecting')
+    if (effectiveKind === 'connect' || effectiveKind === 'reconnect') this.selection.setMode('connecting')
     if (effectiveKind === 'marquee' || effectiveKind === 'group') this.selection.setMode('marquee')
     if (effectiveKind === 'pan') this.selection.setMode('dragging')
     return this.tools.begin(kind, input)
@@ -749,11 +769,17 @@ export class ProjectCanvasController {
     return this.beginGesture('connect', { point, pointerId, targetId: fromNodeId })
   }
 
+  beginEdgeReconnect(edgeId: string, endpoint: CanvasGestureEndpoint, point: CanvasPoint, pointerId?: number): CanvasGestureSnapshot {
+    if (!this.sceneStore?.edge(edgeId)) return this.tools.getSnapshot()
+    this.selectEdge(edgeId)
+    return this.beginGesture('reconnect', { point, pointerId, targetId: edgeId, endpoint })
+  }
+
   attachPointerSource(
     source: CanvasPointerEventSource,
     resolveTarget: (event: PointerEvent) => string | null,
     connectKind: ProjectCanvasEdgeKind,
-    onFinish?: (details: { gesture: CanvasGestureSnapshot; targetNodeId: string | null }) => void,
+    onFinish?: (details: { gesture: CanvasGestureSnapshot; sceneChanged: boolean; targetNodeId: string | null }) => void,
   ): () => void {
     const handlePointerMove = (event: PointerEvent) => {
       if (this.tools.getSnapshot().phase !== 'idle') {
@@ -764,12 +790,18 @@ export class ProjectCanvasController {
       const gesture = this.tools.getSnapshot()
       if (gesture.phase === 'idle') return
       const targetNodeId = resolveTarget(event)
-      this.finishGesture(targetNodeId, connectKind)
-      onFinish?.({ gesture, targetNodeId })
+      const before = this.getScene()
+      const result = this.finishGesture(targetNodeId, connectKind)
+      onFinish?.({ gesture, sceneChanged: result !== before, targetNodeId })
     }
+    const handlePointerCancel = () => {
+      if (this.tools.getSnapshot().phase !== 'idle') this.cancelGesture()
+    }
+    source.addEventListener('pointercancel', handlePointerCancel)
     source.addEventListener('pointermove', handlePointerMove)
     source.addEventListener('pointerup', handlePointerUp)
     return () => {
+      source.removeEventListener('pointercancel', handlePointerCancel)
       source.removeEventListener('pointermove', handlePointerMove)
       source.removeEventListener('pointerup', handlePointerUp)
     }
@@ -829,6 +861,8 @@ export class ProjectCanvasController {
     }
     if (context.kind === 'connect' && targetNodeId && context.nodeId) {
       result = this.createConnection(context.nodeId, targetNodeId, connectKind)
+    } else if (context.kind === 'reconnect' && targetNodeId && context.nodeId && context.endpoint) {
+      result = this.reconnectEdge(context.nodeId, context.endpoint, targetNodeId)
     } else if ((context.kind === 'marquee' || context.kind === 'group') && gesture.phase === 'pressed') {
       if (context.kind === 'marquee') this.clearSelection()
     } else if ((context.kind === 'marquee' || context.kind === 'group') && gesture.start && gesture.current) {
@@ -855,7 +889,7 @@ export class ProjectCanvasController {
     this.updateSelectionOverlay(false)
     this.overlays.setActive(this.activeOverlayKinds(), false)
     this.publishImmediate()
-    return gesture.phase === 'pressed' && context.kind !== 'connect' ? context.before : result
+    return gesture.phase === 'pressed' && context.kind !== 'connect' && context.kind !== 'reconnect' ? context.before : result
   }
 
   cancelGesture(): ProjectCanvas | null {
@@ -1057,7 +1091,7 @@ export class ProjectCanvasController {
     if (gesture.phase === 'idle' && selection.mode === 'idle' && selection.selectedNodeIds.length > 0) {
       kinds.push('resize', 'toolbar')
     }
-    if (gesture.kind === 'connect' && gesture.phase !== 'idle') kinds.push('connection')
+    if ((gesture.kind === 'connect' || gesture.kind === 'reconnect') && gesture.phase !== 'idle') kinds.push('connection')
     if (this.overlays.getSnapshot().snapGuides.length > 0 && gesture.phase === 'active') kinds.push('snap')
     return kinds
   }
