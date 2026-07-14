@@ -1,6 +1,6 @@
 import type React from 'react'
 import { CornersIn } from '@phosphor-icons/react'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { Profiler, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { translate, type AppLocale } from '../../lib/i18n'
 import {
   PROJECT_OVERVIEW_NODE_ID,
@@ -150,9 +150,14 @@ export function ProjectCanvasSurface({
   const [edgeKind, setEdgeKind] = useState<ProjectCanvasEdgeKind>('related')
   const canvasRef = useRef<ProjectCanvas | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const surfaceCommitCountRef = useRef(0)
   const suppressClickUntilRef = useRef(0)
   const openedTrackedRef = useRef(false)
   const viewportSize = useProjectCanvasViewportSize(viewportRef, state !== 'loading')
+  const recordSurfaceCommit = useCallback(() => {
+    surfaceCommitCountRef.current += 1
+    viewportRef.current?.setAttribute('data-canvas-surface-render-count', String(surfaceCommitCountRef.current))
+  }, [])
 
   useEffect(() => {
     controller.setViewportSize(viewportSize)
@@ -294,6 +299,10 @@ export function ProjectCanvasSurface({
     canvasRef.current = nextCanvas
     selectSingleNode(node.id)
   }, [controller, selectSingleNode])
+  const handleNavigatorFocus = useCallback((node: ProjectCanvasNode) => {
+    focusNode(node, false)
+    trackProjectCanvasNavigatorFocused({ nodeType: node.type })
+  }, [focusNode])
 
   const {
     discard: closeAiDraft,
@@ -863,11 +872,15 @@ export function ProjectCanvasSurface({
   if (editingNodeId) retainedNodeIds.add(editingNodeId)
   const visibleNodes = controller.queryVisibleNodes(retainedNodeIds)
   const graphicsCommands = controller.queryVisibleGraphics()
-  const connectionHandles = controller.getConnectionHandles(visibleNodes.filter(node => !selectedNodeIds.includes(node.id)))
+  const connectionHandleNodes = controllerSnapshot.tool === 'connect'
+    ? visibleNodes.filter(node => !selectedNodeIds.includes(node.id))
+    : []
+  const connectionHandles = controller.getConnectionHandles(connectionHandleNodes)
   const edgeEndpointHandles = controller.getEdgeEndpointHandles(graphicsCommands.connectors)
   const camera = controllerSnapshot.viewport.camera
 
   return (
+    <Profiler id="project-canvas-surface" onRender={recordSurfaceCommit}>
     <section
       className="project-canvas-surface"
       data-testid="project-canvas-surface"
@@ -917,6 +930,7 @@ export function ProjectCanvasSurface({
         data-canvas-visible-node-count={visibleNodes.length}
         data-canvas-query-candidates={controller.getSceneDiagnostics()?.lastQueryCandidates ?? 0}
         data-canvas-snapshot-revision={controllerSnapshot.revision}
+        data-canvas-surface-render-count="0"
         ref={viewportRef}
         tabIndex={0}
         onDragOver={handleCanvasDragOver}
@@ -931,10 +945,7 @@ export function ProjectCanvasSurface({
           locale={locale}
           nodes={canvas.nodes}
           selectedNodeId={selectedNodeId}
-          onFocusNode={node => {
-            focusNode(node, false)
-            trackProjectCanvasNavigatorFocused({ nodeType: node.type })
-          }}
+          onFocusNode={handleNavigatorFocus}
         />
         <div
           className="project-canvas-world"
@@ -1119,5 +1130,6 @@ export function ProjectCanvasSurface({
         />
       </div>
     </section>
+    </Profiler>
   )
 }

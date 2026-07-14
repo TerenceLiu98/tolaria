@@ -1222,6 +1222,7 @@ describe('ProjectCanvasSurface', () => {
     )
 
     await screen.findByText('Source Note')
+    fireEvent.click(screen.getByText('Source Note'))
     const targetCard = screen.getByText('Target Note').closest('[data-testid="project-canvas-node"]')
     expect(targetCard).not.toBeNull()
     const originalElementFromPoint = document.elementFromPoint

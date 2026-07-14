@@ -354,6 +354,11 @@ describe('Canvas layers, node specs, and overlays', () => {
     const layers = new CanvasLayerManager()
     expect(layers.layers.map(layer => layer.kind)).toEqual(['graphics', 'document', 'overlay'])
     expect(layers.get('overlay').screenSpace).toBe(true)
+    expect(layers.budget).toEqual({
+      maxDomNodesAtLowZoom: 72,
+      maxDocumentPreviewsAtLowZoom: 40,
+      maxImagesAtLowZoom: 16,
+    })
     const specs = new CanvasNodeSpecRegistry()
     expect(['note', 'paper', 'paper_block', 'image', 'text', 'task', 'group'].every(type => specs.has(type as ProjectCanvas['nodes'][number]['type']))).toBe(true)
     expect(specs.getForNode({ id: 'project_overview', type: 'note', x: 0, y: 0, width: 10, height: 10 }).key).toBe('overview')
@@ -439,10 +444,12 @@ describe('Canvas layers, node specs, and overlays', () => {
     controller.beginNodeDrag('moving', { x: 50, y: 50 })
     controller.updatePointer({ x: 165, y: 165 })
 
-    expect(controller.getSnapshot().overlay.snapGuides).toEqual(expect.arrayContaining([
-      expect.objectContaining({ orientation: 'vertical' }),
-      expect.objectContaining({ orientation: 'horizontal' }),
-    ]))
+    await vi.waitFor(() => {
+      expect(controller.getSnapshot().overlay.snapGuides).toEqual(expect.arrayContaining([
+        expect.objectContaining({ orientation: 'vertical' }),
+        expect.objectContaining({ orientation: 'horizontal' }),
+      ]))
+    })
     expect(controller.getScene()?.nodes.find(node => node.id === 'moving')).toMatchObject({ x: 120, y: 120 })
 
     controller.finishGesture()
@@ -475,7 +482,9 @@ describe('Canvas layers, node specs, and overlays', () => {
     controller.setViewportSize({ width: 800, height: 600 })
     controller.beginNodeResize('moving', { x: 100, y: 100 })
     controller.updatePointer({ x: 219, y: 219 })
-    expect(controller.getSnapshot().overlay.snapGuides.length).toBeGreaterThan(0)
+    await vi.waitFor(() => {
+      expect(controller.getSnapshot().overlay.snapGuides.length).toBeGreaterThan(0)
+    })
     expect(controller.getScene()?.nodes.find(node => node.id === 'moving')).toMatchObject({ width: 220, height: 220 })
     controller.cancelGesture()
     expect(controller.getSnapshot().overlay.snapGuides).toEqual([])
@@ -519,7 +528,7 @@ describe('Canvas layers, node specs, and overlays', () => {
       height: 8,
     }))
     const visible = layers.filterNodes(nodes, 0.4, new Set(['node-199']))
-    expect(visible).toHaveLength(181)
+    expect(visible).toHaveLength(73)
     expect(visible.at(-1)?.id).toBe('node-199')
   })
 
@@ -535,7 +544,7 @@ describe('Canvas layers, node specs, and overlays', () => {
     }))
     const retained = new Set(['node-4900', 'node-4901', 'node-4902', 'node-4903'])
     const visible = layers.filterNodes(nodes, 0.4, retained)
-    expect(visible).toHaveLength(184)
+    expect(visible).toHaveLength(76)
     expect(visible.map(node => node.id)).toEqual(expect.arrayContaining([...retained]))
   })
 })

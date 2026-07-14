@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type CDPSession } from '@playwright/test'
 import { createFixtureVaultCopy, openFixtureVaultTauri, removeFixtureVaultCopy } from '../helpers/fixtureVault'
 
 let tempVaultDir: string
@@ -79,6 +79,45 @@ async function installProjectCanvasHarness(page: Parameters<typeof openFixtureVa
     }
     install()
     window.setInterval(install, 25)
+  })
+}
+
+async function collectHeapUsed(session: CDPSession): Promise<number | null> {
+  try {
+    await session.send('HeapProfiler.collectGarbage')
+    const result = await session.send('Performance.getMetrics')
+    return result.metrics.find(metric => metric.name === 'JSHeapUsedSize')?.value ?? null
+  } catch {
+    return null
+  }
+}
+
+interface CanvasFrameProbe {
+  done: boolean
+  frames: number
+  maxFrameMs: number
+}
+
+async function startCanvasFrameProbe(page: Parameters<typeof openFixtureVaultTauri>[0]): Promise<void> {
+  await page.evaluate(() => {
+    const probe = { frames: 0, maxFrameMs: 0, previous: performance.now(), done: false }
+    const tick = (now: number) => {
+      probe.maxFrameMs = Math.max(probe.maxFrameMs, now - probe.previous)
+      probe.previous = now
+      probe.frames += 1
+      probe.done = probe.frames >= 24
+      if (!probe.done) requestAnimationFrame(tick)
+    }
+    ;(window as typeof window & { __canvasFrameProbe?: typeof probe }).__canvasFrameProbe = probe
+    requestAnimationFrame(tick)
+  })
+}
+
+async function readCanvasFrameProbe(page: Parameters<typeof openFixtureVaultTauri>[0]): Promise<CanvasFrameProbe> {
+  await page.waitForFunction(() => Boolean((window as typeof window & { __canvasFrameProbe?: CanvasFrameProbe }).__canvasFrameProbe?.done))
+  return page.evaluate(() => {
+    const probe = (window as typeof window & { __canvasFrameProbe?: CanvasFrameProbe }).__canvasFrameProbe
+    return probe ?? { frames: 0, maxFrameMs: Number.POSITIVE_INFINITY, done: false }
   })
 }
 
@@ -233,17 +272,30 @@ test('Project Canvas executes pointer gestures and clears transient overlays aft
   await page.screenshot({ path: 'test-results/project-canvas-gestures.png', fullPage: true })
 })
 
-test('Project Canvas keeps 5,000-node low-zoom rendering within the browser budget @canvas', async ({ page }) => {
-  const largeCanvas = await page.evaluate(() => {
-    const nodes = Array.from({ length: 5000 }, (_, index) => ({
-      id: `node-${String(index).padStart(4, '0')}`,
-      type: 'text',
-      x: (index % 100) * 80,
-      y: Math.floor(index / 100) * 80,
-      width: 48,
-      height: 48,
-      text: `Card ${index}`,
-    }))
+for (const sceneNodeCount of [1000, 5000] as const) {
+test(`Project Canvas keeps ${sceneNodeCount.toLocaleString()}-node low-zoom rendering within the browser budget @canvas`, async ({ page }, testInfo) => {
+  testInfo.setTimeout(30_000)
+  const performanceSession = await page.context().newCDPSession(page)
+  await performanceSession.send('Performance.enable')
+  const heapBeforeScene = await collectHeapUsed(performanceSession)
+  const largeCanvas = await page.evaluate((nodeCount) => {
+    const imageRef = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22%3E%3Crect width=%2248%22 height=%2248%22 fill=%22%236b7280%22/%3E%3C/svg%3E'
+    const nodes = Array.from({ length: nodeCount }, (_, index) => {
+      const type = index % 10 === 0 ? 'image' : index % 5 === 0 ? 'note' : index % 7 === 0 ? 'task' : 'text'
+      return {
+        id: `node-${String(index).padStart(4, '0')}`,
+        type,
+        x: (index % 100) * 80,
+        y: Math.floor(index / 100) * 80,
+        width: 48,
+        height: 48,
+        ...(type === 'image'
+          ? { ref: imageRef, title: `Image ${index}` }
+          : type === 'note'
+            ? { ref: 'project/alpha-project.md', title: `Document ${index}` }
+            : { text: `Card ${index}` }),
+      }
+    })
     nodes.unshift({
       id: 'project_overview',
       type: 'note',
@@ -264,59 +316,94 @@ test('Project Canvas keeps 5,000-node low-zoom rendering within the browser budg
     }
     localStorage.setItem('tolaria:project-canvas-acceptance', JSON.stringify(canvas))
     return canvas
-  })
+  }, sceneNodeCount)
 
   await page.waitForTimeout(80)
   await page.getByTestId('note-list-container').getByText('Alpha Project', { exact: true }).click()
   const viewport = page.getByTestId('project-canvas-viewport')
   await expect(viewport).toBeVisible()
   await expect(viewport).toHaveAttribute('data-canvas-scene-node-count', String(largeCanvas.nodes.length))
+  await expect(page.locator('[data-testid^="project-canvas-navigator-node-"]').first()).toBeVisible()
 
   const metrics = await page.evaluate(() => {
     const element = document.querySelector('[data-testid="project-canvas-viewport"]')
     const nodeCount = document.querySelectorAll('[data-testid="project-canvas-node"]').length
     const previews = document.querySelectorAll('[data-testid="project-document-preview"]').length
     const images = document.querySelectorAll('img.project-canvas-node__image').length
+    const navigatorNodes = document.querySelectorAll('[data-testid^="project-canvas-navigator-node-"]').length
     const queryCandidates = Number(element?.getAttribute('data-canvas-query-candidates') ?? 0)
-    const memory = 'memory' in performance
-      ? (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null
-      : null
-    return { nodeCount, previews, images, queryCandidates, memory }
+    const renderCount = Number(element?.getAttribute('data-canvas-surface-render-count') ?? 0)
+    return { nodeCount, previews, images, navigatorNodes, queryCandidates, renderCount }
   })
 
-  expect(metrics.nodeCount).toBeLessThanOrEqual(181)
-  expect(metrics.previews).toBeLessThanOrEqual(80)
-  expect(metrics.images).toBeLessThanOrEqual(24)
+  expect(metrics.nodeCount).toBeLessThanOrEqual(73)
+  expect(metrics.previews).toBeLessThanOrEqual(40)
+  expect(metrics.images).toBeGreaterThan(0)
+  expect(metrics.images).toBeLessThanOrEqual(16)
+  expect(metrics.navigatorNodes).toBeGreaterThan(0)
+  expect(metrics.navigatorNodes).toBeLessThanOrEqual(80)
   expect(metrics.queryCandidates).toBeLessThan(500)
+  expect(metrics.renderCount).toBeGreaterThan(0)
+  const heapAfterScene = await collectHeapUsed(performanceSession)
+  if (heapBeforeScene !== null && heapAfterScene !== null) {
+    const maxSceneHeapGrowth = sceneNodeCount === 1000 ? 32 : 96
+    expect(heapAfterScene - heapBeforeScene).toBeLessThan(maxSceneHeapGrowth * 1024 * 1024)
+  }
 
   const viewportBox = await viewport.boundingBox()
   expect(viewportBox).not.toBeNull()
-  await page.evaluate(() => {
-    const probe = { frames: 0, maxFrameMs: 0, previous: performance.now(), done: false }
-    const tick = (now: number) => {
-      probe.maxFrameMs = Math.max(probe.maxFrameMs, now - probe.previous)
-      probe.previous = now
-      probe.frames += 1
-      probe.done = probe.frames >= 24
-      if (!probe.done) requestAnimationFrame(tick)
+  const retainedNode = page.locator('[data-testid="project-canvas-node"][data-node-id="node-0011"]')
+  await retainedNode.click({ force: true, position: { x: 12, y: 12 } })
+  const emptyPoint = await page.evaluate((box) => {
+    for (let y = box.y + box.height - 20; y >= box.y + 20; y -= 16) {
+      for (let x = box.x + box.width - 20; x >= box.x + 70; x -= 16) {
+        if (!document.elementFromPoint(x, y)?.closest('[data-node-id], button, input, textarea')) return { x, y }
+      }
     }
-    ;(window as typeof window & { __canvasFrameProbe?: typeof probe }).__canvasFrameProbe = probe
-    requestAnimationFrame(tick)
-  })
+    return { x: box.x + box.width - 20, y: box.y + box.height - 20 }
+  }, viewportBox!)
+  await startCanvasFrameProbe(page)
+  await viewport.focus()
+  await page.keyboard.down('Space')
+  await page.mouse.move(emptyPoint.x, emptyPoint.y)
+  await page.mouse.down()
+  await page.mouse.move(emptyPoint.x - 600, emptyPoint.y, { steps: 8 })
+  await page.mouse.up()
+  await page.keyboard.up('Space')
+  const panFrameResult = await readCanvasFrameProbe(page)
+  expect(panFrameResult.frames).toBe(24)
+  expect(panFrameResult.maxFrameMs).toBeLessThan(50)
+  await expect(retainedNode).toHaveCount(1)
+  const retainedBox = await retainedNode.boundingBox()
+  expect(retainedBox).not.toBeNull()
+  expect(retainedBox!.x + retainedBox!.width).toBeLessThan(viewportBox!.x)
+  const renderCountBeforeZoom = Number(await viewport.getAttribute('data-canvas-surface-render-count') ?? 0)
+  await startCanvasFrameProbe(page)
   await page.mouse.move(viewportBox!.x + viewportBox!.width - 24, viewportBox!.y + viewportBox!.height - 24)
   await page.mouse.wheel(0, -240)
-  await expect.poll(async () => page.evaluate(() => Boolean((window as typeof window & { __canvasFrameProbe?: { done: boolean } }).__canvasFrameProbe?.done))).toBe(true)
-  const frameResult = await page.evaluate(() => {
-    const probe = (window as typeof window & { __canvasFrameProbe?: { frames: number; maxFrameMs: number } }).__canvasFrameProbe
-    return probe ?? { frames: 0, maxFrameMs: Number.POSITIVE_INFINITY }
+  const zoomFrameResult = await readCanvasFrameProbe(page)
+  expect(zoomFrameResult.frames).toBe(24)
+  expect(zoomFrameResult.maxFrameMs).toBeLessThan(50)
+
+  const renderCountAfterZoom = Number(await viewport.getAttribute('data-canvas-surface-render-count') ?? 0)
+  expect(renderCountAfterZoom - metrics.renderCount).toBeLessThanOrEqual(20)
+  expect(renderCountAfterZoom - renderCountBeforeZoom).toBeLessThanOrEqual(8)
+  const heapAfterZoom = await collectHeapUsed(performanceSession)
+  if (heapAfterScene !== null && heapAfterZoom !== null) expect(heapAfterZoom - heapAfterScene).toBeLessThan(16 * 1024 * 1024)
+
+  await testInfo.attach(`project-canvas-${sceneNodeCount}-metrics`, {
+    body: JSON.stringify({
+      ...metrics,
+      panFrameResult,
+      zoomFrameResult,
+      heapGrowthBytes: heapBeforeScene !== null && heapAfterScene !== null ? heapAfterScene - heapBeforeScene : null,
+      zoomHeapGrowthBytes: heapAfterScene !== null && heapAfterZoom !== null ? heapAfterZoom - heapAfterScene : null,
+      interactionRenderCount: renderCountAfterZoom - metrics.renderCount,
+      zoomRenderCount: renderCountAfterZoom - renderCountBeforeZoom,
+    }, null, 2),
+    contentType: 'application/json',
   })
-  expect(frameResult.frames).toBe(24)
-  expect(frameResult.maxFrameMs).toBeLessThan(50)
 
-  const afterMemory = await page.evaluate(() => 'memory' in performance
-    ? (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null
-    : null)
-  if (metrics.memory !== null && afterMemory !== null) expect(afterMemory - metrics.memory).toBeLessThan(64 * 1024 * 1024)
-
-  await page.screenshot({ path: 'test-results/project-canvas-5000-budget.png', fullPage: true })
+  await page.screenshot({ path: `test-results/project-canvas-${sceneNodeCount}-budget.png`, fullPage: true })
 })
+}

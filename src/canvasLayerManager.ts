@@ -22,9 +22,9 @@ export class CanvasLayerManager {
   ]
 
   readonly budget: CanvasRenderBudget = {
-    maxDomNodesAtLowZoom: 180,
-    maxImagesAtLowZoom: 24,
-    maxDocumentPreviewsAtLowZoom: 80,
+    maxDomNodesAtLowZoom: 72,
+    maxImagesAtLowZoom: 16,
+    maxDocumentPreviewsAtLowZoom: 40,
   }
 
   get(kind: CanvasLayerKind): CanvasLayerDescriptor {

@@ -809,7 +809,7 @@ export class ProjectCanvasController {
   }
 
   updatePointer(point: CanvasPoint): CanvasGestureSnapshot {
-    const gesture = this.tools.update(point)
+    const gesture = this.tools.update(point, false)
     const context = this.gestureContext
     if (!context || !this.sceneStore || !gesture.start) return gesture
     const dx = point.x - context.startScreen.x
@@ -844,7 +844,7 @@ export class ProjectCanvasController {
     this.updateSelectionOverlay(false)
     this.overlays.setActive(this.activeOverlayKinds(), false)
     this.overlays.setFocusOwner('canvas', false)
-    this.publishImmediate()
+    this.publish()
     return gesture
   }
 

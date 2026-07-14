@@ -85,7 +85,7 @@ export class CanvasToolManager {
     return this.gestureValue
   }
 
-  update(point: CanvasPoint): CanvasGestureSnapshot {
+  update(point: CanvasPoint, notify = true): CanvasGestureSnapshot {
     if (this.gestureValue.phase === 'idle') return this.gestureValue
     const start = this.gestureValue.start ?? point
     const moved = Math.abs(point.x - start.x) + Math.abs(point.y - start.y) > 4
@@ -95,7 +95,7 @@ export class CanvasToolManager {
       phase: moved ? 'active' : this.gestureValue.phase,
       revision: this.gestureValue.revision + 1,
     }
-    this.publish()
+    if (notify) this.publish()
     return this.gestureValue
   }
 
