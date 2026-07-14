@@ -44,6 +44,7 @@ export class ProjectCanvasPersistenceAdapter {
   private viewportTimer: ReturnType<typeof setTimeout> | null = null
   private pendingViewport: ProjectCanvas | null = null
   private viewportWaiters: Array<{ resolve: (result: ProjectCanvasReadResult | null) => void; reject: (error: unknown) => void }> = []
+  private writeTail: Promise<ProjectCanvasReadResult> | null = null
 
   constructor(options: ProjectCanvasPersistenceAdapterOptions) {
     this.vaultPath = options.vaultPath
@@ -120,7 +121,7 @@ export class ProjectCanvasPersistenceAdapter {
     const waiters = this.viewportWaiters.splice(0)
     if (!pending) {
       for (const waiter of waiters) waiter.resolve(null)
-      return null
+      return this.writeTail
     }
     const result = await this.persistNow(pending)
     for (const waiter of waiters) waiter.resolve(result)
@@ -131,6 +132,17 @@ export class ProjectCanvasPersistenceAdapter {
     const nextCanvas = this.deterministicWrites
       ? normalizeProjectCanvas(canvas, this.projectPath)
       : { ...canvas, viewport: { ...canvas.viewport }, nodes: canvas.nodes.map(node => ({ ...node })), edges: canvas.edges.map(edge => ({ ...edge })) }
-    return Promise.resolve(this.save(this.vaultPath, this.projectPath, nextCanvas))
+    const startWrite = () => new Promise<ProjectCanvasReadResult>(resolve => {
+      resolve(this.save(this.vaultPath, this.projectPath, nextCanvas))
+    })
+    const write = this.writeTail
+      ? this.writeTail.catch(() => null).then(startWrite)
+      : startWrite()
+    this.writeTail = write
+    const clearTail = () => {
+      if (this.writeTail === write) this.writeTail = null
+    }
+    void write.then(clearTail, clearTail)
+    return write
   }
 }

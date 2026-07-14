@@ -958,6 +958,7 @@ export function ProjectCanvasSurface({
         selectedNode={selectedNode}
         selectedNodeCount={selectedNodeIds.length}
         selectedNodeId={selectedNodeId}
+        saveError={error}
         saving={saving}
         title={entry.title}
         tool={controllerSnapshot.tool}

@@ -136,6 +136,7 @@ export class ProjectCanvasController {
   private sceneStore: CanvasSceneStore | null = null
   private statusValue: CanvasControllerStatus = 'idle'
   private savingValue = false
+  private pendingPersistenceCount = 0
   private errorValue: string | null = null
   private revision = 0
   private snapshotValue: CanvasControllerSnapshot
@@ -242,7 +243,7 @@ export class ProjectCanvasController {
       else clearTimeout(this.notifyFrame)
       this.notifyFrame = null
     }
-    void this.persistence.flush()
+    void this.persistence.flush().catch(() => undefined)
     this.listeners.clear()
   }
 
@@ -1182,18 +1183,19 @@ export class ProjectCanvasController {
 
   async persist(canvas: ProjectCanvas | null, reason: ProjectCanvasPersistenceReason): Promise<void> {
     if (!canvas) return
+    this.pendingPersistenceCount += 1
     this.savingValue = true
-    this.publish()
+    this.publishImmediate()
     try {
       await this.persistence.persist(canvas, reason)
       if (reason !== 'viewport') await this.refreshReferences(canvas)
       this.errorValue = null
     } catch (error) {
       this.errorValue = error instanceof Error ? error.message : String(error)
-      this.statusValue = 'error'
     } finally {
-      this.savingValue = false
-      this.publish()
+      this.pendingPersistenceCount = Math.max(0, this.pendingPersistenceCount - 1)
+      this.savingValue = this.pendingPersistenceCount > 0
+      this.publishImmediate()
     }
   }
 

@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../ui/textarea'
 import { EDGE_KINDS, edgeKindKey } from './projectCanvasDisplay'
 import { ProjectCanvasArrangePopover } from './ProjectCanvasArrangePopover'
+import { projectCanvasSavedState } from './projectCanvasSaveState'
 
 export type ProjectCanvasAddPanelMode = 'existing' | 'text' | 'task' | 'image' | 'block' | 'group'
 
@@ -33,6 +34,7 @@ interface ProjectCanvasToolbarProps {
   selectedNode: ProjectCanvasNode | null
   selectedNodeCount: number
   selectedNodeId: string | null
+  saveError: string | null
   saving: boolean
   title: string
   tool: CanvasTool
@@ -81,6 +83,7 @@ export function ProjectCanvasToolbar({
   selectedNode,
   selectedNodeCount,
   selectedNodeId,
+  saveError,
   saving,
   title,
   tool,
@@ -113,7 +116,7 @@ export function ProjectCanvasToolbar({
             {translate(locale, 'projectCanvas.status', {
               edgeCount: String(edgeCount),
               nodeCount: String(nodeCount),
-              savedState: saving ? translate(locale, 'projectCanvas.saving') : translate(locale, 'projectCanvas.saved'),
+              savedState: projectCanvasSavedState(locale, saving, saveError),
             })}
           </div>
         </div>
