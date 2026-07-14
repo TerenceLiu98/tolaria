@@ -5,6 +5,7 @@ import {
   type ProjectCanvasNode,
   type ProjectCanvasViewport,
 } from './projectCanvas'
+import { CANVAS_CONNECTOR_MAX_DETOUR } from './canvasConnectorRouting'
 
 export interface CanvasBounds {
   minX: number
@@ -128,6 +129,13 @@ function pointInBounds(point: CanvasPoint, bounds: CanvasBounds): boolean {
     && point.x <= bounds.maxX
     && point.y >= bounds.minY
     && point.y <= bounds.maxY
+}
+
+function boundsIntersect(left: CanvasBounds, right: CanvasBounds): boolean {
+  return left.maxX >= right.minX
+    && left.maxY >= right.minY
+    && left.minX <= right.maxX
+    && left.minY <= right.maxY
 }
 
 function segmentIntersectsBounds(from: CanvasPoint, to: CanvasPoint, bounds: CanvasBounds): boolean {
@@ -451,7 +459,10 @@ export class CanvasSceneStore {
   private addEdgeToSpatialIndex(edge: ProjectCanvasEdge | undefined): void {
     const points = this.edgePoints(edge)
     if (!edge || !points) return
-    const cells = this.cellsForSegment(points.from, points.to, CanvasSceneStore.EDGE_SPATIAL_CELL_SIZE)
+    const routedBounds = this.routedEdgeBounds(edge, points)
+    const cells = routedBounds
+      ? this.cellsForBounds(routedBounds, CanvasSceneStore.EDGE_SPATIAL_CELL_SIZE)
+      : this.cellsForSegment(points.from, points.to, CanvasSceneStore.EDGE_SPATIAL_CELL_SIZE)
     this.edgeCellsById.set(edge.id, cells)
     for (const cell of cells) {
       const ids = this.edgeSpatialIndex.get(cell) ?? new Set<string>()
@@ -473,7 +484,24 @@ export class CanvasSceneStore {
 
   private edgeIntersectsBounds(edge: ProjectCanvasEdge, bounds: CanvasBounds): boolean {
     const points = this.edgePoints(edge)
-    return points ? segmentIntersectsBounds(points.from, points.to, bounds) : false
+    if (!points) return false
+    const routedBounds = this.routedEdgeBounds(edge, points)
+    return routedBounds
+      ? boundsIntersect(routedBounds, bounds)
+      : segmentIntersectsBounds(points.from, points.to, bounds)
+  }
+
+  private routedEdgeBounds(
+    edge: ProjectCanvasEdge,
+    points: { from: CanvasPoint; to: CanvasPoint },
+  ): CanvasBounds | null {
+    if (!edge.routing || edge.routing === 'straight') return null
+    return {
+      minX: Math.min(points.from.x, points.to.x) - CANVAS_CONNECTOR_MAX_DETOUR,
+      minY: Math.min(points.from.y, points.to.y) - CANVAS_CONNECTOR_MAX_DETOUR,
+      maxX: Math.max(points.from.x, points.to.x) + CANVAS_CONNECTOR_MAX_DETOUR,
+      maxY: Math.max(points.from.y, points.to.y) + CANVAS_CONNECTOR_MAX_DETOUR,
+    }
   }
 
   private addNodeToSpatialIndex(node: ProjectCanvasNode): void {

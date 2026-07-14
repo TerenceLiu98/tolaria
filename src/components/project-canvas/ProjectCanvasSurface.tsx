@@ -22,6 +22,7 @@ import {
   trackProjectCanvasCreated,
   trackProjectCanvasEdgeCreated,
   trackProjectCanvasEdgeReconnected,
+  trackProjectCanvasEdgeRoutingChanged,
   trackProjectCanvasFocusModeChanged,
   trackProjectCanvasNavigatorFocused,
   trackProjectCanvasNodeAdded,
@@ -715,6 +716,7 @@ export function ProjectCanvasSurface({
     if (!selectedEdgeId) return
     const next = controller.updateEdge(selectedEdgeId, patch, persist)
     if (next) canvasRef.current = next
+    if (patch.routing && persist) trackProjectCanvasEdgeRoutingChanged({ routing: patch.routing })
   }, [controller, selectedEdgeId])
 
   const deleteSelectedNode = useCallback(() => {

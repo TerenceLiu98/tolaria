@@ -8,8 +8,24 @@ describe('CanvasGraphicsLayer', () => {
     const onSelectEdge = vi.fn()
     const commands: CanvasGraphicsCommandBatch = {
       connectors: [
-        { edgeId: 'edge-a', from: { x: 10, y: 20 }, fromAnchorId: 'right', to: { x: 110, y: 120 }, toAnchorId: 'left', selected: false },
-        { edgeId: 'edge-b', from: { x: 30, y: 40 }, fromAnchorId: 'right', to: { x: 130, y: 140 }, toAnchorId: 'left', selected: true },
+        {
+          edgeId: 'edge-a',
+          from: { x: 10, y: 20 },
+          fromAnchorId: 'right',
+          route: { kind: 'orthogonal', points: [{ x: 10, y: 20 }, { x: 60, y: 20 }, { x: 60, y: 120 }, { x: 110, y: 120 }] },
+          to: { x: 110, y: 120 },
+          toAnchorId: 'left',
+          selected: false,
+        },
+        {
+          edgeId: 'edge-b',
+          from: { x: 30, y: 40 },
+          fromAnchorId: 'right',
+          route: { control1: { x: 80, y: 40 }, control2: { x: 80, y: 140 }, kind: 'curved', points: [{ x: 30, y: 40 }, { x: 130, y: 140 }] },
+          to: { x: 130, y: 140 },
+          toAnchorId: 'left',
+          selected: true,
+        },
       ],
       preview: { from: { x: 50, y: 60 }, to: { x: 150, y: 160 } },
     }
@@ -24,8 +40,11 @@ describe('CanvasGraphicsLayer', () => {
 
     expect(container.querySelectorAll('path.project-canvas-edge')).toHaveLength(2)
     expect(container.querySelector('.project-canvas-edge:not(.project-canvas-edge--selected)')?.getAttribute('d'))
-      .toBe('M 0 0 L 100 100')
+      .toBe('M 0 0 L 50 0 L 50 100 L 100 100')
+    expect(container.querySelector('.project-canvas-edge--selected')?.getAttribute('d'))
+      .toBe('M 20 20 C 70 20 70 120 120 120')
     expect(screen.getAllByTestId('project-canvas-edge')).toHaveLength(2)
+    expect(screen.getAllByTestId('project-canvas-edge')[0].tagName).toBe('path')
     expect(container.querySelector('.project-canvas-edge--preview')).not.toBeNull()
 
     fireEvent.pointerDown(screen.getAllByTestId('project-canvas-edge')[1])

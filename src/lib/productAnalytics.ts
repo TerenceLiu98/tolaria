@@ -27,6 +27,7 @@ type SheetFormulaFunctionName = string
 type ProjectCanvasOpenState = 'ready' | 'created'
 type ProjectCanvasNodeKind = 'note' | 'paper' | 'paper_block' | 'image' | 'text' | 'task' | 'group'
 type ProjectCanvasEdgeKind = 'related' | 'supports' | 'contradicts' | 'depends_on' | 'needs_reading'
+type ProjectCanvasEdgeRouting = 'straight' | 'orthogonal' | 'curved'
 type ProjectCanvasAddSource = 'ai_answer' | 'block_citation' | 'note_list' | 'paper_catalog'
 type ProjectCanvasAiAction = 'summarize' | 'recommend_paper' | 'cited_outline'
 
@@ -200,6 +201,10 @@ export function trackProjectCanvasEdgeCreated(params: { kind: ProjectCanvasEdgeK
 
 export function trackProjectCanvasEdgeReconnected(params: { endpoint: 'from' | 'to' }): void {
   trackEvent('project_canvas_edge_reconnected', { endpoint: params.endpoint })
+}
+
+export function trackProjectCanvasEdgeRoutingChanged(params: { routing: ProjectCanvasEdgeRouting }): void {
+  trackEvent('project_canvas_edge_routing_changed', { routing: params.routing })
 }
 
 export function trackProjectCanvasExternalNodeAdded(params: {

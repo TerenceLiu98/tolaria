@@ -393,6 +393,7 @@ fn validates_every_node_and_edge_identity_constraint() {
         to: to.to_string(),
         kind: ProjectCanvasEdgeKind::Related,
         note: None,
+        routing: None,
     };
     let with_edges = |edges| ProjectCanvas {
         nodes: base_nodes.clone(),

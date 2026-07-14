@@ -8,7 +8,7 @@ import {
   type ProjectCanvasResolveResult,
 } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
-import { trackProjectCanvasEdgeReconnected } from '../../lib/productAnalytics'
+import { trackProjectCanvasEdgeReconnected, trackProjectCanvasEdgeRoutingChanged } from '../../lib/productAnalytics'
 import { ProjectCanvasSurface } from './ProjectCanvasSurface'
 import { PROJECT_CANVAS_DRAG_MIME } from './projectCanvasDragData'
 import { requestProjectCanvasDraft, requestProjectCanvasNavigate } from './projectCanvasNavigation'
@@ -20,6 +20,7 @@ vi.mock('../../lib/productAnalytics', () => ({
   trackProjectCanvasCreated: vi.fn(),
   trackProjectCanvasEdgeCreated: vi.fn(),
   trackProjectCanvasEdgeReconnected: vi.fn(),
+  trackProjectCanvasEdgeRoutingChanged: vi.fn(),
   trackProjectCanvasFocusModeChanged: vi.fn(),
   trackProjectCanvasPeekOpened: vi.fn(),
   trackProjectCanvasPeekPinned: vi.fn(),
@@ -1303,6 +1304,34 @@ describe('ProjectCanvasSurface', () => {
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalled())
     const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
     expect(savedCanvas?.edges).toEqual([])
+  })
+
+  it('persists connector routing through the controller and records only the routing mode', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(trackProjectCanvasEdgeRoutingChanged).mockClear()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await screen.findByText('Source Note')
+    fireEvent.pointerDown(screen.getByTestId('project-canvas-edge'), { button: 0 })
+    fireEvent.click(screen.getAllByRole('combobox')[1])
+    fireEvent.click(screen.getByRole('option', { name: 'Curved' }))
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(1))
+    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.edges[0]).toMatchObject({ id: 'edge_1', routing: 'curved' })
+    expect(trackProjectCanvasEdgeRoutingChanged).toHaveBeenCalledWith({ routing: 'curved' })
   })
 
   it('reconnects a selected edge endpoint with a pointer gesture and cancels with Escape', async () => {

@@ -3,12 +3,14 @@ import { isTauri, mockInvoke } from './mock-tauri'
 
 export const PROJECT_CANVAS_SCHEMA = 'project-canvas/v1'
 export const PROJECT_OVERVIEW_NODE_ID = 'project_overview'
+const PROJECT_CANVAS_EDGE_ROUTINGS: ReadonlySet<string> = new Set(['straight', 'orthogonal', 'curved'])
 
 const PROJECT_OVERVIEW_WIDTH = 420
 const PROJECT_OVERVIEW_HEIGHT = 280
 
 export type ProjectCanvasNodeType = 'note' | 'paper' | 'paper_block' | 'image' | 'text' | 'task' | 'group'
 export type ProjectCanvasEdgeKind = 'related' | 'supports' | 'contradicts' | 'depends_on' | 'needs_reading'
+export type ProjectCanvasEdgeRouting = 'straight' | 'orthogonal' | 'curved'
 export type ProjectCanvasState = 'missing' | 'ready'
 export type ProjectCanvasRefState = 'embedded' | 'resolved' | 'stale'
 
@@ -39,6 +41,7 @@ export interface ProjectCanvasEdge {
   to: string
   kind: ProjectCanvasEdgeKind
   note?: string
+  routing?: ProjectCanvasEdgeRouting
 }
 
 export interface ProjectCanvasSapientiaMetadata {
@@ -163,6 +166,9 @@ export function validateProjectCanvas(canvas: ProjectCanvas): string[] {
     edgeIds.add(edge.id)
     if (!nodeIds.has(edge.from)) errors.push(`Project Canvas edge ${edge.id} references missing source node ${edge.from}`)
     if (!nodeIds.has(edge.to)) errors.push(`Project Canvas edge ${edge.id} references missing target node ${edge.to}`)
+    if (edge.routing && !PROJECT_CANVAS_EDGE_ROUTINGS.has(edge.routing)) {
+      errors.push(`Project Canvas edge ${edge.id} has unsupported routing ${edge.routing}`)
+    }
   }
   return errors
 }

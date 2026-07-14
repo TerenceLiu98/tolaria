@@ -164,6 +164,7 @@ mod tests {
             to: "node_text".to_string(),
             kind: ProjectCanvasEdgeKind::Supports,
             note: None,
+            routing: None,
         }];
 
         let saved = save_project_canvas(

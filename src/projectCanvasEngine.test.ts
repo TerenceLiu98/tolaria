@@ -7,7 +7,7 @@ import { CanvasSceneStore } from './canvasSceneStore'
 import { CanvasSelectionManager } from './canvasSelectionManager'
 import { CanvasToolManager } from './canvasToolManager'
 import { CanvasViewport } from './canvasViewport'
-import { buildCanvasGraphicsCommandBatch } from './canvasGraphicsCommands'
+import { buildCanvasConnectorRoute, buildCanvasGraphicsCommandBatch } from './canvasGraphicsCommands'
 import { defaultProjectCanvas, type ProjectCanvas, type ProjectCanvasReadResult, type ProjectCanvasResolveResult } from './projectCanvas'
 import { ProjectCanvasController } from './projectCanvasController'
 import { ProjectCanvasPersistenceAdapter } from './projectCanvasPersistenceAdapter'
@@ -144,6 +144,23 @@ describe('CanvasSceneStore', () => {
     expect(store.getDiagnostics().fullRebuilds).toBe(1)
   })
 
+  it('retains a routed connector when only its bounded detour enters the viewport', () => {
+    const store = new CanvasSceneStore({
+      ...defaultProjectCanvas('Projects/demo/project.md'),
+      nodes: [
+        { id: 'a', type: 'text', x: 0, y: 560, width: 100, height: 80 },
+        { id: 'b', type: 'text', x: 800, y: 560, width: 100, height: 80 },
+        { id: 'obstacle', type: 'text', x: 300, y: 520, width: 160, height: 160 },
+      ],
+      edges: [{ id: 'edge-1', from: 'a', to: 'b', kind: 'related', routing: 'orthogonal' }],
+    }, { normalize: false })
+
+    expect(store.queryEdges({ minX: 400, minY: 490, maxX: 450, maxY: 510 })).toEqual([
+      expect.objectContaining({ id: 'edge-1' }),
+    ])
+    expect(store.getDiagnostics().lastEdgeQueryCandidates).toBe(1)
+  })
+
   it('builds bounded graphics command batches without renderer-specific state', () => {
     const store = new CanvasSceneStore({
       ...defaultProjectCanvas('Projects/demo/project.md'),
@@ -163,10 +180,48 @@ describe('CanvasSceneStore', () => {
       edgeId: 'edge-1',
       from: { x: 100, y: 40 },
       fromAnchorId: 'right',
+      route: { kind: 'straight', points: [{ x: 100, y: 40 }, { x: 200, y: 140 }] },
       selected: true,
       to: { x: 200, y: 140 },
       toAnchorId: 'left',
     }])
+  })
+
+  it('builds renderer-independent straight, orthogonal, and curved connector routes', () => {
+    const from = { x: 100, y: 40 }
+    const to = { x: 300, y: 240 }
+    expect(buildCanvasConnectorRoute(from, to, 'straight', 'right', 'left')).toEqual({
+      kind: 'straight',
+      points: [from, to],
+    })
+    expect(buildCanvasConnectorRoute(from, to, 'orthogonal', 'right', 'left')).toEqual({
+      kind: 'orthogonal',
+      points: [from, { x: 200, y: 40 }, { x: 200, y: 240 }, to],
+    })
+    expect(buildCanvasConnectorRoute(from, to, 'curved', 'right', 'left')).toEqual({
+      control1: { x: 200, y: 40 },
+      control2: { x: 200, y: 240 },
+      kind: 'curved',
+      points: [from, to],
+    })
+    expect(buildCanvasConnectorRoute(from, { x: 300, y: 40 }, 'orthogonal', 'right', 'left', [{
+      id: 'obstacle',
+      type: 'text',
+      x: 150,
+      y: 20,
+      width: 100,
+      height: 80,
+    }])).toEqual({
+      kind: 'orthogonal',
+      points: [
+        from,
+        { x: 120, y: 40 },
+        { x: 120, y: 0 },
+        { x: 280, y: 0 },
+        { x: 280, y: 40 },
+        { x: 300, y: 40 },
+      ],
+    })
   })
   it('keeps 1,000-node viewport queries bounded', () => {
     const nodes = Array.from({ length: 1000 }, (_, index) => ({
@@ -341,6 +396,7 @@ describe('Canvas layers, node specs, and overlays', () => {
       edgeId: 'edge-1',
       from: { x: 100, y: 40 },
       fromAnchorId: 'right',
+      route: { kind: 'straight', points: [{ x: 100, y: 40 }, { x: 300, y: 40 }] },
       selected: true,
       to: { x: 300, y: 40 },
       toAnchorId: 'left',
@@ -615,6 +671,7 @@ describe('ProjectCanvasController', () => {
         from: nodes[index].id,
         to: node.id,
         kind: 'related' as const,
+        ...(index === 0 ? { routing: 'orthogonal' as const } : {}),
       })),
     }
     const persistence = new ProjectCanvasPersistenceAdapter({
@@ -633,6 +690,7 @@ describe('ProjectCanvasController', () => {
 
     expect(controller.queryVisibleGraphics().connectors.length).toBeLessThan(20)
     expect(controller.getSceneDiagnostics()?.lastEdgeQueryCandidates).toBeLessThan(20)
+    expect(controller.getSceneDiagnostics()?.lastQueryCandidates).toBeLessThan(20)
     controller.selectEdge('edge-998')
     expect(controller.queryVisibleGraphics().connectors.at(-1)?.edgeId).toBe('edge-998')
     controller.selectNodes(['node-999'])

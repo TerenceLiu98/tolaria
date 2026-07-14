@@ -79,6 +79,7 @@ describe('Project Canvas MCP tools', () => {
     assert.equal(read.canvas.nodes.length, 5)
     assert.equal(read.canvas.nodes.some(node => node.id === PROJECT_OVERVIEW_NODE_ID), true)
     assert.equal(read.canvas.edges.length, 3)
+    assert.equal(read.canvas.edges[0].routing, 'orthogonal')
     assert.deepEqual(search.results.map(result => result.nodeId), ['claim', 'note'])
     assert.equal(search.results[0].projectId, 'agent-research')
     assert.equal(search.results[0].vaultPath, vaultPath)
@@ -136,6 +137,17 @@ describe('Project Canvas MCP tools', () => {
       () => readProjectCanvas(vaultPath, { projectId: '../outside.md' }),
       /inside the active vault/,
     )
+
+    const invalidRouting = canvasFixture()
+    invalidRouting.edges[0].routing = 'diagonal'
+    await writeFile(
+      path.join(vaultPath, 'projects/agents/project.canvas.json'),
+      JSON.stringify(invalidRouting, null, 2),
+    )
+    await assert.rejects(
+      () => readProjectCanvas(vaultPath, { projectId: 'agent-research' }),
+      /unsupported connector routing/,
+    )
   })
 })
 
@@ -152,7 +164,7 @@ function canvasFixture() {
     ],
     edges: [
       { id: 'supports', from: 'evidence', to: 'claim', kind: 'supports' },
-      { id: 'related-note', from: 'claim', to: 'note', kind: 'related' },
+      { id: 'related-note', from: 'claim', to: 'note', kind: 'related', routing: 'orthogonal' },
       { id: 'related-paper', from: 'claim', to: 'paper', kind: 'related' },
     ],
     sapientia: { schema: 'project-canvas/v1' },

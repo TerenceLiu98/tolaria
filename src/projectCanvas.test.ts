@@ -6,6 +6,7 @@ import {
   validateProjectCanvas,
   type ProjectCanvas,
   type ProjectCanvasEdgeKind,
+  type ProjectCanvasEdgeRouting,
   type ProjectCanvasNodeType,
 } from './projectCanvas'
 
@@ -55,6 +56,10 @@ describe('projectCanvas', () => {
       .toEqual(['a_node', PROJECT_OVERVIEW_NODE_ID, 'z_node'])
     expect(normalizeProjectCanvas(canvas, 'projects/alpha/project.md').edges.map(item => item.id))
       .toEqual(['a_edge', 'z_edge'])
+    expect(normalizeProjectCanvas({
+      ...canvas,
+      edges: [{ ...canvas.edges[0], routing: 'curved' }],
+    }, 'projects/alpha/project.md').edges[0].routing).toBe('curved')
   })
 
   it('repairs an existing overview node without changing its layout', () => {
@@ -79,6 +84,7 @@ describe('projectCanvas', () => {
   it('covers every Project Canvas node and edge kind', () => {
     const nodeTypes: ProjectCanvasNodeType[] = ['note', 'paper', 'paper_block', 'image', 'text', 'task', 'group']
     const edgeKinds: ProjectCanvasEdgeKind[] = ['related', 'supports', 'contradicts', 'depends_on', 'needs_reading']
+    const routingModes: ProjectCanvasEdgeRouting[] = ['straight', 'orthogonal', 'curved']
     const canvas: ProjectCanvas = {
       ...defaultProjectCanvas('projects/alpha/project.md'),
       nodes: nodeTypes.map((type, index) => node(`node_${index}`, type)),
@@ -92,7 +98,22 @@ describe('projectCanvas', () => {
 
     expect(canvas.nodes.map(item => item.type)).toEqual(nodeTypes)
     expect(canvas.edges.map(item => item.kind)).toEqual(edgeKinds)
+    expect(routingModes).toEqual(['straight', 'orthogonal', 'curved'])
     expect(validateProjectCanvas(canvas)).toEqual([])
+  })
+
+  it('rejects unsupported connector routing before save', () => {
+    const canvas = defaultProjectCanvas('projects/alpha/project.md')
+    canvas.nodes.push(node('target', 'text'))
+    canvas.edges.push({
+      from: PROJECT_OVERVIEW_NODE_ID,
+      id: 'edge_1',
+      kind: 'related',
+      routing: 'diagonal' as ProjectCanvasEdgeRouting,
+      to: 'target',
+    })
+
+    expect(validateProjectCanvas(canvas)).toContain('Project Canvas edge edge_1 has unsupported routing diagonal')
   })
 
   it('reports duplicate ids and missing edge targets before save', () => {

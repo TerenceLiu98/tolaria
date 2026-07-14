@@ -350,6 +350,7 @@ export class ProjectCanvasController {
       selectedEdgeIds,
       preview,
       node => this.specs.getForNode(node).connectionAnchors(node),
+      (edge, bounds) => scene.query(bounds).filter(node => node.id !== edge.from && node.id !== edge.to),
     )
     if (gesture.kind !== 'reconnect' || !gesture.targetId || !gesture.endpoint || !pointerCanvas) return batch
     const reconnecting = batch.connectors.find(command => command.edgeId === gesture.targetId)

@@ -1,4 +1,4 @@
-import type { CanvasConnectorCommand, CanvasGraphicsCommandBatch } from '../../canvasGraphicsCommands'
+import type { CanvasConnectorCommand, CanvasConnectorRoute, CanvasGraphicsCommandBatch } from '../../canvasGraphicsCommands'
 
 interface CanvasGraphicsLayerProps {
   bounds: { minX: number; minY: number; width: number; height: number }
@@ -6,13 +6,22 @@ interface CanvasGraphicsLayerProps {
   onSelectEdge: (edgeId: string) => void
 }
 
-function connectorPath(
-  connectors: readonly CanvasConnectorCommand[],
-  bounds: CanvasGraphicsLayerProps['bounds'],
-): string {
-  return connectors
-    .map(command => `M ${command.from.x - bounds.minX} ${command.from.y - bounds.minY} L ${command.to.x - bounds.minX} ${command.to.y - bounds.minY}`)
+function relativePoint(point: { x: number; y: number }, bounds: CanvasGraphicsLayerProps['bounds']): string {
+  return `${point.x - bounds.minX} ${point.y - bounds.minY}`
+}
+
+function connectorRoutePath(route: CanvasConnectorRoute, bounds: CanvasGraphicsLayerProps['bounds']): string {
+  const [from, to] = route.points
+  if (route.kind === 'curved') {
+    return `M ${relativePoint(from, bounds)} C ${relativePoint(route.control1, bounds)} ${relativePoint(route.control2, bounds)} ${relativePoint(to, bounds)}`
+  }
+  return route.points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${relativePoint(point, bounds)}`)
     .join(' ')
+}
+
+function connectorPath(connectors: readonly CanvasConnectorCommand[], bounds: CanvasGraphicsLayerProps['bounds']): string {
+  return connectors.map(command => connectorRoutePath(command.route, bounds)).join(' ')
 }
 
 /** Executes renderer-agnostic graphics commands; SVG remains a replaceable backend. */
@@ -33,15 +42,12 @@ export function CanvasGraphicsLayer({
       {regular.length > 0 ? <path className="project-canvas-edge" d={connectorPath(regular, bounds)} /> : null}
       {selected.length > 0 ? <path className="project-canvas-edge project-canvas-edge--selected" d={connectorPath(selected, bounds)} /> : null}
       {commands.connectors.map(command => (
-        <line
+        <path
           key={command.edgeId}
           className="project-canvas-edge-hit-region"
           data-testid="project-canvas-edge"
           data-edge-id={command.edgeId}
-          x1={command.from.x - bounds.minX}
-          y1={command.from.y - bounds.minY}
-          x2={command.to.x - bounds.minX}
-          y2={command.to.y - bounds.minY}
+          d={connectorRoutePath(command.route, bounds)}
           onPointerDown={(event) => {
             event.stopPropagation()
             onSelectEdge(command.edgeId)

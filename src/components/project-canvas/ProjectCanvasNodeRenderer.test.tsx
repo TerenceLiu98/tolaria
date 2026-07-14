@@ -166,4 +166,30 @@ describe('NodeSpec inspector behavior', () => {
     renderInspector({ ...baseNode, ref: 'notes/source.md', type: 'note' })
     expect(screen.getByDisplayValue('notes/source.md')).toHaveAttribute('readonly')
   })
+
+  it('edits straight, orthogonal, and curved connector routing through shadcn Select', () => {
+    const onEdgeChange = vi.fn()
+    render(
+      <ProjectCanvasInspector
+        canvas={defaultProjectCanvas('project.md')}
+        edge={{ id: 'edge-1', from: 'a', to: 'b', kind: 'related', routing: 'straight' }}
+        locale="en"
+        node={null}
+        spec={null}
+        onClose={vi.fn()}
+        onDeleteEdge={vi.fn()}
+        onDeleteNode={vi.fn()}
+        onEdgeChange={onEdgeChange}
+        onEdgeKindDefaultChange={vi.fn()}
+        onNodeChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+    fireEvent.click(screen.getAllByRole('combobox')[1])
+    expect(screen.getByRole('option', { name: 'Straight' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Orthogonal' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: 'Curved' }))
+    expect(onEdgeChange).toHaveBeenCalledWith({ routing: 'curved' }, true)
+  })
 })

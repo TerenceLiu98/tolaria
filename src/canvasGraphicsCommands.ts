@@ -1,11 +1,16 @@
 import type { CanvasPoint, CanvasSceneSnapshot } from './canvasSceneStore'
 import { cardinalConnectionAnchors, type CanvasConnectionAnchor } from './canvasNodeSpecRegistry'
 import type { ProjectCanvasEdge, ProjectCanvasNode } from './projectCanvas'
+import { buildCanvasConnectorRoute, connectorRouteBounds, type CanvasConnectorRoute } from './canvasConnectorRouting'
+
+export { buildCanvasConnectorRoute } from './canvasConnectorRouting'
+export type { CanvasConnectorRoute } from './canvasConnectorRouting'
 
 export interface CanvasConnectorCommand {
   readonly edgeId: string
   readonly from: CanvasPoint
   readonly fromAnchorId: string
+  readonly route: CanvasConnectorRoute
   readonly to: CanvasPoint
   readonly toAnchorId: string
   readonly selected: boolean
@@ -17,6 +22,10 @@ export interface CanvasGraphicsCommandBatch {
 }
 
 export type CanvasConnectionAnchorResolver = (node: ProjectCanvasNode) => readonly CanvasConnectionAnchor[]
+export type CanvasConnectorObstacleResolver = (
+  edge: ProjectCanvasEdge,
+  bounds: { minX: number; minY: number; maxX: number; maxY: number },
+) => readonly ProjectCanvasNode[]
 
 function distanceSquared(left: CanvasPoint, right: CanvasPoint): number {
   const x = left.x - right.x
@@ -42,6 +51,7 @@ export function buildCanvasGraphicsCommandBatch(
   selectedEdgeIds: ReadonlySet<string>,
   preview: CanvasGraphicsCommandBatch['preview'] = null,
   resolveAnchors: CanvasConnectionAnchorResolver = cardinalConnectionAnchors,
+  resolveObstacles?: CanvasConnectorObstacleResolver,
 ): CanvasGraphicsCommandBatch {
   const connectors: CanvasConnectorCommand[] = []
   for (const edge of edges) {
@@ -52,10 +62,22 @@ export function buildCanvasGraphicsCommandBatch(
     const toTarget = { x: fromNode.x + fromNode.width / 2, y: fromNode.y + fromNode.height / 2 }
     const fromAnchor = connectionAnchorToward(fromNode, fromTarget, resolveAnchors)
     const toAnchor = connectionAnchorToward(toNode, toTarget, resolveAnchors)
+    const obstacleBounds = connectorRouteBounds(fromAnchor.point, toAnchor.point)
+    const obstacles = edge.routing === 'orthogonal' && resolveObstacles
+      ? resolveObstacles(edge, obstacleBounds)
+      : []
     connectors.push({
       edgeId: edge.id,
       from: fromAnchor.point,
       fromAnchorId: fromAnchor.id,
+      route: buildCanvasConnectorRoute(
+        fromAnchor.point,
+        toAnchor.point,
+        edge.routing ?? 'straight',
+        fromAnchor.side,
+        toAnchor.side,
+        obstacles,
+      ),
       selected: selectedEdgeIds.has(edge.id),
       to: toAnchor.point,
       toAnchorId: toAnchor.id,

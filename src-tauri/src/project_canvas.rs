@@ -35,6 +35,14 @@ pub enum ProjectCanvasEdgeKind {
     NeedsReading,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectCanvasEdgeRouting {
+    Straight,
+    Orthogonal,
+    Curved,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectCanvasViewport {
@@ -84,6 +92,8 @@ pub struct ProjectCanvasEdge {
     pub kind: ProjectCanvasEdgeKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing: Option<ProjectCanvasEdgeRouting>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -772,6 +782,7 @@ mod tests {
                 to: "node_text".to_string(),
                 kind: ProjectCanvasEdgeKind::Related,
                 note: None,
+                routing: Some(ProjectCanvasEdgeRouting::Curved),
             }],
             sapientia: ProjectCanvasSapientiaMetadata {
                 schema: "old".to_string(),
@@ -871,6 +882,7 @@ mod tests {
                     to: "node_1".to_string(),
                     kind: ProjectCanvasEdgeKind::Contradicts,
                     note: None,
+                    routing: Some(ProjectCanvasEdgeRouting::Straight),
                 },
                 ProjectCanvasEdge {
                     id: "edge_supports".to_string(),
@@ -878,6 +890,7 @@ mod tests {
                     to: "node_2".to_string(),
                     kind: ProjectCanvasEdgeKind::Supports,
                     note: None,
+                    routing: Some(ProjectCanvasEdgeRouting::Orthogonal),
                 },
                 ProjectCanvasEdge {
                     id: "edge_depends".to_string(),
@@ -885,6 +898,7 @@ mod tests {
                     to: "node_3".to_string(),
                     kind: ProjectCanvasEdgeKind::DependsOn,
                     note: None,
+                    routing: Some(ProjectCanvasEdgeRouting::Curved),
                 },
                 ProjectCanvasEdge {
                     id: "edge_needs".to_string(),
@@ -892,6 +906,7 @@ mod tests {
                     to: "node_4".to_string(),
                     kind: ProjectCanvasEdgeKind::NeedsReading,
                     note: None,
+                    routing: None,
                 },
             ],
             ..default_project_canvas(project_path)
@@ -912,6 +927,10 @@ mod tests {
             .edges
             .iter()
             .any(|edge| edge.kind == ProjectCanvasEdgeKind::NeedsReading));
+        assert!(read
+            .edges
+            .iter()
+            .any(|edge| edge.routing == Some(ProjectCanvasEdgeRouting::Curved)));
     }
 
     #[test]

@@ -3,6 +3,7 @@ export const PROJECT_OVERVIEW_NODE_ID = 'project_overview'
 const PROJECT_OVERVIEW_WIDTH = 420
 const PROJECT_OVERVIEW_HEIGHT = 280
 const NODE_TYPES = new Set(['note', 'paper', 'paper_block', 'image', 'text', 'task', 'group'])
+const EDGE_ROUTINGS = new Set(['straight', 'orthogonal', 'curved'])
 
 export function defaultCanvas(projectPath) {
   return {
@@ -63,6 +64,9 @@ export function validateCanvas(canvas) {
   }
   if (canvas.edges.some(edge => !nodeIds.has(edge.from) || !nodeIds.has(edge.to))) {
     throw new Error('Project Canvas contains an edge with a missing endpoint')
+  }
+  if (canvas.edges.some(edge => edge.routing && !EDGE_ROUTINGS.has(edge.routing))) {
+    throw new Error('Project Canvas contains an unsupported connector routing')
   }
 }
 

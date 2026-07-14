@@ -5,6 +5,7 @@ import {
   PROJECT_OVERVIEW_NODE_ID,
   type ProjectCanvas,
   type ProjectCanvasEdgeKind,
+  type ProjectCanvasEdgeRouting,
   type ProjectCanvasNode,
 } from '../../projectCanvas'
 import { Button } from '../ui/button'
@@ -13,6 +14,12 @@ import { Input } from '../ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Textarea } from '../ui/textarea'
 import { EDGE_KINDS, edgeKindKey } from './projectCanvasDisplay'
+
+const EDGE_ROUTINGS: readonly ProjectCanvasEdgeRouting[] = ['straight', 'orthogonal', 'curved']
+
+function edgeRoutingKey(routing: ProjectCanvasEdgeRouting): `projectCanvas.edgeRouting.${ProjectCanvasEdgeRouting}` {
+  return `projectCanvas.edgeRouting.${routing}`
+}
 
 interface ProjectCanvasInspectorProps {
   canvas: ProjectCanvas
@@ -224,6 +231,24 @@ function ProjectCanvasEdgeInspector({
             {EDGE_KINDS.map(kind => (
               <SelectItem key={kind} value={kind}>
                 {translate(locale, edgeKindKey(kind))}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
+      <label className="project-canvas-inspector__field">
+        <span>{translate(locale, 'projectCanvas.edgeRouting')}</span>
+        <Select
+          value={edge.routing ?? 'straight'}
+          onValueChange={value => onEdgeChange({ routing: value as ProjectCanvasEdgeRouting }, true)}
+        >
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent position="popper" align="end">
+            {EDGE_ROUTINGS.map(routing => (
+              <SelectItem key={routing} value={routing}>
+                {translate(locale, edgeRoutingKey(routing))}
               </SelectItem>
             ))}
           </SelectContent>
