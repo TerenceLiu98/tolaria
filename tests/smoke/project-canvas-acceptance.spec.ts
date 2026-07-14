@@ -1,4 +1,4 @@
-import { expect, test, type CDPSession } from '@playwright/test'
+import { expect, test, type CDPSession, type Locator, type Page, type TestInfo } from '@playwright/test'
 import { createFixtureVaultCopy, openFixtureVaultTauri, removeFixtureVaultCopy } from '../helpers/fixtureVault'
 
 let tempVaultDir: string
@@ -121,6 +121,83 @@ async function readCanvasFrameProbe(page: Parameters<typeof openFixtureVaultTaur
   })
 }
 
+async function assertCulledNavigatorNavigation(
+  page: Page,
+  testInfo: TestInfo,
+  sceneNodeCount: number,
+  viewport: Locator,
+): Promise<void> {
+  await page.locator('[data-testid^="project-canvas-navigator-node-"]').first().focus()
+  await page.keyboard.press('End')
+  const navigatorNode = page.locator('[data-testid^="project-canvas-navigator-node-"]:focus')
+  await expect(navigatorNode).toBeVisible()
+  const testId = await navigatorNode.getAttribute('data-testid')
+  const nodeId = testId?.replace('project-canvas-navigator-node-', '')
+  expect(nodeId).toBeTruthy()
+  const canvasNode = page.locator(`[data-testid="project-canvas-node"][data-node-id="${nodeId}"]`)
+  await expect(canvasNode).toHaveCount(0)
+  await page.keyboard.press('Enter')
+  await expect(navigatorNode).toHaveAttribute('aria-current', 'true')
+  await expect(canvasNode).toHaveCount(1)
+  await expect(canvasNode).toHaveClass(/project-canvas-node--selected/)
+  await expect(canvasNode).toBeInViewport()
+  expect(Number(await viewport.getAttribute('data-canvas-query-candidates') ?? 0)).toBeLessThan(500)
+  const geometry = await page.evaluate((selectedNodeId) => {
+    const node = document.querySelector(`[data-testid="project-canvas-node"][data-node-id="${selectedNodeId}"]`)
+    const canvasViewport = document.querySelector('[data-testid="project-canvas-viewport"]')
+    const world = document.querySelector('.project-canvas-world')
+    return {
+      nodeRect: node?.getBoundingClientRect().toJSON() ?? null,
+      viewportRect: canvasViewport?.getBoundingClientRect().toJSON() ?? null,
+      worldTransform: world instanceof HTMLElement ? world.style.transform : null,
+    }
+  }, nodeId!)
+  await testInfo.attach(`project-canvas-${sceneNodeCount}-culled-navigation`, {
+    body: JSON.stringify(geometry, null, 2),
+    contentType: 'application/json',
+  })
+}
+
+async function addCanvasTextCard(page: Page, text: string): Promise<void> {
+  const textAction = page.getByRole('button', { name: 'Text', exact: true })
+  if (!await textAction.isVisible()) await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await textAction.click()
+  await page.locator('.project-canvas-add-popover textarea').fill(text)
+  await page.getByRole('button', { name: 'Add Card', exact: true }).click()
+}
+
+async function createFrameAroundNodes(page: Page, viewport: Locator, source: Locator, target: Locator): Promise<void> {
+  await source.click({ modifiers: ['Shift'] })
+  await target.click({ modifiers: ['Shift'] })
+  await page.getByTestId('project-canvas-tool-frame').click()
+  const [sourceBox, targetBox, viewportBox] = await Promise.all([
+    source.boundingBox(),
+    target.boundingBox(),
+    viewport.boundingBox(),
+  ])
+  expect(sourceBox).not.toBeNull()
+  expect(targetBox).not.toBeNull()
+  expect(viewportBox).not.toBeNull()
+  const minNodeX = Math.min(sourceBox!.x, targetBox!.x)
+  const minNodeY = Math.min(sourceBox!.y, targetBox!.y)
+  const frameStart = await page.evaluate((box) => {
+    for (let y = box.y + box.height - 18; y >= box.y + 18; y -= 18) {
+      for (let x = box.x + box.width - 18; x >= box.x + 70; x -= 18) {
+        const element = document.elementFromPoint(x, y)
+        if (element?.closest('[data-testid="project-canvas-viewport"]')
+          && !element.closest('[data-node-id]')
+          && !element.closest('button, textarea, input')) return { x, y }
+      }
+    }
+    return { x: box.x + box.width - 18, y: box.y + box.height - 18 }
+  }, viewportBox!)
+  await page.mouse.move(frameStart.x, frameStart.y)
+  await page.mouse.down()
+  await page.mouse.move(Math.max(viewportBox!.x + 70, minNodeX - 16), Math.max(viewportBox!.y + 18, minNodeY - 16), { steps: 5 })
+  await page.mouse.up()
+  await expect(page.locator('[data-testid="project-canvas-node"][data-node-id^="group_"]')).toHaveCount(1)
+}
+
 test.beforeEach(async ({ page }) => {
   unexpectedBrowserMessages = []
   page.on('console', message => {
@@ -194,13 +271,8 @@ test('Project Canvas executes pointer gestures and clears transient overlays aft
   await expect(page.getByTestId('project-canvas-surface')).toBeVisible()
 
   const viewport = page.getByTestId('project-canvas-viewport')
-  await page.getByRole('button', { name: 'Add', exact: true }).click()
-  await page.getByRole('button', { name: 'Text', exact: true }).click()
-  await page.locator('.project-canvas-add-popover textarea').fill('Gesture source')
-  await page.getByRole('button', { name: 'Add Card', exact: true }).click()
-  await page.getByRole('button', { name: 'Text', exact: true }).click()
-  await page.locator('.project-canvas-add-popover textarea').fill('Gesture target')
-  await page.getByRole('button', { name: 'Add Card', exact: true }).click()
+  await addCanvasTextCard(page, 'Gesture source')
+  await addCanvasTextCard(page, 'Gesture target')
   await page.getByRole('button', { name: 'Auto layout', exact: true }).click()
 
   const source = page.locator('[data-testid="project-canvas-node"]').filter({ hasText: 'Gesture source' })
@@ -224,28 +296,7 @@ test('Project Canvas executes pointer gestures and clears transient overlays aft
   await page.mouse.up()
   await expect(page.getByTestId('project-canvas-snap-guide')).toHaveCount(0)
 
-  await source.click({ modifiers: ['Shift'] })
-  await target.click({ modifiers: ['Shift'] })
-  await page.getByTestId('project-canvas-tool-frame').click()
-  const nodeBoxes = await Promise.all([source.boundingBox(), target.boundingBox()])
-  const minNodeX = Math.min(...nodeBoxes.filter((box): box is NonNullable<typeof box> => Boolean(box)).map(box => box.x))
-  const minNodeY = Math.min(...nodeBoxes.filter((box): box is NonNullable<typeof box> => Boolean(box)).map(box => box.y))
-  const frameStart = await page.evaluate((box) => {
-    for (let y = box.y + box.height - 18; y >= box.y + 18; y -= 18) {
-      for (let x = box.x + box.width - 18; x >= box.x + 70; x -= 18) {
-        const element = document.elementFromPoint(x, y)
-        if (element?.closest('[data-testid="project-canvas-viewport"]')
-          && !element.closest('[data-node-id]')
-          && !element.closest('button, textarea, input')) return { x, y }
-      }
-    }
-    return { x: box.x + box.width - 18, y: box.y + box.height - 18 }
-  }, viewportBox!)
-  await page.mouse.move(frameStart.x, frameStart.y)
-  await page.mouse.down()
-  await page.mouse.move(Math.max(viewportBox!.x + 70, minNodeX - 16), Math.max(viewportBox!.y + 18, minNodeY - 16), { steps: 5 })
-  await page.mouse.up()
-  await expect(page.locator('[data-testid="project-canvas-node"][data-node-id^="group_"]')).toHaveCount(1)
+  await createFrameAroundNodes(page, viewport, source, target)
 
   await page.getByTestId('project-canvas-tool-select').click()
   await source.click()
@@ -390,6 +441,8 @@ test(`Project Canvas keeps ${sceneNodeCount.toLocaleString()}-node low-zoom rend
   expect(renderCountAfterZoom - renderCountBeforeZoom).toBeLessThanOrEqual(8)
   const heapAfterZoom = await collectHeapUsed(performanceSession)
   if (heapAfterScene !== null && heapAfterZoom !== null) expect(heapAfterZoom - heapAfterScene).toBeLessThan(16 * 1024 * 1024)
+
+  await assertCulledNavigatorNavigation(page, testInfo, sceneNodeCount, viewport)
 
   await testInfo.attach(`project-canvas-${sceneNodeCount}-metrics`, {
     body: JSON.stringify({

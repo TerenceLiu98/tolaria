@@ -8,7 +8,7 @@ import {
   SquaresFour,
   TextT,
 } from '@phosphor-icons/react'
-import { memo, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import { translate, type AppLocale } from '../../lib/i18n'
 import {
@@ -29,6 +29,8 @@ interface ProjectCanvasNavigatorProps {
 type NavigatorRow =
   | { kind: 'section'; key: string; label: string; count: number }
   | { kind: 'node'; key: string; node: ProjectCanvasNode }
+
+type NavigatorKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home'
 
 const TYPE_ORDER: ProjectCanvasNodeType[] = [
   'paper',
@@ -57,6 +59,20 @@ function groupLabel(locale: AppLocale, type: ProjectCanvasNodeType): string {
   )
 }
 
+function nextNodeRowIndex(
+  nodeRowIndices: readonly number[],
+  currentRowIndex: number,
+  key: NavigatorKey,
+): number | null {
+  if (nodeRowIndices.length === 0) return null
+  if (key === 'Home') return nodeRowIndices[0]
+  if (key === 'End') return nodeRowIndices.at(-1) ?? null
+  const currentNodeIndex = nodeRowIndices.indexOf(currentRowIndex)
+  if (currentNodeIndex < 0) return null
+  const offset = key === 'ArrowDown' ? 1 : -1
+  return nodeRowIndices[currentNodeIndex + offset] ?? currentRowIndex
+}
+
 function ProjectCanvasNavigatorComponent({
   locale = 'en',
   nodes,
@@ -64,6 +80,8 @@ function ProjectCanvasNavigatorComponent({
   onFocusNode,
 }: ProjectCanvasNavigatorProps) {
   const virtuosoRef = useRef<VirtuosoHandle | null>(null)
+  const nodeButtonsRef = useRef(new Map<string, HTMLButtonElement>())
+  const pendingFocusNodeIdRef = useRef<string | null>(null)
   const rows = useMemo<NavigatorRow[]>(() => {
     const overview = nodes.find(node => node.id === PROJECT_OVERVIEW_NODE_ID)
     const groups = TYPE_ORDER.flatMap(type => {
@@ -80,6 +98,52 @@ function ProjectCanvasNavigatorComponent({
       ...section.items.map(node => ({ kind: 'node' as const, key: node.id, node })),
     ])
   }, [locale, nodes])
+  const nodeRowIndices = useMemo(
+    () => rows.flatMap((row, index) => row.kind === 'node' ? [index] : []),
+    [rows],
+  )
+
+  const registerNodeButton = useCallback((nodeId: string, element: HTMLButtonElement | null) => {
+    if (!element) {
+      nodeButtonsRef.current.delete(nodeId)
+      return
+    }
+    nodeButtonsRef.current.set(nodeId, element)
+    if (pendingFocusNodeIdRef.current !== nodeId) return
+    pendingFocusNodeIdRef.current = null
+    element.focus()
+  }, [])
+
+  const focusNodeRow = useCallback((rowIndex: number) => {
+    const row = rows[rowIndex]
+    if (!row || row.kind !== 'node') return
+    pendingFocusNodeIdRef.current = row.node.id
+    virtuosoRef.current?.scrollIntoView({ index: rowIndex, behavior: 'auto' })
+    const mountedButton = nodeButtonsRef.current.get(row.node.id)
+    if (!mountedButton) return
+    pendingFocusNodeIdRef.current = null
+    mountedButton.focus()
+  }, [rows])
+
+  const handleNodeKeyDown = useCallback((
+    event: KeyboardEvent<HTMLButtonElement>,
+    rowIndex: number,
+    node: ProjectCanvasNode,
+  ) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      event.stopPropagation()
+      onFocusNode(node)
+      return
+    }
+    if (!['ArrowDown', 'ArrowUp', 'End', 'Home'].includes(event.key)) return
+    const nextRowIndex = nextNodeRowIndex(nodeRowIndices, rowIndex, event.key as NavigatorKey)
+    if (nextRowIndex === null) return
+    event.preventDefault()
+    event.stopPropagation()
+    focusNodeRow(nextRowIndex)
+  }, [focusNodeRow, nodeRowIndices, onFocusNode])
 
   useEffect(() => {
     if (!selectedNodeId) return
@@ -118,6 +182,7 @@ function ProjectCanvasNavigatorComponent({
             const label = node.title ?? node.ref ?? translate(locale, 'projectCanvas.untitledNode')
             return (
               <Button
+                ref={element => registerNodeButton(node.id, element)}
                 type="button"
                 size="sm"
                 variant="ghost"
@@ -125,6 +190,7 @@ function ProjectCanvasNavigatorComponent({
                 aria-label={label}
                 aria-current={active ? 'true' : undefined}
                 data-testid={`project-canvas-navigator-node-${node.id}`}
+                onKeyDown={event => handleNodeKeyDown(event, _index, node)}
                 onClick={() => onFocusNode(node)}
               >
                 {node.id === PROJECT_OVERVIEW_NODE_ID ? <NotePencil /> : nodeIcon(node.type)}

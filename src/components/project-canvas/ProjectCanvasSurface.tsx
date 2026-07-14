@@ -304,7 +304,7 @@ export function ProjectCanvasSurface({
     selectSingleNode(node.id)
   }, [controller, selectSingleNode])
   const handleNavigatorFocus = useCallback((node: ProjectCanvasNode) => {
-    focusNode(node, false)
+    focusNode(node, true)
     trackProjectCanvasNavigatorFocused({ nodeType: node.type })
   }, [focusNode])
 

@@ -41,4 +41,47 @@ describe('ProjectCanvasNavigator', () => {
 
     expect(onFocusNode).toHaveBeenCalledWith(evidence)
   })
+
+  it('moves keyboard focus between virtualized node rows without changing selection', () => {
+    const overview = node({ id: PROJECT_OVERVIEW_NODE_ID, title: 'Project Overview' })
+    const noteOne = node({ id: 'note_1', title: 'Alpha note' })
+    const noteTwo = node({ id: 'note_2', title: 'Beta note' })
+    const paper = node({ id: 'paper_1', type: 'paper', title: 'Research paper' })
+    const group = node({ id: 'group_1', type: 'group', title: 'Last group' })
+    const onFocusNode = vi.fn()
+
+    render(
+      <ProjectCanvasNavigator
+        locale="en"
+        nodes={[overview, paper, noteTwo, group, noteOne]}
+        selectedNodeId="note_1"
+        onFocusNode={onFocusNode}
+      />,
+    )
+
+    const firstNote = screen.getByTestId('project-canvas-navigator-node-note_1')
+    const secondNote = screen.getByTestId('project-canvas-navigator-node-note_2')
+    const lastNode = screen.getByTestId('project-canvas-navigator-node-group_1')
+    firstNote.focus()
+
+    fireEvent.keyDown(firstNote, { key: 'ArrowDown' })
+    expect(secondNote).toHaveFocus()
+
+    fireEvent.keyDown(secondNote, { key: 'ArrowUp' })
+    expect(firstNote).toHaveFocus()
+
+    fireEvent.keyDown(firstNote, { key: 'End' })
+    expect(lastNode).toHaveFocus()
+
+    fireEvent.keyDown(lastNode, { key: ' ' })
+    expect(onFocusNode).toHaveBeenCalledWith(group)
+    onFocusNode.mockClear()
+
+    fireEvent.keyDown(lastNode, { key: 'Home' })
+    expect(screen.getByTestId(`project-canvas-navigator-node-${PROJECT_OVERVIEW_NODE_ID}`)).toHaveFocus()
+    expect(onFocusNode).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Enter' })
+    expect(onFocusNode).toHaveBeenCalledWith(overview)
+  })
 })
