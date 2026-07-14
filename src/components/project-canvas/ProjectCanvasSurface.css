@@ -506,6 +506,34 @@
   stroke-width: 3;
 }
 
+.project-canvas-edge-marker {
+  color: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.project-canvas-edge-marker--selected {
+  color: var(--primary);
+}
+
+.project-canvas-edge-label {
+  fill: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 550;
+  paint-order: stroke;
+  pointer-events: none;
+  stroke: var(--background);
+  stroke-linejoin: round;
+  stroke-width: 5px;
+}
+
+.project-canvas-edge-label--selected {
+  fill: var(--primary);
+}
+
 .project-canvas-edge--preview {
   stroke: color-mix(in srgb, var(--primary) 72%, transparent);
   stroke-dasharray: 8 7;

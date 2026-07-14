@@ -23,6 +23,7 @@ import {
   trackProjectCanvasEdgeCreated,
   trackProjectCanvasEdgeReconnected,
   trackProjectCanvasEdgeRoutingChanged,
+  trackProjectCanvasEdgeStyleChanged,
   trackProjectCanvasFocusModeChanged,
   trackProjectCanvasGroupFocusChanged,
   trackProjectCanvasNavigatorFocused,
@@ -729,6 +730,18 @@ export function ProjectCanvasSurface({
     const next = controller.updateEdge(selectedEdgeId, patch, persist)
     if (next) canvasRef.current = next
     if (patch.routing && persist) trackProjectCanvasEdgeRoutingChanged({ routing: patch.routing })
+    if (persist) {
+      const properties = [
+        ['label', 'label'],
+        ['strokeStyle', 'stroke_style'],
+        ['strokeWidth', 'stroke_width'],
+        ['fromMarker', 'from_marker'],
+        ['toMarker', 'to_marker'],
+      ] as const
+      for (const [field, property] of properties) {
+        if (Object.prototype.hasOwnProperty.call(patch, field)) trackProjectCanvasEdgeStyleChanged({ property })
+      }
+    }
   }, [controller, selectedEdgeId])
 
   const deleteSelectedNode = useCallback(() => {

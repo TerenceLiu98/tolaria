@@ -168,7 +168,10 @@ describe('CanvasSceneStore', () => {
         { id: 'a', type: 'text', x: 0, y: 0, width: 100, height: 80 },
         { id: 'b', type: 'text', x: 200, y: 100, width: 100, height: 80 },
       ],
-      edges: [{ id: 'edge-1', from: 'a', to: 'b', kind: 'related' }],
+      edges: [{
+        id: 'edge-1', from: 'a', to: 'b', kind: 'related', label: 'supports',
+        strokeStyle: 'dashed', strokeWidth: 4, fromMarker: 'circle', toMarker: 'arrow',
+      }],
     }, { normalize: false })
     const batch = buildCanvasGraphicsCommandBatch(
       store.getSnapshot(),
@@ -180,10 +183,16 @@ describe('CanvasSceneStore', () => {
       edgeId: 'edge-1',
       from: { x: 100, y: 40 },
       fromAnchorId: 'right',
+      fromMarker: 'circle',
+      label: 'supports',
+      labelPoint: { x: 150, y: 90 },
       route: { kind: 'straight', points: [{ x: 100, y: 40 }, { x: 200, y: 140 }] },
       selected: true,
+      strokeStyle: 'dashed',
+      strokeWidth: 4,
       to: { x: 200, y: 140 },
       toAnchorId: 'left',
+      toMarker: 'arrow',
     }])
   })
 

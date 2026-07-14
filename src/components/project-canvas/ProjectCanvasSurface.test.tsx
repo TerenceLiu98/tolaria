@@ -8,7 +8,7 @@ import {
   type ProjectCanvasResolveResult,
 } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
-import { trackProjectCanvasEdgeReconnected, trackProjectCanvasEdgeRoutingChanged, trackProjectCanvasObjectsArranged } from '../../lib/productAnalytics'
+import { trackProjectCanvasEdgeReconnected, trackProjectCanvasEdgeRoutingChanged, trackProjectCanvasEdgeStyleChanged, trackProjectCanvasObjectsArranged } from '../../lib/productAnalytics'
 import { ProjectCanvasSurface } from './ProjectCanvasSurface'
 import { PROJECT_CANVAS_DRAG_MIME } from './projectCanvasDragData'
 import { requestProjectCanvasDraft, requestProjectCanvasNavigate } from './projectCanvasNavigation'
@@ -21,6 +21,7 @@ vi.mock('../../lib/productAnalytics', () => ({
   trackProjectCanvasEdgeCreated: vi.fn(),
   trackProjectCanvasEdgeReconnected: vi.fn(),
   trackProjectCanvasEdgeRoutingChanged: vi.fn(),
+  trackProjectCanvasEdgeStyleChanged: vi.fn(),
   trackProjectCanvasFocusModeChanged: vi.fn(),
   trackProjectCanvasGroupFocusChanged: vi.fn(),
   trackProjectCanvasPeekOpened: vi.fn(),
@@ -1384,9 +1385,10 @@ describe('ProjectCanvasSurface', () => {
     expect(savedCanvas?.edges).toEqual([])
   })
 
-  it('persists connector routing through the controller and records only the routing mode', async () => {
+  it('persists connector routing, label, stroke, and endpoint presentation through the controller', async () => {
     const canvas = sampleCanvas()
     vi.mocked(trackProjectCanvasEdgeRoutingChanged).mockClear()
+    vi.mocked(trackProjectCanvasEdgeStyleChanged).mockClear()
     vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
     vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
     vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
@@ -1403,13 +1405,27 @@ describe('ProjectCanvasSurface', () => {
 
     await screen.findByText('Source Note')
     fireEvent.pointerDown(screen.getByTestId('project-canvas-edge'), { button: 0 })
-    fireEvent.click(screen.getAllByRole('combobox')[1])
+    const labelInput = screen.getByLabelText('Connector label')
+    fireEvent.change(labelInput, { target: { value: 'Supports claim' } })
+    await waitFor(() => expect(labelInput).toHaveValue('Supports claim'))
+    fireEvent.blur(labelInput, { target: { value: 'Supports claim' } })
+    fireEvent.click(screen.getByLabelText('Connector routing'))
     fireEvent.click(screen.getByRole('option', { name: 'Curved' }))
+    fireEvent.click(screen.getByLabelText('Connector line style'))
+    fireEvent.click(screen.getByRole('option', { name: 'Dashed' }))
+    fireEvent.click(screen.getByLabelText('Connector end marker'))
+    fireEvent.click(screen.getByRole('option', { name: 'Arrow' }))
 
-    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(1))
-    const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
-    expect(savedCanvas?.edges[0]).toMatchObject({ id: 'edge_1', routing: 'curved' })
+    await waitFor(() => {
+      const savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+      expect(savedCanvas?.edges[0]).toMatchObject({
+        id: 'edge_1', label: 'Supports claim', routing: 'curved', strokeStyle: 'dashed', toMarker: 'arrow',
+      })
+    })
     expect(trackProjectCanvasEdgeRoutingChanged).toHaveBeenCalledWith({ routing: 'curved' })
+    expect(trackProjectCanvasEdgeStyleChanged).toHaveBeenCalledWith({ property: 'label' })
+    expect(trackProjectCanvasEdgeStyleChanged).toHaveBeenCalledWith({ property: 'stroke_style' })
+    expect(trackProjectCanvasEdgeStyleChanged).toHaveBeenCalledWith({ property: 'to_marker' })
   })
 
   it('reconnects a selected edge endpoint with a pointer gesture and cancels with Escape', async () => {

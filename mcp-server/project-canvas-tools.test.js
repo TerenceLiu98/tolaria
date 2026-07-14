@@ -10,7 +10,7 @@ import {
   readProjectContext,
   searchProjectCanvas,
 } from './project-canvas-tools.js'
-import { PROJECT_OVERVIEW_NODE_ID } from './project-canvas-model.js'
+import { PROJECT_OVERVIEW_NODE_ID, validateCanvas } from './project-canvas-model.js'
 
 let vaultPath
 
@@ -80,6 +80,18 @@ describe('Project Canvas MCP tools', () => {
     assert.equal(read.canvas.nodes.some(node => node.id === PROJECT_OVERVIEW_NODE_ID), true)
     assert.equal(read.canvas.edges.length, 3)
     assert.equal(read.canvas.edges[0].routing, 'orthogonal')
+    assert.deepEqual(read.canvas.edges[0], {
+      id: 'related-note',
+      from: 'claim',
+      to: 'note',
+      kind: 'related',
+      routing: 'orthogonal',
+      label: 'Related evidence',
+      strokeStyle: 'dashed',
+      strokeWidth: 4,
+      fromMarker: 'circle',
+      toMarker: 'arrow',
+    })
     assert.deepEqual(search.results.map(result => result.nodeId), ['claim', 'note'])
     assert.equal(search.results[0].projectId, 'agent-research')
     assert.equal(search.results[0].vaultPath, vaultPath)
@@ -207,6 +219,24 @@ describe('Project Canvas MCP tools', () => {
       /invalid zIndex/,
     )
   })
+
+  it('rejects unsupported connector presentation through the MCP boundary', () => {
+    const invalidStyle = canvasFixture()
+    invalidStyle.edges[0].strokeStyle = 'dotted'
+    assert.throws(() => validateCanvas(invalidStyle), /unsupported connector stroke style/)
+
+    const invalidWidth = canvasFixture()
+    invalidWidth.edges[0].strokeWidth = 3
+    assert.throws(() => validateCanvas(invalidWidth), /unsupported connector stroke width/)
+
+    const invalidMarker = canvasFixture()
+    invalidMarker.edges[0].toMarker = 'square'
+    assert.throws(() => validateCanvas(invalidMarker), /unsupported connector endpoint marker/)
+
+    const invalidLabel = canvasFixture()
+    invalidLabel.edges[0].label = 'x'.repeat(121)
+    assert.throws(() => validateCanvas(invalidLabel), /connector label exceeds 120 characters/)
+  })
 })
 
 function canvasFixture() {
@@ -222,7 +252,18 @@ function canvasFixture() {
     ],
     edges: [
       { id: 'supports', from: 'evidence', to: 'claim', kind: 'supports' },
-      { id: 'related-note', from: 'claim', to: 'note', kind: 'related', routing: 'orthogonal' },
+      {
+        id: 'related-note',
+        from: 'claim',
+        to: 'note',
+        kind: 'related',
+        routing: 'orthogonal',
+        label: 'Related evidence',
+        strokeStyle: 'dashed',
+        strokeWidth: 4,
+        fromMarker: 'circle',
+        toMarker: 'arrow',
+      },
       { id: 'related-paper', from: 'claim', to: 'paper', kind: 'related' },
     ],
     sapientia: { schema: 'project-canvas/v1' },

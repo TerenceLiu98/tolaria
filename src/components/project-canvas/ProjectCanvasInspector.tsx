@@ -5,7 +5,10 @@ import {
   PROJECT_OVERVIEW_NODE_ID,
   type ProjectCanvas,
   type ProjectCanvasEdgeKind,
+  type ProjectCanvasEdgeMarker,
   type ProjectCanvasEdgeRouting,
+  type ProjectCanvasEdgeStrokeStyle,
+  type ProjectCanvasEdgeStrokeWidth,
   type ProjectCanvasNode,
 } from '../../projectCanvas'
 import { Button } from '../ui/button'
@@ -16,9 +19,20 @@ import { Textarea } from '../ui/textarea'
 import { EDGE_KINDS, edgeKindKey } from './projectCanvasDisplay'
 
 const EDGE_ROUTINGS: readonly ProjectCanvasEdgeRouting[] = ['straight', 'orthogonal', 'curved']
+const EDGE_MARKERS: readonly ProjectCanvasEdgeMarker[] = ['none', 'arrow', 'circle', 'diamond', 'triangle']
+const EDGE_STROKE_STYLES: readonly ProjectCanvasEdgeStrokeStyle[] = ['solid', 'dashed']
+const EDGE_STROKE_WIDTHS: readonly ProjectCanvasEdgeStrokeWidth[] = [1, 2, 4]
 
 function edgeRoutingKey(routing: ProjectCanvasEdgeRouting): `projectCanvas.edgeRouting.${ProjectCanvasEdgeRouting}` {
   return `projectCanvas.edgeRouting.${routing}`
+}
+
+function edgeMarkerKey(marker: ProjectCanvasEdgeMarker): `projectCanvas.edgeMarker.${ProjectCanvasEdgeMarker}` {
+  return `projectCanvas.edgeMarker.${marker}`
+}
+
+function edgeStrokeStyleKey(style: ProjectCanvasEdgeStrokeStyle): `projectCanvas.edgeStrokeStyle.${ProjectCanvasEdgeStrokeStyle}` {
+  return `projectCanvas.edgeStrokeStyle.${style}`
 }
 
 interface ProjectCanvasInspectorProps {
@@ -215,6 +229,16 @@ function ProjectCanvasEdgeInspector({
   return (
     <div className="project-canvas-inspector__body">
       <label className="project-canvas-inspector__field">
+        <span>{translate(locale, 'projectCanvas.edgeConnectorLabel')}</span>
+        <Input
+          aria-label={translate(locale, 'projectCanvas.edgeConnectorLabel')}
+          maxLength={120}
+          value={edge.label ?? ''}
+          onChange={event => onEdgeChange({ label: event.target.value || undefined })}
+          onBlur={event => onEdgeChange({ label: event.target.value || undefined }, true)}
+        />
+      </label>
+      <label className="project-canvas-inspector__field">
         <span>{translate(locale, 'projectCanvas.edgeKind')}</span>
         <Select
           value={edge.kind}
@@ -242,7 +266,7 @@ function ProjectCanvasEdgeInspector({
           value={edge.routing ?? 'straight'}
           onValueChange={value => onEdgeChange({ routing: value as ProjectCanvasEdgeRouting }, true)}
         >
-          <SelectTrigger size="sm">
+          <SelectTrigger size="sm" aria-label={translate(locale, 'projectCanvas.edgeRouting')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent position="popper" align="end">
@@ -254,6 +278,50 @@ function ProjectCanvasEdgeInspector({
           </SelectContent>
         </Select>
       </label>
+      <label className="project-canvas-inspector__field">
+        <span>{translate(locale, 'projectCanvas.edgeStrokeStyle')}</span>
+        <Select
+          value={edge.strokeStyle ?? 'solid'}
+          onValueChange={value => onEdgeChange({ strokeStyle: value as ProjectCanvasEdgeStrokeStyle }, true)}
+        >
+          <SelectTrigger size="sm" aria-label={translate(locale, 'projectCanvas.edgeStrokeStyle')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent position="popper" align="end">
+            {EDGE_STROKE_STYLES.map(style => (
+              <SelectItem key={style} value={style}>{translate(locale, edgeStrokeStyleKey(style))}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
+      <label className="project-canvas-inspector__field">
+        <span>{translate(locale, 'projectCanvas.edgeStrokeWidth')}</span>
+        <Select
+          value={String(edge.strokeWidth ?? 2)}
+          onValueChange={value => onEdgeChange({ strokeWidth: Number(value) as ProjectCanvasEdgeStrokeWidth }, true)}
+        >
+          <SelectTrigger size="sm" aria-label={translate(locale, 'projectCanvas.edgeStrokeWidth')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent position="popper" align="end">
+            {EDGE_STROKE_WIDTHS.map(width => <SelectItem key={width} value={String(width)}>{width} px</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </label>
+      <ProjectCanvasEdgeMarkerField
+        edge={edge}
+        field="fromMarker"
+        label={translate(locale, 'projectCanvas.edgeFromMarker')}
+        locale={locale}
+        onEdgeChange={onEdgeChange}
+      />
+      <ProjectCanvasEdgeMarkerField
+        edge={edge}
+        field="toMarker"
+        label={translate(locale, 'projectCanvas.edgeToMarker')}
+        locale={locale}
+        onEdgeChange={onEdgeChange}
+      />
       <label className="project-canvas-inspector__field">
         <span>{translate(locale, 'projectCanvas.inspectorNote')}</span>
         <Textarea
@@ -270,5 +338,36 @@ function ProjectCanvasEdgeInspector({
         </Button>
       </div>
     </div>
+  )
+}
+
+function ProjectCanvasEdgeMarkerField({
+  edge,
+  field,
+  label,
+  locale,
+  onEdgeChange,
+}: {
+  edge: ProjectCanvas['edges'][number]
+  field: 'fromMarker' | 'toMarker'
+  label: string
+  locale: AppLocale
+  onEdgeChange: (patch: Partial<ProjectCanvas['edges'][number]>, persist?: boolean) => void
+}) {
+  return (
+    <label className="project-canvas-inspector__field">
+      <span>{label}</span>
+      <Select
+        value={edge[field] ?? 'none'}
+        onValueChange={value => onEdgeChange({ [field]: value as ProjectCanvasEdgeMarker }, true)}
+      >
+        <SelectTrigger size="sm" aria-label={label}><SelectValue /></SelectTrigger>
+        <SelectContent position="popper" align="end">
+          {EDGE_MARKERS.map(marker => (
+            <SelectItem key={marker} value={marker}>{translate(locale, edgeMarkerKey(marker))}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </label>
   )
 }

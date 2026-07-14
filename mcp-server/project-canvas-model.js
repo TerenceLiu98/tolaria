@@ -4,6 +4,9 @@ const PROJECT_OVERVIEW_WIDTH = 420
 const PROJECT_OVERVIEW_HEIGHT = 280
 const NODE_TYPES = new Set(['note', 'paper', 'paper_block', 'image', 'text', 'task', 'group'])
 const EDGE_ROUTINGS = new Set(['straight', 'orthogonal', 'curved'])
+const EDGE_STROKE_STYLES = new Set(['solid', 'dashed'])
+const EDGE_STROKE_WIDTHS = new Set([1, 2, 4])
+const EDGE_MARKERS = new Set(['none', 'arrow', 'circle', 'diamond', 'triangle'])
 
 export function defaultCanvas(projectPath) {
   return {
@@ -91,6 +94,21 @@ export function validateCanvas(canvas) {
   }
   if (canvas.edges.some(edge => edge.routing && !EDGE_ROUTINGS.has(edge.routing))) {
     throw new Error('Project Canvas contains an unsupported connector routing')
+  }
+  if (canvas.edges.some(edge => edge.label && [...edge.label].length > 120)) {
+    throw new Error('Project Canvas connector label exceeds 120 characters')
+  }
+  if (canvas.edges.some(edge => edge.strokeStyle && !EDGE_STROKE_STYLES.has(edge.strokeStyle))) {
+    throw new Error('Project Canvas contains an unsupported connector stroke style')
+  }
+  if (canvas.edges.some(edge => edge.strokeWidth !== undefined && !EDGE_STROKE_WIDTHS.has(edge.strokeWidth))) {
+    throw new Error('Project Canvas contains an unsupported connector stroke width')
+  }
+  if (canvas.edges.some(edge => (
+    (edge.fromMarker && !EDGE_MARKERS.has(edge.fromMarker))
+    || (edge.toMarker && !EDGE_MARKERS.has(edge.toMarker))
+  ))) {
+    throw new Error('Project Canvas contains an unsupported connector endpoint marker')
   }
 }
 

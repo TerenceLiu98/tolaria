@@ -220,6 +220,12 @@ export function trackProjectCanvasEdgeRoutingChanged(params: { routing: ProjectC
   trackEvent('project_canvas_edge_routing_changed', { routing: params.routing })
 }
 
+export function trackProjectCanvasEdgeStyleChanged(params: {
+  property: 'label' | 'stroke_style' | 'stroke_width' | 'from_marker' | 'to_marker'
+}): void {
+  trackEvent('project_canvas_edge_style_changed', params)
+}
+
 export function trackProjectCanvasExternalNodeAdded(params: {
   createdCanvas: AnalyticsBoolean
   duplicate: AnalyticsBoolean

@@ -12,19 +12,31 @@ describe('CanvasGraphicsLayer', () => {
           edgeId: 'edge-a',
           from: { x: 10, y: 20 },
           fromAnchorId: 'right',
+          fromMarker: 'circle',
+          label: 'Evidence',
+          labelPoint: { x: 60, y: 70 },
           route: { kind: 'orthogonal', points: [{ x: 10, y: 20 }, { x: 60, y: 20 }, { x: 60, y: 120 }, { x: 110, y: 120 }] },
           to: { x: 110, y: 120 },
           toAnchorId: 'left',
           selected: false,
+          strokeStyle: 'dashed',
+          strokeWidth: 4,
+          toMarker: 'arrow',
         },
         {
           edgeId: 'edge-b',
           from: { x: 30, y: 40 },
           fromAnchorId: 'right',
+          fromMarker: 'none',
+          label: null,
+          labelPoint: { x: 80, y: 90 },
           route: { control1: { x: 80, y: 40 }, control2: { x: 80, y: 140 }, kind: 'curved', points: [{ x: 30, y: 40 }, { x: 130, y: 140 }] },
           to: { x: 130, y: 140 },
           toAnchorId: 'left',
           selected: true,
+          strokeStyle: 'solid',
+          strokeWidth: 2,
+          toMarker: 'none',
         },
       ],
       preview: { from: { x: 50, y: 60 }, to: { x: 150, y: 160 } },
@@ -43,6 +55,10 @@ describe('CanvasGraphicsLayer', () => {
       .toBe('M 0 0 L 50 0 L 50 100 L 100 100')
     expect(container.querySelector('.project-canvas-edge--selected')?.getAttribute('d'))
       .toBe('M 20 20 C 70 20 70 120 120 120')
+    expect(container.querySelector('[data-stroke-style="dashed"]')).toHaveAttribute('data-stroke-width', '4')
+    expect(container.querySelector('[data-from-marker="circle"]')).toHaveAttribute('data-to-marker', 'arrow')
+    expect(screen.getByText('Evidence')).toHaveAttribute('x', '50')
+    expect(screen.getByText('Evidence')).toHaveAttribute('y', '50')
     expect(screen.getAllByTestId('project-canvas-edge')).toHaveLength(2)
     expect(screen.getAllByTestId('project-canvas-edge')[0].tagName).toBe('path')
     expect(container.querySelector('.project-canvas-edge--preview')).not.toBeNull()

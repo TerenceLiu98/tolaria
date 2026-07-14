@@ -6,7 +6,10 @@ import {
   validateProjectCanvas,
   type ProjectCanvas,
   type ProjectCanvasEdgeKind,
+  type ProjectCanvasEdgeMarker,
   type ProjectCanvasEdgeRouting,
+  type ProjectCanvasEdgeStrokeStyle,
+  type ProjectCanvasEdgeStrokeWidth,
   type ProjectCanvasNodeType,
 } from './projectCanvas'
 
@@ -85,6 +88,9 @@ describe('projectCanvas', () => {
     const nodeTypes: ProjectCanvasNodeType[] = ['note', 'paper', 'paper_block', 'image', 'text', 'task', 'group']
     const edgeKinds: ProjectCanvasEdgeKind[] = ['related', 'supports', 'contradicts', 'depends_on', 'needs_reading']
     const routingModes: ProjectCanvasEdgeRouting[] = ['straight', 'orthogonal', 'curved']
+    const markerStyles: ProjectCanvasEdgeMarker[] = ['none', 'arrow', 'circle', 'diamond', 'triangle']
+    const strokeStyles: ProjectCanvasEdgeStrokeStyle[] = ['solid', 'dashed']
+    const strokeWidths: ProjectCanvasEdgeStrokeWidth[] = [1, 2, 4]
     const canvas: ProjectCanvas = {
       ...defaultProjectCanvas('projects/alpha/project.md'),
       nodes: nodeTypes.map((type, index) => node(`node_${index}`, type)),
@@ -99,6 +105,9 @@ describe('projectCanvas', () => {
     expect(canvas.nodes.map(item => item.type)).toEqual(nodeTypes)
     expect(canvas.edges.map(item => item.kind)).toEqual(edgeKinds)
     expect(routingModes).toEqual(['straight', 'orthogonal', 'curved'])
+    expect(markerStyles).toEqual(['none', 'arrow', 'circle', 'diamond', 'triangle'])
+    expect(strokeStyles).toEqual(['solid', 'dashed'])
+    expect(strokeWidths).toEqual([1, 2, 4])
     expect(validateProjectCanvas(canvas)).toEqual([])
   })
 
@@ -114,6 +123,27 @@ describe('projectCanvas', () => {
     })
 
     expect(validateProjectCanvas(canvas)).toContain('Project Canvas edge edge_1 has unsupported routing diagonal')
+  })
+
+  it('validates connector presentation fields before save', () => {
+    const canvas = defaultProjectCanvas('projects/alpha/project.md')
+    canvas.nodes.push(node('target', 'text'))
+    canvas.edges.push({
+      from: PROJECT_OVERVIEW_NODE_ID,
+      id: 'edge_1',
+      kind: 'related',
+      strokeStyle: 'dotted' as ProjectCanvasEdgeStrokeStyle,
+      strokeWidth: 3 as ProjectCanvasEdgeStrokeWidth,
+      fromMarker: 'square' as ProjectCanvasEdgeMarker,
+      to: 'target',
+      toMarker: 'arrow',
+    })
+
+    expect(validateProjectCanvas(canvas)).toEqual(expect.arrayContaining([
+      'Project Canvas edge edge_1 has unsupported strokeStyle dotted',
+      'Project Canvas edge edge_1 has unsupported strokeWidth 3',
+      'Project Canvas edge edge_1 has unsupported fromMarker square',
+    ]))
   })
 
   it('rejects non-integer Canvas z-order values', () => {

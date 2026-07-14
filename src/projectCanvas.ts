@@ -4,6 +4,10 @@ import { isTauri, mockInvoke } from './mock-tauri'
 export const PROJECT_CANVAS_SCHEMA = 'project-canvas/v1'
 export const PROJECT_OVERVIEW_NODE_ID = 'project_overview'
 const PROJECT_CANVAS_EDGE_ROUTINGS: ReadonlySet<string> = new Set(['straight', 'orthogonal', 'curved'])
+const PROJECT_CANVAS_EDGE_MARKERS: ReadonlySet<string> = new Set(['none', 'arrow', 'circle', 'diamond', 'triangle'])
+const PROJECT_CANVAS_EDGE_STROKE_STYLES: ReadonlySet<string> = new Set(['solid', 'dashed'])
+const PROJECT_CANVAS_EDGE_STROKE_WIDTHS: ReadonlySet<number> = new Set([1, 2, 4])
+const PROJECT_CANVAS_EDGE_LABEL_MAX_LENGTH = 120
 
 const PROJECT_OVERVIEW_WIDTH = 420
 const PROJECT_OVERVIEW_HEIGHT = 280
@@ -11,6 +15,9 @@ const PROJECT_OVERVIEW_HEIGHT = 280
 export type ProjectCanvasNodeType = 'note' | 'paper' | 'paper_block' | 'image' | 'text' | 'task' | 'group'
 export type ProjectCanvasEdgeKind = 'related' | 'supports' | 'contradicts' | 'depends_on' | 'needs_reading'
 export type ProjectCanvasEdgeRouting = 'straight' | 'orthogonal' | 'curved'
+export type ProjectCanvasEdgeMarker = 'none' | 'arrow' | 'circle' | 'diamond' | 'triangle'
+export type ProjectCanvasEdgeStrokeStyle = 'solid' | 'dashed'
+export type ProjectCanvasEdgeStrokeWidth = 1 | 2 | 4
 export type ProjectCanvasState = 'missing' | 'ready'
 export type ProjectCanvasRefState = 'embedded' | 'resolved' | 'stale'
 
@@ -44,6 +51,11 @@ export interface ProjectCanvasEdge {
   kind: ProjectCanvasEdgeKind
   note?: string
   routing?: ProjectCanvasEdgeRouting
+  label?: string
+  strokeStyle?: ProjectCanvasEdgeStrokeStyle
+  strokeWidth?: ProjectCanvasEdgeStrokeWidth
+  fromMarker?: ProjectCanvasEdgeMarker
+  toMarker?: ProjectCanvasEdgeMarker
 }
 
 export interface ProjectCanvasSapientiaMetadata {
@@ -198,6 +210,21 @@ export function validateProjectCanvas(canvas: ProjectCanvas): string[] {
     if (!nodeIds.has(edge.to)) errors.push(`Project Canvas edge ${edge.id} references missing target node ${edge.to}`)
     if (edge.routing && !PROJECT_CANVAS_EDGE_ROUTINGS.has(edge.routing)) {
       errors.push(`Project Canvas edge ${edge.id} has unsupported routing ${edge.routing}`)
+    }
+    if (edge.label && [...edge.label].length > PROJECT_CANVAS_EDGE_LABEL_MAX_LENGTH) {
+      errors.push(`Project Canvas edge ${edge.id} label exceeds ${PROJECT_CANVAS_EDGE_LABEL_MAX_LENGTH} characters`)
+    }
+    if (edge.strokeStyle && !PROJECT_CANVAS_EDGE_STROKE_STYLES.has(edge.strokeStyle)) {
+      errors.push(`Project Canvas edge ${edge.id} has unsupported strokeStyle ${edge.strokeStyle}`)
+    }
+    if (edge.strokeWidth !== undefined && !PROJECT_CANVAS_EDGE_STROKE_WIDTHS.has(edge.strokeWidth)) {
+      errors.push(`Project Canvas edge ${edge.id} has unsupported strokeWidth ${edge.strokeWidth}`)
+    }
+    if (edge.fromMarker && !PROJECT_CANVAS_EDGE_MARKERS.has(edge.fromMarker)) {
+      errors.push(`Project Canvas edge ${edge.id} has unsupported fromMarker ${edge.fromMarker}`)
+    }
+    if (edge.toMarker && !PROJECT_CANVAS_EDGE_MARKERS.has(edge.toMarker)) {
+      errors.push(`Project Canvas edge ${edge.id} has unsupported toMarker ${edge.toMarker}`)
     }
   }
   return errors

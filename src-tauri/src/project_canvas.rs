@@ -43,6 +43,23 @@ pub enum ProjectCanvasEdgeRouting {
     Curved,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectCanvasEdgeStrokeStyle {
+    Solid,
+    Dashed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectCanvasEdgeMarker {
+    None,
+    Arrow,
+    Circle,
+    Diamond,
+    Triangle,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectCanvasViewport {
@@ -96,6 +113,16 @@ pub struct ProjectCanvasEdge {
     pub note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub routing: Option<ProjectCanvasEdgeRouting>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_style: Option<ProjectCanvasEdgeStrokeStyle>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_width: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_marker: Option<ProjectCanvasEdgeMarker>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to_marker: Option<ProjectCanvasEdgeMarker>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -760,6 +787,26 @@ pub fn validate_project_canvas(canvas: &ProjectCanvas) -> Result<(), String> {
                 edge.id, edge.to
             ));
         }
+        if edge
+            .label
+            .as_ref()
+            .is_some_and(|label| label.chars().count() > 120)
+        {
+            return Err(format!(
+                "Project Canvas edge {} label exceeds 120 characters",
+                edge.id
+            ));
+        }
+        if edge
+            .stroke_width
+            .is_some_and(|width| !matches!(width, 1 | 2 | 4))
+        {
+            return Err(format!(
+                "Project Canvas edge {} has unsupported strokeWidth {}",
+                edge.id,
+                edge.stroke_width.unwrap_or_default()
+            ));
+        }
     }
     Ok(())
 }
@@ -831,6 +878,11 @@ mod tests {
                 kind: ProjectCanvasEdgeKind::Related,
                 note: None,
                 routing: Some(ProjectCanvasEdgeRouting::Curved),
+                label: Some("Supports claim".to_string()),
+                stroke_style: Some(ProjectCanvasEdgeStrokeStyle::Dashed),
+                stroke_width: Some(4),
+                from_marker: Some(ProjectCanvasEdgeMarker::Circle),
+                to_marker: Some(ProjectCanvasEdgeMarker::Arrow),
             }],
             sapientia: ProjectCanvasSapientiaMetadata {
                 schema: "old".to_string(),
@@ -971,9 +1023,27 @@ mod tests {
         assert!(first.ends_with('\n'));
         assert!(first.contains("\"schema\": \"project-canvas/v1\""));
         assert!(first.contains("\"project\": \"projects/alpha/project.md\""));
+        assert!(first.contains("\"label\": \"Supports claim\""));
+        assert!(first.contains("\"strokeStyle\": \"dashed\""));
+        assert!(first.contains("\"strokeWidth\": 4"));
+        assert!(first.contains("\"fromMarker\": \"circle\""));
+        assert!(first.contains("\"toMarker\": \"arrow\""));
 
         let read = read_project_canvas_file(dir.path(), project_path).unwrap();
-        assert_eq!(read.canvas.unwrap().nodes.len(), 3);
+        let read_canvas = read.canvas.unwrap();
+        assert_eq!(read_canvas.nodes.len(), 3);
+        assert_eq!(
+            read_canvas.edges[0].label.as_deref(),
+            Some("Supports claim")
+        );
+        assert_eq!(
+            read_canvas.edges[0].stroke_style,
+            Some(ProjectCanvasEdgeStrokeStyle::Dashed)
+        );
+        assert_eq!(
+            read_canvas.edges[0].to_marker,
+            Some(ProjectCanvasEdgeMarker::Arrow)
+        );
 
         let second = fs::read_to_string(dir.path().join(&saved.canvas_path)).unwrap();
         assert_eq!(first, second);
@@ -1020,6 +1090,11 @@ mod tests {
                     kind: ProjectCanvasEdgeKind::Contradicts,
                     note: None,
                     routing: Some(ProjectCanvasEdgeRouting::Straight),
+                    label: None,
+                    stroke_style: None,
+                    stroke_width: None,
+                    from_marker: None,
+                    to_marker: None,
                 },
                 ProjectCanvasEdge {
                     id: "edge_supports".to_string(),
@@ -1028,6 +1103,11 @@ mod tests {
                     kind: ProjectCanvasEdgeKind::Supports,
                     note: None,
                     routing: Some(ProjectCanvasEdgeRouting::Orthogonal),
+                    label: None,
+                    stroke_style: None,
+                    stroke_width: None,
+                    from_marker: None,
+                    to_marker: None,
                 },
                 ProjectCanvasEdge {
                     id: "edge_depends".to_string(),
@@ -1036,6 +1116,11 @@ mod tests {
                     kind: ProjectCanvasEdgeKind::DependsOn,
                     note: None,
                     routing: Some(ProjectCanvasEdgeRouting::Curved),
+                    label: None,
+                    stroke_style: None,
+                    stroke_width: None,
+                    from_marker: None,
+                    to_marker: None,
                 },
                 ProjectCanvasEdge {
                     id: "edge_needs".to_string(),
@@ -1044,6 +1129,11 @@ mod tests {
                     kind: ProjectCanvasEdgeKind::NeedsReading,
                     note: None,
                     routing: None,
+                    label: None,
+                    stroke_style: None,
+                    stroke_width: None,
+                    from_marker: None,
+                    to_marker: None,
                 },
             ],
             ..default_project_canvas(project_path)

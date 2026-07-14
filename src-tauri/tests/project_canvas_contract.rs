@@ -395,6 +395,11 @@ fn validates_every_node_and_edge_identity_constraint() {
         kind: ProjectCanvasEdgeKind::Related,
         note: None,
         routing: None,
+        label: None,
+        stroke_style: None,
+        stroke_width: None,
+        from_marker: None,
+        to_marker: None,
     };
     let with_edges = |edges| ProjectCanvas {
         nodes: base_nodes.clone(),
@@ -423,5 +428,10 @@ fn validates_every_node_and_edge_identity_constraint() {
             .unwrap_err()
             .contains("missing target node")
     );
+    let mut invalid_stroke = edge("stroke", "from", "to");
+    invalid_stroke.stroke_width = Some(3);
+    assert!(validate_project_canvas(&with_edges(vec![invalid_stroke]))
+        .unwrap_err()
+        .contains("unsupported strokeWidth 3"));
     assert!(validate_project_canvas(&with_edges(vec![edge("valid", "from", "to")])).is_ok());
 }

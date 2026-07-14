@@ -1,6 +1,12 @@
 import type { CanvasPoint, CanvasSceneSnapshot } from './canvasSceneStore'
 import { cardinalConnectionAnchors, type CanvasConnectionAnchor } from './canvasNodeSpecRegistry'
-import type { ProjectCanvasEdge, ProjectCanvasNode } from './projectCanvas'
+import type {
+  ProjectCanvasEdge,
+  ProjectCanvasEdgeMarker,
+  ProjectCanvasEdgeStrokeStyle,
+  ProjectCanvasEdgeStrokeWidth,
+  ProjectCanvasNode,
+} from './projectCanvas'
 import { buildCanvasConnectorRoute, connectorRouteBounds, type CanvasConnectorRoute } from './canvasConnectorRouting'
 
 export { buildCanvasConnectorRoute } from './canvasConnectorRouting'
@@ -10,10 +16,16 @@ export interface CanvasConnectorCommand {
   readonly edgeId: string
   readonly from: CanvasPoint
   readonly fromAnchorId: string
+  readonly fromMarker: ProjectCanvasEdgeMarker
+  readonly label: string | null
+  readonly labelPoint: CanvasPoint
   readonly route: CanvasConnectorRoute
+  readonly selected: boolean
+  readonly strokeStyle: ProjectCanvasEdgeStrokeStyle
+  readonly strokeWidth: ProjectCanvasEdgeStrokeWidth
   readonly to: CanvasPoint
   readonly toAnchorId: string
-  readonly selected: boolean
+  readonly toMarker: ProjectCanvasEdgeMarker
 }
 
 export interface CanvasGraphicsCommandBatch {
@@ -31,6 +43,34 @@ function distanceSquared(left: CanvasPoint, right: CanvasPoint): number {
   const x = left.x - right.x
   const y = left.y - right.y
   return x * x + y * y
+}
+
+function interpolate(from: CanvasPoint, to: CanvasPoint, ratio: number): CanvasPoint {
+  return { x: from.x + (to.x - from.x) * ratio, y: from.y + (to.y - from.y) * ratio }
+}
+
+function connectorRouteMidpoint(route: CanvasConnectorRoute): CanvasPoint {
+  if (route.kind === 'curved') {
+    const [from, to] = route.points
+    return {
+      x: (from.x + 3 * route.control1.x + 3 * route.control2.x + to.x) / 8,
+      y: (from.y + 3 * route.control1.y + 3 * route.control2.y + to.y) / 8,
+    }
+  }
+  const segments = route.points.slice(1).map((point, index) => {
+    const from = route.points[index]
+    return { from, to: point, length: Math.hypot(point.x - from.x, point.y - from.y) }
+  })
+  const halfLength = segments.reduce((total, segment) => total + segment.length, 0) / 2
+  let traversed = 0
+  for (const segment of segments) {
+    if (traversed + segment.length >= halfLength) {
+      const ratio = segment.length === 0 ? 0 : (halfLength - traversed) / segment.length
+      return interpolate(segment.from, segment.to, ratio)
+    }
+    traversed += segment.length
+  }
+  return route.points.at(-1) ?? { x: 0, y: 0 }
 }
 
 export function connectionAnchorToward(
@@ -66,21 +106,28 @@ export function buildCanvasGraphicsCommandBatch(
     const obstacles = edge.routing === 'orthogonal' && resolveObstacles
       ? resolveObstacles(edge, obstacleBounds)
       : []
+    const route = buildCanvasConnectorRoute(
+      fromAnchor.point,
+      toAnchor.point,
+      edge.routing ?? 'straight',
+      fromAnchor.side,
+      toAnchor.side,
+      obstacles,
+    )
     connectors.push({
       edgeId: edge.id,
       from: fromAnchor.point,
       fromAnchorId: fromAnchor.id,
-      route: buildCanvasConnectorRoute(
-        fromAnchor.point,
-        toAnchor.point,
-        edge.routing ?? 'straight',
-        fromAnchor.side,
-        toAnchor.side,
-        obstacles,
-      ),
+      fromMarker: edge.fromMarker ?? 'none',
+      label: edge.label?.trim() || null,
+      labelPoint: connectorRouteMidpoint(route),
+      route,
       selected: selectedEdgeIds.has(edge.id),
+      strokeStyle: edge.strokeStyle ?? 'solid',
+      strokeWidth: edge.strokeWidth ?? 2,
       to: toAnchor.point,
       toAnchorId: toAnchor.id,
+      toMarker: edge.toMarker ?? 'none',
     })
   }
   return { connectors, preview }

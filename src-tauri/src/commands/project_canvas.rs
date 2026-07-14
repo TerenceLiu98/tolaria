@@ -167,6 +167,11 @@ mod tests {
             kind: ProjectCanvasEdgeKind::Supports,
             note: None,
             routing: None,
+            label: None,
+            stroke_style: None,
+            stroke_width: None,
+            from_marker: None,
+            to_marker: None,
         }];
 
         let saved = save_project_canvas(
