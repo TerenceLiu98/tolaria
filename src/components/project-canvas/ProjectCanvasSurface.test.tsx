@@ -8,7 +8,7 @@ import {
   type ProjectCanvasResolveResult,
 } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
-import { trackProjectCanvasEdgeReconnected, trackProjectCanvasEdgeRoutingChanged } from '../../lib/productAnalytics'
+import { trackProjectCanvasEdgeReconnected, trackProjectCanvasEdgeRoutingChanged, trackProjectCanvasObjectsArranged } from '../../lib/productAnalytics'
 import { ProjectCanvasSurface } from './ProjectCanvasSurface'
 import { PROJECT_CANVAS_DRAG_MIME } from './projectCanvasDragData'
 import { requestProjectCanvasDraft, requestProjectCanvasNavigate } from './projectCanvasNavigation'
@@ -28,6 +28,7 @@ vi.mock('../../lib/productAnalytics', () => ({
   trackProjectCanvasNavigatorFocused: vi.fn(),
   trackProjectCanvasNodeAdded: vi.fn(),
   trackProjectCanvasOpened: vi.fn(),
+  trackProjectCanvasObjectsArranged: vi.fn(),
 }))
 
 vi.mock('../../projectCanvas', async () => {
@@ -1178,6 +1179,45 @@ describe('ProjectCanvasSurface', () => {
     await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(2))
     savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
     expect(savedCanvas?.nodes).toHaveLength(normalizedNodeCount)
+  })
+
+  it('aligns and reorders a multi-selection through the production toolbar', async () => {
+    const canvas = sampleCanvas()
+    vi.mocked(projectCanvas.readProjectCanvas).mockResolvedValue(readyResult(canvas))
+    vi.mocked(projectCanvas.resolveProjectCanvasRefs).mockResolvedValue(resolveResult(canvas))
+    vi.mocked(projectCanvas.saveProjectCanvas).mockImplementation(async (_vaultPath, _projectPath, nextCanvas) => readyResult(nextCanvas))
+    vi.mocked(trackProjectCanvasObjectsArranged).mockClear()
+
+    render(
+      <ProjectCanvasSurface
+        entry={entry({})}
+        entries={[]}
+        vaultPath="/vault"
+        locale="en"
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    const sourceCard = (await screen.findByText('Source Note')).closest('[data-testid="project-canvas-node"]')
+    const blockCard = screen.getByText('Evidence Block').closest('[data-testid="project-canvas-node"]')
+    fireEvent.click(within(sourceCard as HTMLElement).getByRole('button', { name: 'Source' }))
+    fireEvent.click(within(blockCard as HTMLElement).getByRole('button', { name: 'Source' }), { shiftKey: true })
+
+    fireEvent.click(screen.getByTestId('project-canvas-arrange-trigger'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Align top' }))
+
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(1))
+    let savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes.find(node => node.id === 'note')?.y).toBe(20)
+    expect(savedCanvas?.nodes.find(node => node.id === 'block')?.y).toBe(20)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bring to front' }))
+    await waitFor(() => expect(projectCanvas.saveProjectCanvas).toHaveBeenCalledTimes(2))
+    savedCanvas = vi.mocked(projectCanvas.saveProjectCanvas).mock.calls.at(-1)?.[2]
+    expect(savedCanvas?.nodes.find(node => node.id === 'block')?.zIndex).toBe(1)
+    expect(savedCanvas?.nodes.find(node => node.id === 'note')?.zIndex).toBe(2)
+    expect(trackProjectCanvasObjectsArranged).toHaveBeenNthCalledWith(1, { action: 'top', kind: 'align' })
+    expect(trackProjectCanvasObjectsArranged).toHaveBeenNthCalledWith(2, { action: 'front', kind: 'stack' })
   })
 
   it('creates an edge by dragging a node connect handle onto another node', async () => {

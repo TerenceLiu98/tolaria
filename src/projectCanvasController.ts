@@ -10,6 +10,7 @@ import { CanvasToolManager, type CanvasGestureEndpoint, type CanvasGestureKind, 
 import { CanvasViewport, type CanvasViewportSize, type CanvasViewportSnapshot } from './canvasViewport'
 import { ProjectCanvasPersistenceAdapter, type ProjectCanvasPersistenceReason } from './projectCanvasPersistenceAdapter'
 import {
+  compareProjectCanvasNodes,
   normalizeProjectCanvas,
   type ProjectCanvas,
   type ProjectCanvasEdge,
@@ -20,6 +21,9 @@ import {
 } from './projectCanvas'
 
 export type CanvasControllerStatus = 'idle' | 'loading' | 'ready' | 'error'
+export type CanvasAlignment = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'
+export type CanvasDistribution = 'horizontal' | 'vertical'
+export type CanvasArrangement = 'front' | 'back'
 
 export interface CanvasControllerSnapshot {
   readonly status: CanvasControllerStatus
@@ -754,6 +758,73 @@ export class ProjectCanvasController {
     }))
     this.selection.setActiveGroup(parentGroupId)
     return result
+  }
+
+  alignSelection(alignment: CanvasAlignment): ProjectCanvas | null {
+    const selected = this.selectedNodes()
+    if (selected.length < 2) return null
+    const minX = Math.min(...selected.map(node => node.x))
+    const minY = Math.min(...selected.map(node => node.y))
+    const maxX = Math.max(...selected.map(node => node.x + node.width))
+    const maxY = Math.max(...selected.map(node => node.y + node.height))
+    const centerX = (minX + maxX) / 2
+    const centerY = (minY + maxY) / 2
+    const selectedIds = new Set(selected.map(node => node.id))
+    return this.commitScene(`Align ${alignment}`, canvas => ({
+      ...canvas,
+      nodes: canvas.nodes.map(node => {
+        if (!selectedIds.has(node.id)) return node
+        if (alignment === 'left') return { ...node, x: minX }
+        if (alignment === 'center') return { ...node, x: centerX - node.width / 2 }
+        if (alignment === 'right') return { ...node, x: maxX - node.width }
+        if (alignment === 'top') return { ...node, y: minY }
+        if (alignment === 'middle') return { ...node, y: centerY - node.height / 2 }
+        return { ...node, y: maxY - node.height }
+      }),
+    }))
+  }
+
+  distributeSelection(distribution: CanvasDistribution): ProjectCanvas | null {
+    const selected = [...this.selectedNodes()].sort(distribution === 'horizontal'
+      ? (left, right) => left.x - right.x || left.id.localeCompare(right.id)
+      : (left, right) => left.y - right.y || left.id.localeCompare(right.id))
+    if (selected.length < 3) return null
+    const start = distribution === 'horizontal' ? selected[0].x : selected[0].y
+    const end = distribution === 'horizontal'
+      ? selected.at(-1)!.x + selected.at(-1)!.width
+      : selected.at(-1)!.y + selected.at(-1)!.height
+    const occupied = selected.reduce((total, node) => total + (distribution === 'horizontal' ? node.width : node.height), 0)
+    const gap = (end - start - occupied) / (selected.length - 1)
+    const positions = new Map<string, number>()
+    let cursor = start
+    for (const node of selected) {
+      positions.set(node.id, cursor)
+      cursor += (distribution === 'horizontal' ? node.width : node.height) + gap
+    }
+    return this.commitScene(`Distribute ${distribution}`, canvas => ({
+      ...canvas,
+      nodes: canvas.nodes.map(node => {
+        const position = positions.get(node.id)
+        if (position === undefined) return node
+        return distribution === 'horizontal' ? { ...node, x: position } : { ...node, y: position }
+      }),
+    }))
+  }
+
+  arrangeSelection(arrangement: CanvasArrangement): ProjectCanvas | null {
+    const current = this.getScene()
+    const selected = this.selectedNodes().sort(compareProjectCanvasNodes)
+    if (!current || selected.length === 0) return null
+    const selectedIds = new Set(selected.map(node => node.id))
+    const zIndexes = current.nodes.map(node => node.zIndex ?? 0)
+    const start = arrangement === 'front'
+      ? Math.max(...zIndexes) + 1
+      : Math.min(...zIndexes) - selected.length
+    const nextZIndex = new Map(selected.map((node, index) => [node.id, start + index]))
+    return this.commitScene(arrangement === 'front' ? 'Bring to front' : 'Send to back', canvas => ({
+      ...canvas,
+      nodes: canvas.nodes.map(node => selectedIds.has(node.id) ? { ...node, zIndex: nextZIndex.get(node.id) } : node),
+    }))
   }
 
   copySelection(): void {

@@ -73,9 +73,10 @@ describe('ProjectCanvasNodeRendererRegistry', () => {
       ['text', renderer as ComponentType<ProjectCanvasNodeRendererProps>],
     ])
 
-    renderCard({ ...baseNode, text: 'Original text' }, { registry })
+    renderCard({ ...baseNode, text: 'Original text', zIndex: 7 }, { registry })
 
     expect(screen.getByText('Owned by the text NodeSpec renderer')).toBeInTheDocument()
+    expect(screen.getByTestId('project-canvas-node')).toHaveStyle({ zIndex: '7' })
     expect(renderer).toHaveBeenCalledOnce()
   })
 

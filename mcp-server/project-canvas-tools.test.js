@@ -125,6 +125,28 @@ describe('Project Canvas MCP tools', () => {
     assert.deepEqual(saved.viewport, { x: 0, y: 0, zoom: 1 })
   })
 
+  it('normalizes and preserves explicit node stacking order', async () => {
+    const canvas = canvasFixture()
+    canvas.nodes.find(node => node.id === 'claim').zIndex = 2
+    canvas.nodes.find(node => node.id === 'evidence').zIndex = -1
+    await writeFile(
+      path.join(vaultPath, 'projects/agents/project.canvas.json'),
+      JSON.stringify(canvas, null, 2),
+    )
+
+    const read = await readProjectCanvas(vaultPath, { projectId: 'agent-research' })
+
+    assert.deepEqual(read.canvas.nodes.map(node => node.id), [
+      'evidence',
+      'note',
+      'paper',
+      PROJECT_OVERVIEW_NODE_ID,
+      'claim',
+    ])
+    assert.equal(read.canvas.nodes[0].zIndex, -1)
+    assert.equal(read.canvas.nodes[4].zIndex, 2)
+  })
+
   it('rejects non-Project notes and paths outside the vault', async () => {
     await assert.rejects(
       () => addProjectCanvasNode(vaultPath, {
@@ -172,6 +194,17 @@ describe('Project Canvas MCP tools', () => {
     await assert.rejects(
       () => readProjectCanvas(vaultPath, { projectId: 'agent-research' }),
       /group hierarchy contains a cycle/,
+    )
+
+    const invalidStacking = canvasFixture()
+    invalidStacking.nodes[0].zIndex = 1.5
+    await writeFile(
+      path.join(vaultPath, 'projects/agents/project.canvas.json'),
+      JSON.stringify(invalidStacking, null, 2),
+    )
+    await assert.rejects(
+      () => readProjectCanvas(vaultPath, { projectId: 'agent-research' }),
+      /invalid zIndex/,
     )
   })
 })

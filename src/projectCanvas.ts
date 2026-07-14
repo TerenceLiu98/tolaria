@@ -31,6 +31,8 @@ export interface ProjectCanvasNode {
   title?: string
   text?: string
   completed?: boolean
+  /** Explicit deterministic visual stacking order. Legacy nodes default to 0. */
+  zIndex?: number
   /** Optional Canvas-only parent reference for group/frame membership. */
   parentId?: string
 }
@@ -135,6 +137,10 @@ function finiteOrDefault(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback
 }
 
+export function compareProjectCanvasNodes(left: ProjectCanvasNode, right: ProjectCanvasNode): number {
+  return (left.zIndex ?? 0) - (right.zIndex ?? 0) || left.id.localeCompare(right.id)
+}
+
 export function normalizeProjectCanvas(canvas: ProjectCanvas, projectPath: string): ProjectCanvas {
   return {
     version: 1,
@@ -145,7 +151,7 @@ export function normalizeProjectCanvas(canvas: ProjectCanvas, projectPath: strin
       zoom: canvas.viewport.zoom > 0 && Number.isFinite(canvas.viewport.zoom) ? canvas.viewport.zoom : 1,
     },
     nodes: projectNodesWithOverview(canvas.nodes, projectPath)
-      .sort((left, right) => left.id.localeCompare(right.id)),
+      .sort(compareProjectCanvasNodes),
     edges: [...canvas.edges].sort((left, right) => left.id.localeCompare(right.id)),
     sapientia: { schema: PROJECT_CANVAS_SCHEMA },
   }
@@ -159,6 +165,9 @@ export function validateProjectCanvas(canvas: ProjectCanvas): string[] {
   for (const node of canvas.nodes) {
     if (!node.id.trim()) errors.push('Project Canvas node id cannot be empty')
     if (nodeIds.has(node.id)) errors.push(`Project Canvas node id is duplicated: ${node.id}`)
+    if (node.zIndex !== undefined && !Number.isSafeInteger(node.zIndex)) {
+      errors.push(`Project Canvas node ${node.id} has invalid zIndex ${node.zIndex}`)
+    }
     nodeIds.add(node.id)
     if (!nodesById.has(node.id)) nodesById.set(node.id, node)
   }

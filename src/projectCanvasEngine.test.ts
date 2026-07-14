@@ -888,6 +888,51 @@ describe('ProjectCanvasController', () => {
     controller.dispose()
   })
 
+  it('aligns, distributes, and reorders selected nodes as reversible transactions', async () => {
+    const initial: ProjectCanvas = {
+      ...defaultProjectCanvas('projects/alpha/project.md'),
+      nodes: [
+        { id: 'a', type: 'text', x: 0, y: 30, width: 100, height: 80, zIndex: 0 },
+        { id: 'b', type: 'text', x: 240, y: 80, width: 120, height: 80, zIndex: 1 },
+        { id: 'c', type: 'text', x: 520, y: 140, width: 80, height: 80, zIndex: 2 },
+        { id: 'untouched', type: 'text', x: 900, y: 300, width: 100, height: 80, zIndex: 9 },
+      ],
+      edges: [],
+    }
+    const controller = await loadedController(initial)
+    controller.selectNodes(['a'])
+    expect(controller.alignSelection('top')).toBeNull()
+    expect(controller.distributeSelection('horizontal')).toBeNull()
+    controller.clearSelection()
+    expect(controller.arrangeSelection('front')).toBeNull()
+    expect(controller.getSnapshot().canUndo).toBe(false)
+    controller.selectNodes(['a', 'b', 'c'])
+
+    controller.alignSelection('top')
+    expect(controller.getScene()?.nodes.filter(node => ['a', 'b', 'c'].includes(node.id)).map(node => node.y))
+      .toEqual([30, 30, 30])
+    expect(controller.undo()?.nodes.find(node => node.id === 'b')?.y).toBe(80)
+
+    controller.distributeSelection('horizontal')
+    expect(controller.getScene()?.nodes.filter(node => ['a', 'b', 'c'].includes(node.id)).map(node => node.x))
+      .toEqual([0, 250, 520])
+    expect(controller.undo()).not.toBeNull()
+
+    controller.arrangeSelection('front')
+    const front = controller.getScene()!
+    expect(front.nodes.filter(node => ['a', 'b', 'c'].includes(node.id)).map(node => node.zIndex))
+      .toEqual([10, 11, 12])
+    expect(new CanvasSceneStore(front).getSnapshot().nodeOrder.slice(-3)).toEqual(['a', 'b', 'c'])
+    expect(controller.undo()?.nodes.filter(node => ['a', 'b', 'c'].includes(node.id)).map(node => node.zIndex))
+      .toEqual([0, 1, 2])
+
+    controller.arrangeSelection('back')
+    expect(controller.getScene()?.nodes.filter(node => ['a', 'b', 'c'].includes(node.id)).map(node => node.zIndex))
+      .toEqual([-3, -2, -1])
+    expect(controller.getScene()?.nodes.find(node => node.id === 'untouched')?.zIndex).toBe(9)
+    controller.dispose()
+  })
+
   it('routes scene mutations through transactions, supports cancellation, and persists structural changes', async () => {
     const saved: ProjectCanvas[] = []
     const initial = canvasWithNodes()

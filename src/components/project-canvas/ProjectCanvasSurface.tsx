@@ -14,7 +14,7 @@ import type { AiSelectedTextContext } from '../../utils/ai-context'
 import type { CreateProjectCanvasDraftNote } from '../../projectCanvasDrafts'
 import type { PaperParserProvider } from '../../paper/parserSettings'
 import { publishProjectCanvasSelection } from '../../projectCanvasSelectionStore'
-import { ProjectCanvasController, type CanvasControllerSnapshot, type CanvasNodeCreationOptions } from '../../projectCanvasController'
+import { ProjectCanvasController, type CanvasAlignment, type CanvasArrangement, type CanvasControllerSnapshot, type CanvasDistribution, type CanvasNodeCreationOptions } from '../../projectCanvasController'
 import type { CanvasNodeToolbarAction } from '../../canvasNodeSpecRegistry'
 import { ProjectCanvasPersistenceAdapter } from '../../projectCanvasPersistenceAdapter'
 import { Button } from '../ui/button'
@@ -27,6 +27,7 @@ import {
   trackProjectCanvasNavigatorFocused,
   trackProjectCanvasNodeAdded,
   trackProjectCanvasOpened,
+  trackProjectCanvasObjectsArranged,
   trackProjectCanvasPeekOpened,
   trackProjectCanvasPeekPinned,
 } from '../../lib/productAnalytics'
@@ -765,6 +766,27 @@ export function ProjectCanvasSurface({
     if (next) canvasRef.current = next
   }, [controller, deleteSelectedNode, editDocumentNode, selectedNode])
 
+  const alignSelectedNodes = useCallback((alignment: CanvasAlignment) => {
+    const next = controller.alignSelection(alignment)
+    if (!next) return
+    canvasRef.current = next
+    trackProjectCanvasObjectsArranged({ action: alignment, kind: 'align' })
+  }, [controller])
+
+  const distributeSelectedNodes = useCallback((distribution: CanvasDistribution) => {
+    const next = controller.distributeSelection(distribution)
+    if (!next) return
+    canvasRef.current = next
+    trackProjectCanvasObjectsArranged({ action: distribution, kind: 'distribute' })
+  }, [controller])
+
+  const arrangeSelectedNodes = useCallback((arrangement: CanvasArrangement) => {
+    const next = controller.arrangeSelection(arrangement)
+    if (!next) return
+    canvasRef.current = next
+    trackProjectCanvasObjectsArranged({ action: arrangement, kind: 'stack' })
+  }, [controller])
+
   const handleCanvasKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && editingNodeId) {
       event.preventDefault()
@@ -902,6 +924,7 @@ export function ProjectCanvasSurface({
         newCardText={newCardText}
         nodeCount={canvas.nodes.length}
         selectedNode={selectedNode}
+        selectedNodeCount={selectedNodeIds.length}
         selectedNodeId={selectedNodeId}
         saving={saving}
         title={entry.title}
@@ -911,6 +934,8 @@ export function ProjectCanvasSurface({
         onAddEntry={handleAddEntry}
         onAddModeChange={setAddMode}
         onAddPanelOpenChange={setAddPanelOpen}
+        onAlign={alignSelectedNodes}
+        onArrange={arrangeSelectedNodes}
         onAutoLayout={handleAutoLayout}
         onCandidateQueryChange={setCandidateQuery}
         onEdgeKindChange={setEdgeKind}
@@ -919,6 +944,7 @@ export function ProjectCanvasSurface({
         onLinkFromSelectedChange={setLinkFromSelected}
         onNewCardTextChange={setNewCardText}
         onRedo={() => restoreCanvasFromHistory('redo')}
+        onDistribute={distributeSelectedNodes}
         onToolChange={tool => controller.setTool(tool)}
         onUndo={() => restoreCanvasFromHistory('undo')}
         onZoom={handleZoom}

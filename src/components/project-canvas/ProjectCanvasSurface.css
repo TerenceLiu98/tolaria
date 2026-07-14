@@ -180,6 +180,25 @@
   padding: 12px;
 }
 
+.project-canvas-arrange-popover {
+  display: grid;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  gap: 6px;
+  padding: 10px;
+}
+
+.project-canvas-arrange-popover [role='group'] {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.project-canvas-arrange-popover [role='group'] + [role='group'] {
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
 .project-canvas-add-popover__modes,
 .project-canvas-add-popover__relation {
   display: flex;

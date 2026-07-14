@@ -142,6 +142,7 @@ mod tests {
                 title: Some("Claim".to_string()),
                 text: Some("Needs evidence".to_string()),
                 completed: None,
+                z_index: None,
                 parent_id: None,
             },
             ProjectCanvasNode {
@@ -155,6 +156,7 @@ mod tests {
                 title: None,
                 text: None,
                 completed: None,
+                z_index: None,
                 parent_id: None,
             },
         ];

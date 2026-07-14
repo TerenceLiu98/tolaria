@@ -1,4 +1,5 @@
 import {
+  compareProjectCanvasNodes,
   normalizeProjectCanvas,
   type ProjectCanvas,
   type ProjectCanvasEdge,
@@ -83,7 +84,7 @@ function cloneCanvas(canvas: ProjectCanvas): ProjectCanvas {
 }
 
 function sceneSnapshot(canvas: ProjectCanvas, revision: number): CanvasSceneSnapshot {
-  const nodes = [...canvas.nodes].sort((left, right) => left.id.localeCompare(right.id))
+  const nodes = [...canvas.nodes].sort(compareProjectCanvasNodes)
   const edges = [...canvas.edges].sort((left, right) => left.id.localeCompare(right.id))
   const nodesById: Record<string, ProjectCanvasNode> = {}
   const edgesById: Record<string, ProjectCanvasEdge> = {}
@@ -184,6 +185,7 @@ export class CanvasSceneStore {
   private readonly edgeSpatialIndex = new Map<string, Set<string>>()
   private readonly edgeCellsById = new Map<string, readonly string[]>()
   private readonly nodeRanks = new Map<string, number>()
+  private readonly nodeOrderRanks = new Map<string, number>()
   private readonly edgeRanks = new Map<string, number>()
   private readonly connectedNodeIdsByNode = new Map<string, Set<string>>()
   private readonly incidentEdgeIdsByNode = new Map<string, Set<string>>()
@@ -390,7 +392,7 @@ export class CanvasSceneStore {
       .filter((node): node is ProjectCanvasNode => Boolean(
         node && (retainedNodeIds.has(node.id) || intersectsBounds(node, bounds)),
       ))
-      .sort((left, right) => (this.nodeRanks.get(left.id) ?? 0) - (this.nodeRanks.get(right.id) ?? 0))
+      .sort((left, right) => (this.nodeOrderRanks.get(left.id) ?? 0) - (this.nodeOrderRanks.get(right.id) ?? 0))
       .map(node => ({ ...node }))
   }
 
@@ -419,6 +421,7 @@ export class CanvasSceneStore {
     this.edgeSpatialIndex.clear()
     this.edgeCellsById.clear()
     this.nodeRanks.clear()
+    this.nodeOrderRanks.clear()
     this.edgeRanks.clear()
     this.connectedNodeIdsByNode.clear()
     this.incidentEdgeIdsByNode.clear()
@@ -427,6 +430,7 @@ export class CanvasSceneStore {
       this.nodeRanks.set(node.id, rank)
       this.addNodeToSpatialIndex(node)
     }
+    for (const [rank, nodeId] of this.snapshotValue.nodeOrder.entries()) this.nodeOrderRanks.set(nodeId, rank)
     for (const [rank, edge] of this.canvas.edges.entries()) {
       this.edgeRanks.set(edge.id, rank)
       const from = this.connectedNodeIdsByNode.get(edge.from) ?? new Set<string>()

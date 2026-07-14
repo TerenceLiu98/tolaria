@@ -3,6 +3,7 @@ import { translate, type AppLocale } from '../../lib/i18n'
 import type { ProjectCanvasEdgeKind, ProjectCanvasNode, ProjectCanvasNodeType } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
 import type { CanvasTool } from '../../canvasToolManager'
+import type { CanvasAlignment, CanvasArrangement, CanvasDistribution } from '../../projectCanvasController'
 import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
 import { Input } from '../ui/input'
@@ -10,6 +11,7 @@ import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Textarea } from '../ui/textarea'
 import { EDGE_KINDS, edgeKindKey } from './projectCanvasDisplay'
+import { ProjectCanvasArrangePopover } from './ProjectCanvasArrangePopover'
 
 export type ProjectCanvasAddPanelMode = 'existing' | 'text' | 'task' | 'image' | 'block' | 'group'
 
@@ -29,6 +31,7 @@ interface ProjectCanvasToolbarProps {
   newCardText: string
   nodeCount: number
   selectedNode: ProjectCanvasNode | null
+  selectedNodeCount: number
   selectedNodeId: string | null
   saving: boolean
   title: string
@@ -38,6 +41,8 @@ interface ProjectCanvasToolbarProps {
   onAddEntry: (entry: VaultEntry) => void
   onAddModeChange: (mode: ProjectCanvasAddPanelMode) => void
   onAddPanelOpenChange: (open: boolean) => void
+  onAlign: (alignment: CanvasAlignment) => void
+  onArrange: (arrangement: CanvasArrangement) => void
   onAutoLayout: () => void
   onCandidateQueryChange: (query: string) => void
   onEdgeKindChange: (kind: ProjectCanvasEdgeKind) => void
@@ -46,6 +51,7 @@ interface ProjectCanvasToolbarProps {
   onLinkFromSelectedChange: (linked: boolean) => void
   onNewCardTextChange: (text: string) => void
   onRedo: () => void
+  onDistribute: (distribution: CanvasDistribution) => void
   onToolChange: (tool: CanvasTool) => void
   onUndo: () => void
   onZoom: (delta: number) => void
@@ -73,6 +79,7 @@ export function ProjectCanvasToolbar({
   newCardText,
   nodeCount,
   selectedNode,
+  selectedNodeCount,
   selectedNodeId,
   saving,
   title,
@@ -82,6 +89,8 @@ export function ProjectCanvasToolbar({
   onAddEntry,
   onAddModeChange,
   onAddPanelOpenChange,
+  onAlign,
+  onArrange,
   onAutoLayout,
   onCandidateQueryChange,
   onEdgeKindChange,
@@ -90,6 +99,7 @@ export function ProjectCanvasToolbar({
   onLinkFromSelectedChange,
   onNewCardTextChange,
   onRedo,
+  onDistribute,
   onToolChange,
   onUndo,
   onZoom,
@@ -139,6 +149,15 @@ export function ProjectCanvasToolbar({
         <Button type="button" size="icon-sm" variant="outline" onClick={onRedo} disabled={!canRedo} aria-label={translate(locale, 'projectCanvas.redo')}>
           <ArrowClockwise size={14} />
         </Button>
+        {selectedNodeCount > 1 ? (
+          <ProjectCanvasArrangePopover
+            locale={locale}
+            selectedNodeCount={selectedNodeCount}
+            onAlign={onAlign}
+            onArrange={onArrange}
+            onDistribute={onDistribute}
+          />
+        ) : null}
         <Popover open={addPanelOpen} onOpenChange={onAddPanelOpenChange}>
           <PopoverTrigger asChild>
             <Button type="button" size="sm" variant="default">

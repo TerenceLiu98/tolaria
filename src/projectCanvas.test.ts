@@ -36,8 +36,8 @@ describe('projectCanvas', () => {
       project: 'old.md',
       viewport: { x: Number.NaN, y: 5, zoom: 0 },
       nodes: [
-        node('z_node', 'text'),
-        node('a_node', 'note', { ref: 'notes/a.md' }),
+        node('z_node', 'text', { zIndex: -1 }),
+        node('a_node', 'note', { ref: 'notes/a.md', zIndex: 2 }),
       ],
       edges: [
         { from: 'z_node', id: 'z_edge', kind: 'related', to: 'a_node' },
@@ -53,7 +53,7 @@ describe('projectCanvas', () => {
       sapientia: { schema: PROJECT_CANVAS_SCHEMA },
     })
     expect(normalizeProjectCanvas(canvas, 'projects/alpha/project.md').nodes.map(item => item.id))
-      .toEqual(['a_node', PROJECT_OVERVIEW_NODE_ID, 'z_node'])
+      .toEqual(['z_node', PROJECT_OVERVIEW_NODE_ID, 'a_node'])
     expect(normalizeProjectCanvas(canvas, 'projects/alpha/project.md').edges.map(item => item.id))
       .toEqual(['a_edge', 'z_edge'])
     expect(normalizeProjectCanvas({
@@ -116,6 +116,13 @@ describe('projectCanvas', () => {
     expect(validateProjectCanvas(canvas)).toContain('Project Canvas edge edge_1 has unsupported routing diagonal')
   })
 
+  it('rejects non-integer Canvas z-order values', () => {
+    const canvas = defaultProjectCanvas('projects/alpha/project.md')
+    canvas.nodes.push(node('fractional', 'text', { zIndex: 1.5 }))
+
+    expect(validateProjectCanvas(canvas)).toContain('Project Canvas node fractional has invalid zIndex 1.5')
+  })
+
   it('reports duplicate ids and missing edge targets before save', () => {
     const canvas: ProjectCanvas = {
       ...defaultProjectCanvas('projects/alpha/project.md'),
@@ -161,7 +168,7 @@ describe('projectCanvas', () => {
 function node(
   id: string,
   type: ProjectCanvasNodeType,
-  options: { parentId?: string; ref?: string } = {},
+  options: { parentId?: string; ref?: string; zIndex?: number } = {},
 ) {
   return {
     height: 120,
@@ -174,5 +181,6 @@ function node(
     width: 240,
     x: 0,
     y: 0,
+    zIndex: options.zIndex,
   }
 }

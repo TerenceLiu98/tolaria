@@ -92,7 +92,7 @@ export function ProjectCanvasNodeCard({
         ? temporaryKind === 'ai_draft' ? 'project-canvas-ai-draft-node' : 'project-canvas-peek-node'
         : 'project-canvas-node'}
       data-node-id={node.id}
-      style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
+      style={{ left: node.x, top: node.y, width: node.width, height: node.height, zIndex: node.zIndex }}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onPointerDown={onPointerDown}

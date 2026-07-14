@@ -22,10 +22,14 @@ export function normalizeCanvas(canvas, projectPath) {
     project: projectPath,
     viewport: normalizedViewport(canvas.viewport),
     nodes: nodesWithProjectOverview(canvas.nodes, projectPath)
-      .sort((left, right) => left.id.localeCompare(right.id)),
+      .sort(compareNodes),
     edges: [...canvas.edges].sort((left, right) => left.id.localeCompare(right.id)),
     sapientia: { schema: PROJECT_CANVAS_SCHEMA },
   }
+}
+
+function compareNodes(left, right) {
+  return (left.zIndex ?? 0) - (right.zIndex ?? 0) || left.id.localeCompare(right.id)
 }
 
 function projectOverviewNode(projectPath) {
@@ -64,6 +68,9 @@ export function validateCanvas(canvas) {
   }
   const nodesById = new Map(canvas.nodes.map(node => [node.id, node]))
   for (const node of canvas.nodes) {
+    if (node.zIndex !== undefined && !Number.isSafeInteger(node.zIndex)) {
+      throw new Error(`Project Canvas node ${node.id} has invalid zIndex ${node.zIndex}`)
+    }
     if (!node.parentId) continue
     const parent = nodesById.get(node.parentId)
     if (!parent) throw new Error(`Project Canvas node ${node.id} references missing parent group ${node.parentId}`)

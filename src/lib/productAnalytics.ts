@@ -30,6 +30,8 @@ type ProjectCanvasEdgeKind = 'related' | 'supports' | 'contradicts' | 'depends_o
 type ProjectCanvasEdgeRouting = 'straight' | 'orthogonal' | 'curved'
 type ProjectCanvasAddSource = 'ai_answer' | 'block_citation' | 'note_list' | 'paper_catalog'
 type ProjectCanvasAiAction = 'summarize' | 'recommend_paper' | 'cited_outline'
+type ProjectCanvasArrangeAction = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'horizontal' | 'vertical' | 'front' | 'back'
+type ProjectCanvasArrangeKind = 'align' | 'distribute' | 'stack'
 
 const ALL_NOTES_VISIBILITY_CATEGORIES: ReadonlyArray<keyof AllNotesFileVisibility> = [
   'pdfs',
@@ -152,6 +154,13 @@ export function trackProjectCanvasCreated(): void {
 
 export function trackProjectCanvasLayoutSaved(): void {
   trackEvent('project_canvas_layout_saved')
+}
+
+export function trackProjectCanvasObjectsArranged(params: {
+  action: ProjectCanvasArrangeAction
+  kind: ProjectCanvasArrangeKind
+}): void {
+  trackEvent('project_canvas_objects_arranged', params)
 }
 
 export function trackProjectCanvasFocusModeChanged(params: {

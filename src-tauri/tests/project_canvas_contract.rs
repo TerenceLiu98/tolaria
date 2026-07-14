@@ -32,6 +32,7 @@ fn node(id: &str, node_type: ProjectCanvasNodeType, ref_target: Option<&str>) ->
         title: Some(id.to_string()),
         text: None,
         completed: None,
+        z_index: None,
         parent_id: None,
     }
 }

@@ -80,6 +80,8 @@ pub struct ProjectCanvasNode {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completed: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
 }
 
@@ -212,7 +214,12 @@ pub fn normalize_project_canvas(mut canvas: ProjectCanvas, project_path: &str) -
     }
     canvas.sapientia.schema = PROJECT_CANVAS_SCHEMA.to_string();
     ensure_project_overview_node(&mut canvas.nodes, project_path);
-    canvas.nodes.sort_by(|left, right| left.id.cmp(&right.id));
+    canvas.nodes.sort_by(|left, right| {
+        left.z_index
+            .unwrap_or_default()
+            .cmp(&right.z_index.unwrap_or_default())
+            .then_with(|| left.id.cmp(&right.id))
+    });
     canvas.edges.sort_by(|left, right| left.id.cmp(&right.id));
     canvas
 }
@@ -229,6 +236,7 @@ fn project_overview_node(project_path: &str) -> ProjectCanvasNode {
         title: None,
         text: None,
         completed: None,
+        z_index: None,
         parent_id: None,
     }
 }
@@ -798,6 +806,7 @@ mod tests {
                     title: None,
                     text: None,
                     completed: None,
+                    z_index: None,
                     parent_id: None,
                 },
                 ProjectCanvasNode {
@@ -811,6 +820,7 @@ mod tests {
                     title: Some("Claim".to_string()),
                     text: Some("KANs need comparison".to_string()),
                     completed: None,
+                    z_index: None,
                     parent_id: None,
                 },
             ],
@@ -841,6 +851,7 @@ mod tests {
             title: None,
             text: None,
             completed: None,
+            z_index: None,
             parent_id: parent_id.map(str::to_string),
         }
     }
@@ -874,6 +885,41 @@ mod tests {
         let migrated = normalize_project_canvas(legacy, project_path);
         assert_eq!(migrated.nodes.len(), 1);
         assert_eq!(migrated.nodes[0].id, PROJECT_OVERVIEW_NODE_ID);
+    }
+
+    #[test]
+    fn normalizes_and_round_trips_explicit_node_stacking_order() {
+        let project_path = "projects/alpha/project.md";
+        let mut canvas = sample_canvas(project_path);
+        canvas
+            .nodes
+            .iter_mut()
+            .find(|node| node.id == "node_note")
+            .unwrap()
+            .z_index = Some(-1);
+        canvas
+            .nodes
+            .iter_mut()
+            .find(|node| node.id == "node_text")
+            .unwrap()
+            .z_index = Some(2);
+
+        let normalized = normalize_project_canvas(canvas, project_path);
+        let ids = normalized
+            .nodes
+            .iter()
+            .map(|node| node.id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ids,
+            vec!["node_note", PROJECT_OVERVIEW_NODE_ID, "node_text"]
+        );
+
+        let json = serde_json::to_string(&normalized).unwrap();
+        assert!(json.contains("\"zIndex\":-1"));
+        let round_tripped: ProjectCanvas = serde_json::from_str(&json).unwrap();
+        assert_eq!(round_tripped.nodes[0].z_index, Some(-1));
+        assert_eq!(round_tripped.nodes[2].z_index, Some(2));
     }
 
     #[test]
@@ -960,6 +1006,7 @@ mod tests {
             title: None,
             text: None,
             completed: None,
+            z_index: None,
             parent_id: None,
         })
         .collect::<Vec<_>>();
@@ -1053,6 +1100,7 @@ mod tests {
                 title: None,
                 text: None,
                 completed: None,
+                z_index: None,
                 parent_id: None,
             },
             ProjectCanvasNode {
@@ -1066,6 +1114,7 @@ mod tests {
                 title: None,
                 text: None,
                 completed: None,
+                z_index: None,
                 parent_id: None,
             },
             ProjectCanvasNode {
@@ -1079,6 +1128,7 @@ mod tests {
                 title: None,
                 text: None,
                 completed: None,
+                z_index: None,
                 parent_id: None,
             },
         ];
