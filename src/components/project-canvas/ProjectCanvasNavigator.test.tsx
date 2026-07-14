@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { CanvasNodeSpecRegistry } from '../../canvasNodeSpecRegistry'
 import { PROJECT_OVERVIEW_NODE_ID, type ProjectCanvasNode } from '../../projectCanvas'
 import { ProjectCanvasNavigator } from './ProjectCanvasNavigator'
 
@@ -16,6 +17,8 @@ function node(overrides: Partial<ProjectCanvasNode>): ProjectCanvasNode {
 }
 
 describe('ProjectCanvasNavigator', () => {
+  const specs = new CanvasNodeSpecRegistry()
+
   it('derives grouped Project membership and focuses the selected item', () => {
     const overview = node({ id: PROJECT_OVERVIEW_NODE_ID, title: 'Project Overview' })
     const paper = node({ id: 'paper_1', type: 'paper', title: 'Attention Is All You Need' })
@@ -26,6 +29,7 @@ describe('ProjectCanvasNavigator', () => {
       <ProjectCanvasNavigator
         locale="en"
         nodes={[overview, paper, evidence]}
+        specs={specs}
         selectedNodeId="paper_1"
         onFocusNode={onFocusNode}
       />,
@@ -54,6 +58,7 @@ describe('ProjectCanvasNavigator', () => {
       <ProjectCanvasNavigator
         locale="en"
         nodes={[overview, paper, noteTwo, group, noteOne]}
+        specs={specs}
         selectedNodeId="note_1"
         onFocusNode={onFocusNode}
       />,
@@ -83,5 +88,38 @@ describe('ProjectCanvasNavigator', () => {
 
     fireEvent.keyDown(document.activeElement!, { key: 'Enter' })
     expect(onFocusNode).toHaveBeenCalledWith(overview)
+  })
+
+  it('derives section order, labels, and icons from NodeSpec navigation behavior', () => {
+    const customSpecs = CanvasNodeSpecRegistry.defaults().map(spec => spec.key === 'text'
+      ? {
+          ...spec,
+          navigator: {
+            icon: 'paper' as const,
+            order: 5,
+            sectionKey: 'projectCanvas.navigator.evidence' as const,
+          },
+        }
+      : spec)
+    render(
+      <ProjectCanvasNavigator
+        locale="en"
+        nodes={[
+          node({ id: 'note_1', type: 'note', title: 'Later note' }),
+          node({ id: 'text_1', type: 'text', title: 'First text' }),
+        ]}
+        specs={new CanvasNodeSpecRegistry(customSpecs)}
+        selectedNodeId={null}
+        onFocusNode={vi.fn()}
+      />,
+    )
+
+    const rows = screen.getAllByTestId(/^project-canvas-navigator-node-/u)
+    expect(rows.map(row => row.getAttribute('data-testid'))).toEqual([
+      'project-canvas-navigator-node-text_1',
+      'project-canvas-navigator-node-note_1',
+    ])
+    expect(rows[0]).toHaveAttribute('data-node-icon', 'paper')
+    expect(screen.getByText('Evidence')).toBeInTheDocument()
   })
 })

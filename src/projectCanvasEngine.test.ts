@@ -54,7 +54,8 @@ describe('CanvasViewport', () => {
     const canvasPoint = viewport.screenToCanvas({ x: 220, y: 230 })
     expect(viewport.canvasToScreen(canvasPoint)).toEqual({ x: 220, y: 230 })
     expect(viewport.clientToCanvas({ x: 320, y: 280 })).toEqual(canvasPoint)
-    expect(viewport.canvasCenter(200, 100)).toEqual({ x: 280, y: 220 })
+    expect(viewport.viewportCenter()).toEqual({ x: 380, y: 270 })
+    expect(viewport.centeredTopLeft(200, 100)).toEqual({ x: 280, y: 220 })
 
     viewport.zoomAtScreenPoint({ x: 400, y: 300 }, 2)
     viewport.flush()
@@ -789,6 +790,57 @@ describe('ProjectCanvasController', () => {
     expect(image?.nodes.find(node => node.type === 'image')).toMatchObject({ ref: 'figure.png', title: 'figure.png' })
     const peek = controller.createPeekNode('note', 'notes/peek.md', 'Peek', 'a')
     expect(peek).toMatchObject({ type: 'note', ref: 'notes/peek.md', width: 560, height: 420, x: 280, y: 0 })
+    controller.dispose()
+  })
+
+  it('centers NodeSpec geometry and delegates embedded input and layout behavior to the registry', async () => {
+    const controller = await loadedController(canvasWithNodes())
+    controller.setViewportSize({ width: 1_000, height: 600 })
+
+    const centered = controller.createNode({ type: 'image' })
+    expect(centered?.nodes.find(node => node.type === 'image')).toMatchObject({
+      x: 350,
+      y: 195,
+      width: 300,
+      height: 210,
+    })
+    expect(controller.createPeekNode('note', 'notes/centered.md', 'Centered')).toMatchObject({
+      x: 220,
+      y: 90,
+      width: 560,
+      height: 420,
+    })
+
+    const taskCanvas = controller.createNodeFromInput('task', ' Review sources ')
+    expect(taskCanvas?.nodes.find(node => node.type === 'task')).toMatchObject({
+      completed: false,
+      text: 'Review sources',
+    })
+    const groupCanvas = controller.createNodeFromInput('group', 'Evidence cluster\nFollow-up')
+    expect(groupCanvas?.nodes.find(node => node.type === 'group')).toMatchObject({
+      text: 'Evidence cluster\nFollow-up',
+      title: 'Evidence cluster',
+    })
+    const nodeCount = controller.getScene()?.nodes.length
+    expect(controller.createNodeFromInput('image', '   ')?.nodes).toHaveLength(nodeCount ?? 0)
+
+    const groupId = controller.getScene()?.nodes.find(node => node.type === 'group')?.id
+    if (groupId) controller.updateNode(groupId, { width: 100, height: 100 }, true)
+    const laidOut = controller.autoLayout()
+    expect(laidOut?.nodes.find(node => node.type === 'group')).toMatchObject({ width: 320, height: 180 })
+    expect(laidOut?.nodes.find(node => node.type === 'image')).toMatchObject({ x: 340, width: 300, height: 210 })
+    controller.dispose()
+  })
+
+  it('normalizes document editor geometry through the NodeSpec controller boundary', async () => {
+    const controller = await loadedController(canvasWithNodes())
+
+    expect(controller.ensureEditorGeometry('a')?.nodes.find(node => node.id === 'a')).toMatchObject({
+      width: 560,
+      height: 420,
+    })
+    const beforeText = controller.getScene()?.nodes.find(node => node.id === 'z')
+    expect(controller.ensureEditorGeometry('z')?.nodes.find(node => node.id === 'z')).toEqual(beforeText)
     controller.dispose()
   })
 

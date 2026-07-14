@@ -2,10 +2,6 @@ import { isTauri } from '../../mock-tauri'
 import type { ProjectCanvasNode } from '../../projectCanvas'
 import { attachmentAssetUrlFromPath } from '../../utils/vaultAttachments'
 
-export function nodeIsEmbedded(node: ProjectCanvasNode): boolean {
-  return node.type === 'text' || node.type === 'task' || node.type === 'group'
-}
-
 export function imageSourceForNode(node: ProjectCanvasNode, vaultPath: string): string | null {
   const ref = node.ref?.trim()
   if (!ref) return null

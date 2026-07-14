@@ -49,13 +49,11 @@ import {
   type ProjectCanvasNavigateEvent,
   type ProjectCanvasOpenEvent,
 } from './projectCanvasNavigation'
-import {
-  DEFAULT_NODE_HEIGHT,
-  DEFAULT_NODE_WIDTH,
-  nodePresentation,
-} from './projectCanvasDisplay'
+import { nodePresentation } from './projectCanvasDisplay'
 import { ProjectCanvasNodeCard } from './ProjectCanvasNodeCard'
 import { ProjectCanvasNavigator } from './ProjectCanvasNavigator'
+import { createEmbeddedCanvasNode } from './projectCanvasNodeCreation'
+import { handleProjectCanvasKeyDown, handleProjectCanvasKeyUp } from './projectCanvasKeyboard'
 import { ProjectCanvasGroupFocusBar } from './ProjectCanvasGroupFocusBar'
 import { ProjectCanvasToolbar, type ProjectCanvasAddPanelMode } from './ProjectCanvasToolbar'
 import { useProjectCanvasViewportSize } from './projectCanvasViewport'
@@ -92,23 +90,43 @@ function candidateEntryType(entry: VaultEntry): ProjectCanvasNodeType | null {
   return null
 }
 
-export function ProjectCanvasSurface({
-  editable = true,
-  entry,
-  entries,
-  vaultPath = '',
-  locale = 'en',
-  onCopyFilePath,
-  onContentChange,
-  onCreateProjectDraftNote,
-  onNavigateWikilink,
-  onOpenExternalFile,
-  onParsePaper,
-  onRevealFile,
-  onSave,
-  onSelectedTextContextChange,
-  paperParserProvider = 'none',
-}: ProjectCanvasSurfaceProps) {
+function trackEdgeUpdate(patch: Partial<ProjectCanvas['edges'][number]>, persist: boolean): void {
+  if (patch.routing && persist) trackProjectCanvasEdgeRoutingChanged({ routing: patch.routing })
+  if (!persist) return
+  const properties = [
+    ['label', 'label'],
+    ['strokeStyle', 'stroke_style'],
+    ['strokeWidth', 'stroke_width'],
+    ['fromMarker', 'from_marker'],
+    ['toMarker', 'to_marker'],
+  ] as const
+  for (const [field, property] of properties) {
+    if (Object.prototype.hasOwnProperty.call(patch, field)) trackProjectCanvasEdgeStyleChanged({ property })
+  }
+}
+
+export function ProjectCanvasSurface(props: ProjectCanvasSurfaceProps) {
+  const {
+    editable: editableProp,
+    entry,
+    entries,
+    vaultPath: vaultPathProp,
+    locale: localeProp,
+    onCopyFilePath,
+    onContentChange,
+    onCreateProjectDraftNote,
+    onNavigateWikilink,
+    onOpenExternalFile,
+    onParsePaper,
+    onRevealFile,
+    onSave,
+    onSelectedTextContextChange,
+    paperParserProvider: paperParserProviderProp,
+  } = props
+  const editable = editableProp ?? true
+  const locale = localeProp ?? 'en'
+  const paperParserProvider = paperParserProviderProp ?? 'none'
+  const vaultPath = vaultPathProp ?? ''
   const persistence = useMemo(() => new ProjectCanvasPersistenceAdapter({
     projectPath: entry.path,
     vaultPath,
@@ -289,8 +307,8 @@ export function ProjectCanvasSurface({
     })
   }, [entry.path, setSelectedEdgeId, setSelectedNodeIds])
 
-  const canvasCenter = useCallback((width = DEFAULT_NODE_WIDTH, height = DEFAULT_NODE_HEIGHT) => {
-    return controller.canvasCenter(width, height)
+  const centeredTopLeft = useCallback((width: number, height: number) => {
+    return controller.centeredTopLeft(width, height)
   }, [controller])
 
   const allocateNodeId = useCallback((prefix: string) => controller.allocateNodeId(prefix), [controller])
@@ -317,7 +335,7 @@ export function ProjectCanvasSurface({
   } = useProjectCanvasAiDraft({
     allocateNodeId,
     canvas,
-    canvasCenter,
+    centeredTopLeft,
     canvasRef,
     commitCanvas: commitContentCanvas,
     createNote: onCreateProjectDraftNote,
@@ -362,30 +380,28 @@ export function ProjectCanvasSurface({
     addNodeToCanvas({
       type: nodeType,
       ref,
-      center: canvasCenter(),
       title: candidate.title,
       text: candidate.snippet || undefined,
     })
-  }, [addNodeToCanvas, canvasCenter, controller, edgeKind, linkFromSelected, selectedNodeId, selectSingleNode, vaultPath])
+  }, [addNodeToCanvas, controller, edgeKind, linkFromSelected, selectedNodeId, selectSingleNode, vaultPath])
 
-  const handleAddEmbeddedNode = useCallback(() => {
-    const current = canvasRef.current
-    if (!current || addMode === 'existing') return
-    const trimmed = newCardText.trim()
-    if ((addMode === 'image' || addMode === 'block') && !trimmed) return
-    const nodeType: ProjectCanvasNodeType = addMode === 'block' ? 'paper_block' : addMode
-    addNodeToCanvas({
-      type: nodeType,
-      ref: addMode === 'image' || addMode === 'block' ? trimmed : undefined,
-      center: canvasCenter(),
-      completed: addMode === 'task' ? false : undefined,
-      text: addMode === 'image' || addMode === 'block' ? undefined : trimmed || undefined,
-      title: addMode === 'group' && trimmed
-        ? trimmed.split(/\n/u)[0]
-        : undefined,
+  const handleAddEmbeddedNode = useCallback((nodeType: ProjectCanvasNodeType) => {
+    createEmbeddedCanvasNode({
+      controller,
+      current: canvasRef.current,
+      edgeKind,
+      linkFromSelected,
+      nodeType,
+      onCreated: result => {
+        canvasRef.current = result.canvas
+        trackProjectCanvasNodeAdded({ linked: result.linked, nodeType: result.node.type })
+        setNewCardText('')
+      },
+      onLinked: () => trackProjectCanvasEdgeCreated({ kind: edgeKind }),
+      selectedNodeId,
+      value: newCardText,
     })
-    setNewCardText('')
-  }, [addMode, addNodeToCanvas, canvasCenter, newCardText])
+  }, [controller, edgeKind, linkFromSelected, newCardText, selectedNodeId])
 
   const handleZoom = useCallback((delta: number) => {
     controller.zoomBy(delta)
@@ -590,15 +606,7 @@ export function ProjectCanvasSurface({
     if (editingNodeId && editingNodeId !== node.id) onSave?.()
     setEditorHost(null)
     selectSingleNode(node.id)
-    const geometry = controller.geometryForNode(node.type)
-    const editorGeometry = controllerSnapshot.specs.getForNode(node).editorGeometry ?? geometry
-    if (node.width < Math.max(geometry.minWidth, editorGeometry.minWidth) || node.height < Math.max(geometry.minHeight, editorGeometry.minHeight)) {
-      const next = controller.updateNode(node.id, {
-        width: Math.max(node.width, geometry.minWidth, editorGeometry.minWidth),
-        height: Math.max(node.height, geometry.minHeight, editorGeometry.minHeight),
-      }, true)
-      if (next) canvasRef.current = next
-    }
+    canvasRef.current = controller.ensureEditorGeometry(node.id) ?? canvasRef.current
     setEditingNodeId(node.id)
   }, [controller, controllerSnapshot.specs, editingNodeId, entries, handleNodeClick, onSave, refsByNodeId, selectSingleNode, setEditingNodeId, setEditorHost, vaultPath])
 
@@ -729,19 +737,7 @@ export function ProjectCanvasSurface({
     if (!selectedEdgeId) return
     const next = controller.updateEdge(selectedEdgeId, patch, persist)
     if (next) canvasRef.current = next
-    if (patch.routing && persist) trackProjectCanvasEdgeRoutingChanged({ routing: patch.routing })
-    if (persist) {
-      const properties = [
-        ['label', 'label'],
-        ['strokeStyle', 'stroke_style'],
-        ['strokeWidth', 'stroke_width'],
-        ['fromMarker', 'from_marker'],
-        ['toMarker', 'to_marker'],
-      ] as const
-      for (const [field, property] of properties) {
-        if (Object.prototype.hasOwnProperty.call(patch, field)) trackProjectCanvasEdgeStyleChanged({ property })
-      }
-    }
+    trackEdgeUpdate(patch, persist)
   }, [controller, selectedEdgeId])
 
   const deleteSelectedNode = useCallback(() => {
@@ -819,86 +815,18 @@ export function ProjectCanvasSurface({
     trackProjectCanvasObjectsArranged({ action: arrangement, kind: 'stack' })
   }, [controller])
 
-  const handleCanvasKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && editingNodeId) {
-      event.preventDefault()
-      event.stopPropagation()
-      changeFocusMode(!focusMode)
-      return
-    }
-    const target = event.target as HTMLElement
-    if (target.closest('input, textarea, [contenteditable="true"]')) return
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-      event.preventDefault()
-      event.stopPropagation()
-      setAddPanelOpen(true)
-      return
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      event.stopPropagation()
-      if (controller.getGestureSnapshot().phase !== 'idle') {
-        controller.escape()
-        return
-      }
-      if (editingNodeId) {
-        if (controller.escape() === 'editing') closeCanvasEditor()
-        return
-      }
-      if (addPanelOpen) {
-        setAddPanelOpen(false)
-        return
-      }
-      const result = controller.escape()
-      if (result === 'overlay' || result === 'selection' || result === 'group') return
-      selectSingleNode(null)
-      setSelectedEdgeId(null)
-      return
-    }
-    if (event.key === ' ') {
-      event.preventDefault()
-      controller.setSpacePressed(true)
-      return
-    }
-    if (event.key === 'Enter' && selectedNode) {
-      event.preventDefault()
-      event.stopPropagation()
-      editDocumentNode(selectedNode)
-      return
-    }
-    const meta = event.metaKey || event.ctrlKey
-    if (meta && event.key.toLowerCase() === 'z') {
-      event.preventDefault()
-      restoreCanvasFromHistory(event.shiftKey ? 'redo' : 'undo')
-      return
-    }
-    if (meta && event.key.toLowerCase() === 'y') {
-      event.preventDefault()
-      restoreCanvasFromHistory('redo')
-      return
-    }
-    if (meta && event.key.toLowerCase() === 'c') {
-      event.preventDefault()
-      copySelectedNode()
-      return
-    }
-    if (meta && event.key.toLowerCase() === 'v') {
-      event.preventDefault()
-      pasteCopiedNode()
-      return
-    }
-    if (event.key === 'Delete' || event.key === 'Backspace') {
-      event.preventDefault()
-      if (selectedEdgeId) deleteSelectedEdge()
-      else if (selectedNodeId === peekNode?.id) closePeekNode()
-      else if (selectedNodeId === aiDraftNode?.id) closeAiDraft()
-      else if (selectedNodeId) deleteSelectedNode()
-    }
-  }, [addPanelOpen, aiDraftNode?.id, changeFocusMode, closeAiDraft, closeCanvasEditor, closePeekNode, controller, copySelectedNode, deleteSelectedEdge, deleteSelectedNode, editDocumentNode, editingNodeId, focusMode, pasteCopiedNode, peekNode?.id, restoreCanvasFromHistory, selectSingleNode, selectedEdgeId, selectedNode, selectedNodeId, setSelectedEdgeId])
-
-  const handleCanvasKeyUp = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === ' ') controller.setSpacePressed(false)
-  }, [controller])
+  const handleCanvasKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    handleProjectCanvasKeyDown(event, {
+      addPanelOpen, aiDraftNodeId: aiDraftNode?.id, changeFocusMode, closeAiDraft,
+      closeCanvasEditor, closePeekNode, controller, copySelectedNode, deleteSelectedEdge,
+      deleteSelectedNode, editDocumentNode, editingNodeId, focusMode, pasteCopiedNode,
+      peekNodeId: peekNode?.id, restoreCanvasFromHistory, selectSingleNode,
+      selectedEdgeId, selectedNode, selectedNodeId, setAddPanelOpen, setSelectedEdgeId,
+    })
+  }
+  const handleCanvasKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    handleProjectCanvasKeyUp(event, controller)
+  }
 
   if (state === 'loading') {
     return <div className="project-canvas-loading">{translate(locale, 'projectCanvas.loading')}</div>
@@ -1003,6 +931,7 @@ export function ProjectCanvasSurface({
         <ProjectCanvasNavigator
           locale={locale}
           nodes={canvas.nodes}
+          specs={controllerSnapshot.specs}
           selectedNodeId={selectedNodeId}
           onFocusNode={handleNavigatorFocus}
         />

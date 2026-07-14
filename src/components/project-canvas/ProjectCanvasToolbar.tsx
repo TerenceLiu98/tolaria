@@ -1,4 +1,5 @@
 import { ArrowClockwise, ArrowCounterClockwise, CheckSquare, Clipboard, CornersOut, FrameCorners, Graph, Hand, ImageSquare, LinkSimple, MagnifyingGlass, Minus, Plus, Square, TextT } from '@phosphor-icons/react'
+import type { ReactNode } from 'react'
 import { translate, type AppLocale } from '../../lib/i18n'
 import type { ProjectCanvasEdgeKind, ProjectCanvasNode, ProjectCanvasNodeType } from '../../projectCanvas'
 import type { VaultEntry } from '../../types'
@@ -15,6 +16,19 @@ import { ProjectCanvasArrangePopover } from './ProjectCanvasArrangePopover'
 import { projectCanvasSavedState } from './projectCanvasSaveState'
 
 export type ProjectCanvasAddPanelMode = 'existing' | 'text' | 'task' | 'image' | 'block' | 'group'
+
+const ADD_MODE_OPTIONS = [
+  { icon: <MagnifyingGlass size={13} />, mode: 'existing', nodeType: null },
+  { icon: <TextT size={13} />, mode: 'text', nodeType: 'text' },
+  { icon: <CheckSquare size={13} />, mode: 'task', nodeType: 'task' },
+  { icon: <ImageSquare size={13} />, mode: 'image', nodeType: 'image' },
+  { icon: <Clipboard size={13} />, mode: 'block', nodeType: 'paper_block' },
+  { icon: <Square size={13} />, mode: 'group', nodeType: 'group' },
+] as const satisfies readonly {
+  icon: ReactNode
+  mode: ProjectCanvasAddPanelMode
+  nodeType: ProjectCanvasNodeType | null
+}[]
 
 interface ProjectCanvasToolbarProps {
   addMode: ProjectCanvasAddPanelMode
@@ -39,7 +53,7 @@ interface ProjectCanvasToolbarProps {
   title: string
   tool: CanvasTool
   zoom: number
-  onAddEmbeddedNode: () => void
+  onAddEmbeddedNode: (type: ProjectCanvasNodeType) => void
   onAddEntry: (entry: VaultEntry) => void
   onAddModeChange: (mode: ProjectCanvasAddPanelMode) => void
   onAddPanelOpenChange: (open: boolean) => void
@@ -65,48 +79,50 @@ function candidateType(entry: VaultEntry): ProjectCanvasNodeType | null {
   return null
 }
 
-export function ProjectCanvasToolbar({
-  addMode,
-  addPanelOpen,
-  candidateEntries,
-  candidateQuery,
-  canRedo,
-  canUndo,
-  edgeCount,
-  edgeKind,
-  editingNodeId,
-  focusMode,
-  linkFromSelected,
-  locale,
-  newCardText,
-  nodeCount,
-  selectedNode,
-  selectedNodeCount,
-  selectedNodeId,
-  saveError,
-  saving,
-  title,
-  tool,
-  zoom,
-  onAddEmbeddedNode,
-  onAddEntry,
-  onAddModeChange,
-  onAddPanelOpenChange,
-  onAlign,
-  onArrange,
-  onAutoLayout,
-  onCandidateQueryChange,
-  onEdgeKindChange,
-  onFit,
-  onFocusModeChange,
-  onLinkFromSelectedChange,
-  onNewCardTextChange,
-  onRedo,
-  onDistribute,
-  onToolChange,
-  onUndo,
-  onZoom,
-}: ProjectCanvasToolbarProps) {
+export function ProjectCanvasToolbar(props: ProjectCanvasToolbarProps) {
+  const {
+    addMode,
+    addPanelOpen,
+    candidateEntries,
+    candidateQuery,
+    canRedo,
+    canUndo,
+    edgeCount,
+    edgeKind,
+    editingNodeId,
+    focusMode,
+    linkFromSelected,
+    locale,
+    newCardText,
+    nodeCount,
+    selectedNode,
+    selectedNodeCount,
+    selectedNodeId,
+    saveError,
+    saving,
+    title,
+    tool,
+    zoom,
+    onAddEmbeddedNode,
+    onAddEntry,
+    onAddModeChange,
+    onAddPanelOpenChange,
+    onAlign,
+    onArrange,
+    onAutoLayout,
+    onCandidateQueryChange,
+    onEdgeKindChange,
+    onFit,
+    onFocusModeChange,
+    onLinkFromSelectedChange,
+    onNewCardTextChange,
+    onRedo,
+    onDistribute,
+    onToolChange,
+    onUndo,
+    onZoom,
+  } = props
+  const selectedAddMode = ADD_MODE_OPTIONS.find(option => option.mode === addMode) ?? ADD_MODE_OPTIONS[0]
   return (
     <>
       <header className="project-canvas-toolbar">
@@ -173,14 +189,9 @@ export function ProjectCanvasToolbar({
               <PopoverTitle>{translate(locale, 'projectCanvas.addToCanvas')}</PopoverTitle>
             </PopoverHeader>
             <div className="project-canvas-add-popover__modes" role="group" aria-label={translate(locale, 'projectCanvas.addMode')}>
-              {(['existing', 'text', 'task', 'image', 'block', 'group'] as const).map(mode => (
+              {ADD_MODE_OPTIONS.map(({ icon, mode }) => (
                 <Button key={mode} type="button" size="xs" variant={addMode === mode ? 'secondary' : 'ghost'} onClick={() => onAddModeChange(mode)}>
-                  {mode === 'existing' ? <MagnifyingGlass size={13} /> : null}
-                  {mode === 'text' ? <TextT size={13} /> : null}
-                  {mode === 'task' ? <CheckSquare size={13} /> : null}
-                  {mode === 'image' ? <ImageSquare size={13} /> : null}
-                  {mode === 'block' ? <Clipboard size={13} /> : null}
-                  {mode === 'group' ? <Square size={13} /> : null}
+                  {icon}
                   {translate(locale, `projectCanvas.addMode.${mode}`)}
                 </Button>
               ))}
@@ -221,7 +232,15 @@ export function ProjectCanvasToolbar({
             ) : (
               <div className="project-canvas-add-popover__embedded">
                 <Textarea value={newCardText} onChange={event => onNewCardTextChange(event.target.value)} placeholder={translate(locale, `projectCanvas.addPlaceholder.${addMode}`)} />
-                <Button type="button" size="sm" onClick={onAddEmbeddedNode}>{translate(locale, 'projectCanvas.addCard')}</Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    if (selectedAddMode.nodeType) onAddEmbeddedNode(selectedAddMode.nodeType)
+                  }}
+                >
+                  {translate(locale, 'projectCanvas.addCard')}
+                </Button>
               </div>
             )}
           </PopoverContent>

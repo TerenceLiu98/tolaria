@@ -2,7 +2,6 @@ import { Minus, Trash } from '@phosphor-icons/react'
 import type { CanvasNodeSpec } from '../../canvasNodeSpecRegistry'
 import { translate, type AppLocale } from '../../lib/i18n'
 import {
-  PROJECT_OVERVIEW_NODE_ID,
   type ProjectCanvas,
   type ProjectCanvasEdgeKind,
   type ProjectCanvasEdgeMarker,
@@ -197,12 +196,12 @@ function ProjectCanvasNodeInspector({
         </label>
       ) : null}
       <div className="project-canvas-inspector__actions">
-        {onNavigate ? (
+        {onNavigate && spec?.inspectorActions.includes('open') ? (
           <Button type="button" size="sm" variant="outline" onClick={onNavigate}>
             {translate(locale, 'projectCanvas.openNode')}
           </Button>
         ) : null}
-        {node.id !== PROJECT_OVERVIEW_NODE_ID ? (
+        {spec?.inspectorActions.includes('delete') ? (
           <Button type="button" size="sm" variant="destructive" onClick={onDelete}>
             <Trash size={14} />
             {translate(locale, 'projectCanvas.deleteNode')}

@@ -10,18 +10,16 @@ import {
 } from '@phosphor-icons/react'
 import { memo, useCallback, useEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
+import { type CanvasNodeIcon, CanvasNodeSpecRegistry } from '../../canvasNodeSpecRegistry'
 import { translate, type AppLocale } from '../../lib/i18n'
-import {
-  PROJECT_OVERVIEW_NODE_ID,
-  type ProjectCanvasNode,
-  type ProjectCanvasNodeType,
-} from '../../projectCanvas'
+import type { ProjectCanvasNode } from '../../projectCanvas'
 import { cn } from '../../lib/utils'
 import { Button } from '../ui/button'
 
 interface ProjectCanvasNavigatorProps {
   locale?: AppLocale
   nodes: ProjectCanvasNode[]
+  specs: CanvasNodeSpecRegistry
   selectedNodeId: string | null
   onFocusNode: (node: ProjectCanvasNode) => void
 }
@@ -32,31 +30,15 @@ type NavigatorRow =
 
 type NavigatorKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home'
 
-const TYPE_ORDER: ProjectCanvasNodeType[] = [
-  'paper',
-  'note',
-  'paper_block',
-  'task',
-  'image',
-  'text',
-  'group',
-]
-
-function nodeIcon(type: ProjectCanvasNodeType): ReactNode {
-  if (type === 'paper') return <Article />
-  if (type === 'paper_block') return <Quotes />
-  if (type === 'task') return <CheckSquare />
-  if (type === 'image') return <ImageSquare />
-  if (type === 'text') return <TextT />
-  if (type === 'group') return <SquaresFour />
-  return <FileText />
-}
-
-function groupLabel(locale: AppLocale, type: ProjectCanvasNodeType): string {
-  return translate(
-    locale,
-    type === 'paper_block' ? 'projectCanvas.navigator.evidence' : `projectCanvas.node.${type}`,
-  )
+const NODE_ICONS: Readonly<Record<CanvasNodeIcon, ReactNode>> = {
+  overview: <NotePencil />,
+  note: <FileText />,
+  paper: <Article />,
+  paper_block: <Quotes />,
+  task: <CheckSquare />,
+  image: <ImageSquare />,
+  text: <TextT />,
+  group: <SquaresFour />,
 }
 
 function nextNodeRowIndex(
@@ -64,18 +46,20 @@ function nextNodeRowIndex(
   currentRowIndex: number,
   key: NavigatorKey,
 ): number | null {
-  if (nodeRowIndices.length === 0) return null
-  if (key === 'Home') return nodeRowIndices[0]
-  if (key === 'End') return nodeRowIndices.at(-1) ?? null
-  const currentNodeIndex = nodeRowIndices.indexOf(currentRowIndex)
-  if (currentNodeIndex < 0) return null
-  const offset = key === 'ArrowDown' ? 1 : -1
-  return nodeRowIndices[currentNodeIndex + offset] ?? currentRowIndex
+  const currentNodeIndex = Math.max(0, nodeRowIndices.indexOf(currentRowIndex))
+  const targetByKey: Record<NavigatorKey, number> = {
+    ArrowDown: Math.min(nodeRowIndices.length - 1, currentNodeIndex + 1),
+    ArrowUp: Math.max(0, currentNodeIndex - 1),
+    End: nodeRowIndices.length - 1,
+    Home: 0,
+  }
+  return nodeRowIndices[targetByKey[key]] ?? null
 }
 
 function ProjectCanvasNavigatorComponent({
   locale = 'en',
   nodes,
+  specs,
   selectedNodeId,
   onFocusNode,
 }: ProjectCanvasNavigatorProps) {
@@ -83,21 +67,33 @@ function ProjectCanvasNavigatorComponent({
   const nodeButtonsRef = useRef(new Map<string, HTMLButtonElement>())
   const pendingFocusNodeIdRef = useRef<string | null>(null)
   const rows = useMemo<NavigatorRow[]>(() => {
-    const overview = nodes.find(node => node.id === PROJECT_OVERVIEW_NODE_ID)
-    const groups = TYPE_ORDER.flatMap(type => {
-      const items = nodes
-        .filter(node => node.id !== PROJECT_OVERVIEW_NODE_ID && node.type === type)
-        .sort((left, right) => (left.title ?? left.id).localeCompare(right.title ?? right.id))
-      return items.length > 0 ? [{ key: type, label: groupLabel(locale, type), items }] : []
-    })
-    const sections = overview
-      ? [{ key: 'overview', label: translate(locale, 'projectCanvas.navigator.overview'), items: [overview] }, ...groups]
-      : groups
-    return sections.flatMap(section => [
+    const sections = new Map<string, {
+      items: ProjectCanvasNode[]
+      key: string
+      label: string
+      order: number
+    }>()
+    for (const node of nodes) {
+      const spec = specs.getForNode(node)
+      const key = String(spec.key)
+      const section = sections.get(key)
+      if (section) section.items.push(node)
+      else sections.set(key, {
+        items: [node],
+        key,
+        label: translate(locale, spec.navigator.sectionKey),
+        order: spec.navigator.order,
+      })
+    }
+    return [...sections.values()]
+      .sort((left, right) => left.order - right.order || left.key.localeCompare(right.key))
+      .flatMap(section => [
       { kind: 'section', key: `section-${section.key}`, label: section.label, count: section.items.length },
-      ...section.items.map(node => ({ kind: 'node' as const, key: node.id, node })),
-    ])
-  }, [locale, nodes])
+      ...section.items
+        .sort((left, right) => (left.title ?? left.id).localeCompare(right.title ?? right.id))
+        .map(node => ({ kind: 'node' as const, key: node.id, node })),
+      ])
+  }, [locale, nodes, specs])
   const nodeRowIndices = useMemo(
     () => rows.flatMap((row, index) => row.kind === 'node' ? [index] : []),
     [rows],
@@ -178,6 +174,7 @@ function ProjectCanvasNavigatorComponent({
               )
             }
             const { node } = row
+            const nodeSpec = specs.getForNode(node)
             const active = node.id === selectedNodeId
             const label = node.title ?? node.ref ?? translate(locale, 'projectCanvas.untitledNode')
             return (
@@ -189,11 +186,12 @@ function ProjectCanvasNavigatorComponent({
                 className={cn('project-canvas-navigator__item', active && 'project-canvas-navigator__item--active')}
                 aria-label={label}
                 aria-current={active ? 'true' : undefined}
+                data-node-icon={nodeSpec.navigator.icon}
                 data-testid={`project-canvas-navigator-node-${node.id}`}
                 onKeyDown={event => handleNodeKeyDown(event, _index, node)}
                 onClick={() => onFocusNode(node)}
               >
-                {node.id === PROJECT_OVERVIEW_NODE_ID ? <NotePencil /> : nodeIcon(node.type)}
+                {NODE_ICONS[nodeSpec.navigator.icon]}
                 <span className="project-canvas-navigator__item-label" data-label={label} aria-hidden="true" />
               </Button>
             )

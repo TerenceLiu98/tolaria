@@ -138,6 +138,21 @@ describe('ProjectCanvasNodeRendererRegistry', () => {
     renderCard({ ...baseNode, text: 'Group label', type: 'group' })
     expect(screen.getByRole('textbox')).toHaveValue('Group label')
   })
+
+  it('lets the Paper NodeSpec own its metadata subtitle behavior', () => {
+    const paper = makeEntry({
+      isA: 'Paper',
+      path: '/vault/paper.md',
+      properties: { authors: ['Ada Lovelace'], venue_short: 'CanvasConf', year: 2026 },
+      title: 'Paper',
+    })
+    const paperCard = renderCard({ ...baseNode, type: 'paper' }, { entry: paper })
+    expect(screen.getByText('Lovelace / 2026 / CanvasConf')).toBeInTheDocument()
+    paperCard.unmount()
+
+    renderCard({ ...baseNode, type: 'note' }, { entry: paper })
+    expect(screen.queryByText('Lovelace / 2026 / CanvasConf')).not.toBeInTheDocument()
+  })
 })
 
 describe('NodeSpec inspector behavior', () => {
@@ -166,6 +181,29 @@ describe('NodeSpec inspector behavior', () => {
 
     renderInspector({ ...baseNode, ref: 'notes/source.md', type: 'note' })
     expect(screen.getByDisplayValue('notes/source.md')).toHaveAttribute('readonly')
+  })
+
+  it('renders Inspector actions from the selected NodeSpec', () => {
+    const textSpec = { ...specs.get('text'), inspectorActions: [] }
+    render(
+      <ProjectCanvasInspector
+        canvas={defaultProjectCanvas('project.md')}
+        edge={null}
+        locale="en"
+        node={baseNode}
+        spec={textSpec}
+        onClose={vi.fn()}
+        onDeleteEdge={vi.fn()}
+        onDeleteNode={vi.fn()}
+        onEdgeChange={vi.fn()}
+        onEdgeKindDefaultChange={vi.fn()}
+        onNavigate={vi.fn()}
+        onNodeChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete node' })).not.toBeInTheDocument()
   })
 
   it('edits straight, orthogonal, and curved connector routing through shadcn Select', () => {

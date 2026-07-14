@@ -44,37 +44,38 @@ interface ProjectCanvasNodeCardProps {
   vaultPath: string
 }
 
-export function ProjectCanvasNodeCard({
-  editing,
-  editorHostRef,
-  entry,
-  locale,
-  node,
-  onClick,
-  onCloseTemporary,
-  onDoubleClick,
-  onNavigateWikilink,
-  onPinTemporary,
-  onPointerDown,
-  onSelect,
-  onTextBlur,
-  onTextChange,
-  onToggleTask,
-  presentation,
-  rendererRegistry = projectCanvasNodeRendererRegistry,
-  spec,
-  resolved,
-  selected,
-  temporary = false,
-  temporaryError,
-  temporaryKind = 'peek',
-  temporarySaving = false,
-  vaultPath,
-}: ProjectCanvasNodeCardProps) {
+export function ProjectCanvasNodeCard(props: ProjectCanvasNodeCardProps) {
+  const {
+    editing,
+    editorHostRef,
+    entry,
+    locale,
+    node,
+    onClick,
+    onCloseTemporary,
+    onDoubleClick,
+    onNavigateWikilink,
+    onPinTemporary,
+    onPointerDown,
+    onSelect,
+    onTextBlur,
+    onTextChange,
+    onToggleTask,
+    presentation,
+    rendererRegistry = projectCanvasNodeRendererRegistry,
+    spec,
+    resolved,
+    selected,
+    temporary = false,
+    temporaryError,
+    temporaryKind = 'peek',
+    temporarySaving = false,
+    vaultPath,
+  } = props
   const isStale = resolved?.state === 'stale'
   const preview = spec.preview(node, presentation)
   const title = node.title ?? entry?.title ?? resolved?.targetTitle ?? preview.title ?? node.ref ?? translate(locale, 'projectCanvas.untitledNode')
-  const subtitle = entry?.isA === 'Paper' ? paperSubtitle(entry) : null
+  const subtitle = entry && spec.rendererAdapter.subtitle === 'paper' ? paperSubtitle(entry) : null
 
   return (
     <article

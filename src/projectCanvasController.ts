@@ -1,4 +1,3 @@
-import { autoLayoutCanvas } from './components/project-canvas/projectCanvasDisplay'
 import { CanvasHistoryManager, type CanvasHistoryDomain } from './canvasHistoryManager'
 import { CanvasLayerManager } from './canvasLayerManager'
 import { buildCanvasGraphicsCommandBatch, connectionAnchorToward, type CanvasConnectorCommand, type CanvasGraphicsCommandBatch } from './canvasGraphicsCommands'
@@ -275,8 +274,8 @@ export class ProjectCanvasController {
     return this.viewport.clientToCanvas(point)
   }
 
-  canvasCenter(width: number, height: number): CanvasPoint {
-    return this.viewport.canvasCenter(width, height)
+  centeredTopLeft(width: number, height: number): CanvasPoint {
+    return this.viewport.centeredTopLeft(width, height)
   }
 
   graphicsBounds(): { minX: number; minY: number; width: number; height: number } {
@@ -583,13 +582,22 @@ export class ProjectCanvasController {
     return this.addNode(parentId ? { ...node, parentId } : node, options)
   }
 
+  createNodeFromInput(
+    type: ProjectCanvasNode['type'],
+    value: string,
+    options: CanvasAddNodeOptions = {},
+  ): ProjectCanvas | null {
+    const input = this.specs.get(type).createFromInput(value)
+    return input ? this.createNode({ ...options, ...input, type }) : this.getScene()
+  }
+
   createPeekNode(type: ProjectCanvasNode['type'], ref: string, title?: string, sourceNodeId?: string): ProjectCanvasNode | null {
     const spec = this.specs.get(type)
     const geometry = spec.editorGeometry ?? spec.geometry
     const source = sourceNodeId ? this.sceneStore?.node(sourceNodeId) : null
     const center = source
       ? { x: source.x + source.width + 80 + geometry.width / 2, y: source.y + geometry.height / 2 }
-      : this.canvasCenter(geometry.width, geometry.height)
+      : this.viewport.viewportCenter()
     return this.buildNode({ type, ref, title, center }, geometry, 'peek')
   }
 
@@ -634,8 +642,16 @@ export class ProjectCanvasController {
     return nextId(prefix, this.sceneStore?.getSnapshot().nodeOrder ?? [])
   }
 
-  geometryForNode(nodeType: ProjectCanvasNode['type']): { width: number; height: number; minWidth: number; minHeight: number } {
-    return { ...this.specs.get(nodeType).geometry }
+  ensureEditorGeometry(nodeId: string): ProjectCanvas | null {
+    const node = this.sceneStore?.node(nodeId)
+    if (!node) return this.getScene()
+    const editorGeometry = this.specs.getForNode(node).editorGeometry
+    if (!editorGeometry) return this.getScene()
+    const width = Math.max(node.width, editorGeometry.width, editorGeometry.minWidth)
+    const height = Math.max(node.height, editorGeometry.height, editorGeometry.minHeight)
+    return width === node.width && height === node.height
+      ? this.getScene()
+      : this.updateNode(nodeId, { width, height }, true)
   }
 
   deleteNodes(nodeIds: readonly string[]): ProjectCanvas | null {
@@ -1175,8 +1191,8 @@ export class ProjectCanvasController {
   }
 
   autoLayout(): ProjectCanvas | null {
-    const result = this.commitScene('Auto-layout', autoLayoutCanvas)
-    this.viewport.fitToBounds(result ? { minX: Math.min(...result.nodes.map(node => node.x)), minY: Math.min(...result.nodes.map(node => node.y)), maxX: Math.max(...result.nodes.map(node => node.x + node.width)), maxY: Math.max(...result.nodes.map(node => node.y + node.height)) } : null)
+    const result = this.commitScene('Auto-layout', canvas => this.specs.autoLayoutCanvas(canvas))
+    this.viewport.fitToBounds(this.sceneStore?.getSnapshot().bounds ?? null)
     this.viewport.flush()
     return result
   }
@@ -1230,7 +1246,7 @@ export class ProjectCanvasController {
   ): ProjectCanvasNode {
     const spec = this.specs.get(options.type)
     const resolved = options.ref ? spec.resolveDrop(options.ref) : null
-    const center = options.center ?? this.canvasCenter(geometry.width, geometry.height)
+    const center = options.center ?? this.viewport.viewportCenter()
     return {
       id: this.allocateNodeId(idPrefix),
       type: options.type,

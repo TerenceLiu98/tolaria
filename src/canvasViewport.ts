@@ -153,10 +153,14 @@ export class CanvasViewport {
     return this.screenToCanvas(this.clientToScreen(point))
   }
 
-  canvasCenter(width: number, height: number, fallback: CanvasViewportSize = { width: 760, height: 460 }): CanvasPoint {
+  viewportCenter(fallback: CanvasViewportSize = { width: 760, height: 460 }): CanvasPoint {
     const viewportWidth = this.sizeValue.width > 0 ? this.sizeValue.width : fallback.width
     const viewportHeight = this.sizeValue.height > 0 ? this.sizeValue.height : fallback.height
-    const center = this.screenToCanvas({ x: viewportWidth / 2, y: viewportHeight / 2 })
+    return this.screenToCanvas({ x: viewportWidth / 2, y: viewportHeight / 2 })
+  }
+
+  centeredTopLeft(width: number, height: number, fallback: CanvasViewportSize = { width: 760, height: 460 }): CanvasPoint {
+    const center = this.viewportCenter(fallback)
     return { x: center.x - width / 2, y: center.y - height / 2 }
   }
 

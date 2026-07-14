@@ -17,7 +17,7 @@ import {
 
 interface ProjectCanvasAiDraftConfig {
   canvas: ProjectCanvas | null
-  canvasCenter: (width?: number, height?: number) => { x: number; y: number }
+  centeredTopLeft: (width: number, height: number) => { x: number; y: number }
   canvasRef: MutableRefObject<ProjectCanvas | null>
   commitCanvas: (next: ProjectCanvas) => void
   allocateNodeId: (prefix: string) => string
@@ -33,7 +33,7 @@ interface ProjectCanvasAiDraftConfig {
 export function useProjectCanvasAiDraft({
   allocateNodeId,
   canvas,
-  canvasCenter,
+  centeredTopLeft,
   canvasRef,
   commitCanvas,
   createNote,
@@ -51,7 +51,7 @@ export function useProjectCanvasAiDraft({
   const show = useCallback((intent: { title: string; content: string }): boolean => {
     const current = canvasRef.current
     if (!current) return false
-    const position = canvasCenter(560, 420)
+    const position = centeredTopLeft(560, 420)
     const draft: ProjectCanvasNode = {
       id: 'ai_draft',
       type: 'note',
@@ -67,7 +67,7 @@ export function useProjectCanvasAiDraft({
     focusNode(draft, false)
     trackProjectCanvasAiDraftOpened()
     return true
-  }, [canvasCenter, canvasRef, focusNode])
+  }, [canvasRef, centeredTopLeft, focusNode])
 
   useEffect(() => {
     const pending = pendingProjectCanvasDraft(projectPath)
