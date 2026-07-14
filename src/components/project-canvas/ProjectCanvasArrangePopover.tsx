@@ -12,7 +12,7 @@ import {
   StackPlus,
   type Icon,
 } from '@phosphor-icons/react'
-import { translate, type AppLocale } from '../../lib/i18n'
+import { translate, type AppLocale, type TranslationKey } from '../../lib/i18n'
 import type { CanvasAlignment, CanvasArrangement, CanvasDistribution } from '../../projectCanvasController'
 import { Button } from '../ui/button'
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from '../ui/popover'
@@ -25,7 +25,7 @@ interface ProjectCanvasArrangePopoverProps {
   onDistribute: (distribution: CanvasDistribution) => void
 }
 
-const ALIGNMENT_ACTIONS: readonly [CanvasAlignment, string, Icon][] = [
+const ALIGNMENT_ACTIONS: readonly [CanvasAlignment, TranslationKey, Icon][] = [
   ['left', 'projectCanvas.alignLeft', AlignLeft],
   ['center', 'projectCanvas.alignCenter', AlignCenterHorizontal],
   ['right', 'projectCanvas.alignRight', AlignRight],
